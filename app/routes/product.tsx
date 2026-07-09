@@ -7,7 +7,9 @@ import { ProductPrice } from "~/components/product-price";
 import { TELEGRAM_URL } from "../lib/contact";
 import { brandToSlug } from "../lib/catalog";
 import { type ServerProduct, fetchProduct, productImage } from "../lib/api";
+import { pushRecentView } from "../lib/history";
 import { useLanguage } from "../lib/i18n";
+import { useWishlist } from "../lib/useWishlist";
 import { useCart } from "../lib/useCart";
 import { useCartMutation } from "../lib/useCartMutation";
 
@@ -27,7 +29,16 @@ export default function ProductPage() {
   useEffect(() => {
     if (!id) { setStatus("error"); return; }
     fetchProduct(id)
-      .then((p) => { setProduct(p); setStatus("ok"); })
+      .then((p) => {
+        setProduct(p);
+        setStatus("ok");
+        pushRecentView({
+          id: p.id,
+          name: p.name,
+          brand: p.brand,
+          image: p.image,
+        });
+      })
       .catch(() => setStatus("error"));
   }, [id]);
 
@@ -176,9 +187,10 @@ function ProductInfo({ product }: { product: ServerProduct }) {
     translateValue,
   } = useLanguage();
   const { addItem, isPending, getAction } = useCartMutation();
+  const { isWishlisted, toggle } = useWishlist();
   const navigate = useNavigate();
   const [added, setAdded] = useState(false);
-  const [wishlist, setWishlist] = useState(false);
+  const wishlist = isWishlisted(product.id);
   const adding = isPending(product.id) && getAction(product.id) === "add";
   const inStock = product.stock > 0;
   const brandSlug = brandToSlug(product.brand);
@@ -315,7 +327,15 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
         <button
           type="button"
-          onClick={() => setWishlist((v) => !v)}
+          onClick={() =>
+            toggle({
+              productId: product.id,
+              name: product.name,
+              brand: product.brand,
+              price: product.price,
+              image: productImage(product.category, product.brand, product.image),
+            })
+          }
           aria-label={wishlist ? t("product.removeWishlist") : t("product.addWishlist")}
           className="flex h-14 w-14 shrink-0 items-center justify-center border border-zinc-200 text-zinc-500 transition hover:border-zinc-950 hover:text-zinc-950"
         >

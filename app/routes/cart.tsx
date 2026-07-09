@@ -37,6 +37,16 @@ export default function CartPage() {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const savedPromo = sessionStorage.getItem("dupli1_promo");
+    if (savedPromo) {
+      setPromoInput(savedPromo);
+      if (savedPromo.toUpperCase() === PROMO_CODE) {
+        setPromoCode(savedPromo.toUpperCase());
+      }
+    }
+  }, []);
+
   function applyPromo() {
     const code = promoInput.trim().toUpperCase();
     if (code === PROMO_CODE) {

@@ -12,7 +12,9 @@ import {
 
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
+import { ContactFloat } from "./components/contact-float";
 import { NotFoundPage } from "./components/not-found";
+import { SearchOverlay } from "./components/search-overlay";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
 
@@ -58,6 +60,7 @@ export default function App() {
           <Outlet />
         </div>
         <Footer />
+        <ContactFloat />
         <CookieBanner />
       </div>
     </LanguageProvider>
@@ -66,12 +69,33 @@ export default function App() {
 
 function AnnouncementBar() {
   const { t } = useLanguage();
+  const [copied, setCopied] = useState(false);
+
+  async function copyPromoCode() {
+    try {
+      await navigator.clipboard.writeText("SUMMER30");
+      sessionStorage.setItem("dupli1_promo", "SUMMER30");
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      sessionStorage.setItem("dupli1_promo", "SUMMER30");
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">
       <p className="text-center text-[10px] tracking-[0.18em] text-white/70 uppercase">
         {t("announcement.freeShipping")}&ensp;·&ensp;{t("announcement.code")}&ensp;
-        <span className="font-medium text-[#c8a96e] tracking-widest">SUMMER30</span>
+        <button
+          type="button"
+          onClick={copyPromoCode}
+          className="font-medium text-[#c8a96e] tracking-widest underline-offset-4 transition hover:underline"
+          aria-label={t("announcement.copyCode")}
+        >
+          {copied ? t("announcement.copied") : "SUMMER30"}
+        </button>
         &ensp;—&ensp;{t("announcement.discount")}
       </p>
     </div>
@@ -135,6 +159,7 @@ function TopNav() {
   const [activeNav, setActiveNav] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const closeMenuTimeoutRef = useRef<number | null>(null);
 
   const openMobileMenu = () => {
@@ -224,7 +249,22 @@ function TopNav() {
         </NavLink>
 
         <div className="flex justify-end gap-0.5">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label={t("nav.search")}
+            className="rounded p-2 text-zinc-400 transition hover:text-zinc-950"
+          >
+            <SearchIcon />
+          </button>
           <LanguageSelector />
+          <NavLink
+            to="/history"
+            aria-label={t("nav.history")}
+            className="rounded p-2 text-zinc-400 transition hover:text-zinc-950"
+          >
+            <HistoryIcon />
+          </NavLink>
           <NavLink
             to="/cart"
             aria-label={t("nav.shoppingBag")}
@@ -371,6 +411,7 @@ function TopNav() {
           </div>
         );
       })()}
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

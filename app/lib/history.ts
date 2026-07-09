@@ -1,10 +1,20 @@
 const KEY = "dupli1_history";
+const VIEWS_KEY = "dupli1_recent_views";
 const MAX = 20;
+const MAX_VIEWS = 12;
 
 export interface HistoryEntry {
   id: string;
   query: string;
   category: string;
+  timestamp: number;
+}
+
+export interface ViewedProduct {
+  id: string;
+  name: string;
+  brand: string;
+  image?: string;
   timestamp: number;
 }
 
@@ -39,6 +49,32 @@ export function pushHistory(query: string, category: string): void {
 export function clearHistory(): void {
   try {
     localStorage.removeItem(KEY);
+  } catch {
+    // no-op in SSR
+  }
+}
+
+export function getRecentViews(): ViewedProduct[] {
+  try {
+    return JSON.parse(localStorage.getItem(VIEWS_KEY) ?? "[]") as ViewedProduct[];
+  } catch {
+    return [];
+  }
+}
+
+export function pushRecentView(product: Omit<ViewedProduct, "timestamp">): void {
+  try {
+    const list = getRecentViews().filter((entry) => entry.id !== product.id);
+    const updated = [{ ...product, timestamp: Date.now() }, ...list].slice(0, MAX_VIEWS);
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(updated));
+  } catch {
+    // no-op in SSR
+  }
+}
+
+export function clearRecentViews(): void {
+  try {
+    localStorage.removeItem(VIEWS_KEY);
   } catch {
     // no-op in SSR
   }

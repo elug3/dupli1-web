@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { type User, getMe, logout } from "~/lib/auth";
-import { type Bag, fetchBags, bagImage } from "~/lib/api";
 import { ProductPrice } from "~/components/product-price";
 import { useLanguage } from "~/lib/i18n";
+import { useWishlist } from "~/lib/useWishlist";
 
 type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
 
@@ -190,11 +190,7 @@ export default function Profile() {
 
 function WishlistSection() {
   const { t, translateProductName } = useLanguage();
-  const [items, setItems] = useState<Bag[]>([]);
-
-  function remove(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  }
+  const { items, remove } = useWishlist();
 
   return (
     <section>
@@ -204,12 +200,12 @@ function WishlistSection() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((item) => (
-            <div key={item.id} className="group relative">
-              <Link to={`/product/${item.id}`}>
+            <div key={item.productId} className="group relative">
+              <Link to={`/product/${item.productId}`}>
                 <div className="overflow-hidden bg-zinc-50">
                   <img
-                    src={bagImage(item.brand, item.image)}
-                    alt={translateProductName(item.id, item.name)}
+                    src={item.image}
+                    alt={translateProductName(item.productId, item.name)}
                     className="aspect-square w-full object-cover transition duration-300 group-hover:scale-105"
                   />
                 </div>
@@ -218,13 +214,13 @@ function WishlistSection() {
                     {item.brand}
                   </p>
                   <p className="text-xs font-medium text-zinc-950 leading-snug">
-                    {translateProductName(item.id, item.name)}
+                    {translateProductName(item.productId, item.name)}
                   </p>
                   <ProductPrice price={item.price} />
                 </div>
               </Link>
               <button
-                onClick={() => remove(item.id)}
+                onClick={() => remove(item.productId)}
                 aria-label={t("profile.removeWishlist")}
                 className="absolute right-2 top-2 flex size-7 items-center justify-center bg-white/80 text-zinc-400 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
               >

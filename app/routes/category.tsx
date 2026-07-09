@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
   type DisplayProduct,
   productImage,
@@ -15,6 +15,7 @@ import {
 } from "~/lib/catalog";
 import { ProductPrice } from "~/components/product-price";
 import { useLanguage } from "~/lib/i18n";
+import { pushHistory } from "~/lib/history";
 
 export function meta() {
   return [
@@ -199,19 +200,27 @@ function FacetResults({
   value: string;
 }) {
   const { t, translateProductName } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() ?? "";
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const title = categoryDisplayLabel(facet, value, t);
+  const title = query
+    ? t("search.resultsFor", { query })
+    : categoryDisplayLabel(facet, value, t);
 
   useEffect(() => {
     setLoading(true);
     const params = buildCategorySearchParams(facet, value);
+    if (query) params.query = query;
     searchProducts("bags", params)
-      .then((data) => setProducts(data.results))
+      .then((data) => {
+        setProducts(data.results);
+        if (query) pushHistory(query, "bags");
+      })
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
-  }, [facet, value]);
+  }, [facet, value, query]);
 
   return (
     <CategoryShell title={title} count={loading ? undefined : products.length}>

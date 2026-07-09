@@ -9,9 +9,7 @@ import {
 } from "../lib/api";
 import { brandToSlug } from "../lib/catalog";
 import { useLanguage } from "../lib/i18n";
-import { ContactFloat } from "../components/contact-float";
 import { ProductPrice } from "../components/product-price";
-
 export function meta() {
   return [
     { title: "Dupli1 — Curated Luxury Bags" },
@@ -70,7 +68,6 @@ export default function Home() {
       <FeaturedBags />
       <StyleEdit />
       <PromoBanner />
-      <ContactFloat />
     </main>
   );
 }
