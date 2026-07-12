@@ -14,6 +14,36 @@ export default [
   route("api/categories", "routes/api.categories.ts"),
   route("api/filters", "routes/api.filters.ts"),
   route("api/coupons/redeem", "routes/api.coupons.redeem.ts"),
+  route("api/v1/cart", "routes/api.v1.cart.ts"),
+  route("api/v1/cart/items", "routes/api.v1.cart.items.ts"),
+  route("api/v1/cart/items/:sku", "routes/api.v1.cart.items.$sku.ts"),
+  route("api/v1/checkout/sessions", "routes/api.v1.checkout.sessions.ts"),
+  route("api/v1/checkout/sessions/:id", "routes/api.v1.checkout.sessions.$id.ts"),
+  route(
+    "api/v1/checkout/sessions/:id/items",
+    "routes/api.v1.checkout.sessions.$id.items.ts"
+  ),
+  route(
+    "api/v1/checkout/sessions/:id/items/:sku",
+    "routes/api.v1.checkout.sessions.$id.items.$sku.ts"
+  ),
+  route(
+    "api/v1/checkout/sessions/:id/coupon",
+    "routes/api.v1.checkout.sessions.$id.coupon.ts"
+  ),
+  route(
+    "api/v1/checkout/sessions/:id/complete",
+    "routes/api.v1.checkout.sessions.$id.complete.ts"
+  ),
+  route("api/v1/payments", "routes/api.v1.payments.ts"),
+  route("api/v1/payments/:id", "routes/api.v1.payments.$id.ts"),
+  route(
+    "api/v1/payments/:id/simulate-success",
+    "routes/api.v1.payments.$id.simulate-success.ts"
+  ),
+  route("api/v1/orders", "routes/api.v1.orders.ts"),
+  route("api/v1/orders/:id", "routes/api.v1.orders.$id.ts"),
+  route("api/v1/inventory/:sku", "routes/api.v1.inventory.$sku.ts"),
   index("routes/home.tsx"),
   route("product/:id", "routes/product.tsx"),
   route("cart", "routes/cart.tsx"),

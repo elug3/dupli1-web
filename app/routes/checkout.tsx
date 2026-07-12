@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CartLineControls } from "../components/cart-line-controls";
 import { LoadingBadge } from "../components/loading-badge";
+import { getMe } from "../lib/auth";
+import { clearCart, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
+import {
+  applySessionCoupon,
+  completeCheckoutSession,
+  createCheckoutSession,
+  createPayment,
+  replaceSessionItems,
+  simulatePaymentSuccess,
+} from "../lib/checkout";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
 import { useCartMutation } from "../lib/useCartMutation";
@@ -19,38 +29,26 @@ export function meta() {
 
 interface FormState {
   email: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   address: string;
   apartment: string;
   city: string;
-  state: string;
   zip: string;
   country: string;
   phone: string;
   delivery: "standard" | "express";
-  cardName: string;
-  cardNumber: string;
-  expiry: string;
-  cvc: string;
 }
 
 const initialForm: FormState = {
   email: "",
-  firstName: "",
-  lastName: "",
+  name: "",
   address: "",
   apartment: "",
   city: "",
-  state: "",
   zip: "",
   country: "",
   phone: "",
   delivery: "standard",
-  cardName: "",
-  cardNumber: "",
-  expiry: "",
-  cvc: "",
 };
 
 const checkoutSteps = ["information", "delivery", "payment"] as const;
@@ -60,39 +58,14 @@ const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
   information: [
     "email",
     "phone",
-    "firstName",
-    "lastName",
+    "name",
     "address",
     "city",
-    "state",
     "zip",
   ],
   delivery: [],
-  payment: ["cardName", "cardNumber", "expiry", "cvc"],
+  payment: [],
 };
-
-const CARD_NUMBER_DIGITS = 12;
-const EXPIRY_DIGITS = 4;
-const CVC_DIGITS = 3;
-
-function digitsOnly(value: string, max: number): string {
-  return value.replace(/\D/g, "").slice(0, max);
-}
-
-function formatCardNumber(value: string): string {
-  const digits = digitsOnly(value, CARD_NUMBER_DIGITS);
-  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
-}
-
-function formatExpiry(value: string): string {
-  const digits = digitsOnly(value, EXPIRY_DIGITS);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-}
-
-function formatCvc(value: string): string {
-  return digitsOnly(value, CVC_DIGITS);
-}
 
 function focusField(id: string) {
   requestAnimationFrame(() => {
@@ -104,16 +77,18 @@ export default function CheckoutPage() {
   const { t, formatCurrency, translateProductName } = useLanguage();
   const lockedCountry = t("checkout.countryValue");
   const navigate = useNavigate();
-  const { items, clear, totals } = useCart();
+  const { items, status, totals } = useCart();
   const mutation = useCartMutation();
   const [form, setForm] = useState<FormState>(initialForm);
-  const [promoCode, setPromoCode] = useState("");
+  const [coupon, setCoupon] = useState<RedeemedCoupon | null>(null);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
+  const [applyingPromo, setApplyingPromo] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>(
     {}
   );
   const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
 
@@ -125,18 +100,27 @@ export default function CheckoutPage() {
     setForm((prev) => ({ ...prev, country: lockedCountry }));
   }, [lockedCountry]);
 
-  const summary = totals(promoCode);
-  const expressFee = form.delivery === "express" ? 25 : 0;
-  const checkoutTotal = summary.total + expressFee;
+  useEffect(() => {
+    if (mounted && status === "guest") {
+      navigate(`/login?next=${encodeURIComponent("/checkout")}`);
+    }
+  }, [mounted, status, navigate]);
+
+  const summary = totals(coupon?.discount ?? 0);
+  const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
 
-  function applyPromo() {
-    const code = promoInput.trim().toUpperCase();
-    if (code === "SUMMER30") {
-      setPromoCode(code);
-      setPromoError("");
+  async function applyPromo() {
+    const code = promoInput.trim();
+    if (!code) return;
+    setApplyingPromo(true);
+    setPromoError("");
+    const redeemed = await redeemCoupon(code);
+    setApplyingPromo(false);
+    if (redeemed) {
+      setCoupon(redeemed);
     } else {
-      setPromoCode("");
+      setCoupon(null);
       setPromoError(t("checkout.invalidPromo"));
     }
   }
@@ -144,26 +128,6 @@ export default function CheckoutPage() {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
-  }
-
-  function handleCardNumberChange(value: string) {
-    const formatted = formatCardNumber(value);
-    updateField("cardNumber", formatted);
-    if (digitsOnly(formatted, CARD_NUMBER_DIGITS).length === CARD_NUMBER_DIGITS) {
-      focusField("expiry");
-    }
-  }
-
-  function handleExpiryChange(value: string) {
-    const formatted = formatExpiry(value);
-    updateField("expiry", formatted);
-    if (digitsOnly(formatted, EXPIRY_DIGITS).length === EXPIRY_DIGITS) {
-      focusField("cvc");
-    }
-  }
-
-  function handleCvcChange(value: string) {
-    updateField("cvc", formatCvc(value));
   }
 
   const activeStepIndex = checkoutSteps.indexOf(activeStep);
@@ -241,25 +205,51 @@ export default function CheckoutPage() {
       handleNextStep();
       return;
     }
-    const firstInvalidField = validateStep("payment");
-    if (firstInvalidField) {
-      scrollToField(firstInvalidField);
-      return;
-    }
 
     setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    clear();
-    navigate("/checkout/confirmation", {
-      state: {
-        orderNumber: `SCK-${Date.now().toString().slice(-8)}`,
-        total: checkoutTotal,
-        email: form.email,
-      },
-    });
+    setCheckoutError(null);
+    try {
+      const user = await getMe();
+      if (!user) {
+        navigate(`/login?next=${encodeURIComponent("/checkout")}`);
+        return;
+      }
+
+      const session = await createCheckoutSession(user.user_id);
+      await replaceSessionItems(
+        session.id,
+        items.map((item) => ({
+          sku: item.sku,
+          quantity: item.quantity,
+          unit_price_cents: item.unitPriceCents,
+        }))
+      );
+      if (coupon) {
+        await applySessionCoupon(session.id, coupon.code);
+      }
+      const { order } = await completeCheckoutSession(session.id);
+      const payment = await createPayment(order.id);
+
+      if (payment.checkoutUrl.includes("/simulate-success")) {
+        // Dev mode: no Stripe key configured, complete the payment directly.
+        await simulatePaymentSuccess(payment.id);
+        await clearCart();
+        navigate("/checkout/confirmation", {
+          state: { orderId: order.id, email: form.email },
+        });
+      } else {
+        // Production: hand off to Stripe's hosted checkout page.
+        window.location.href = payment.checkoutUrl;
+      }
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : t("login.somethingWentWrong")
+      );
+      setSubmitting(false);
+    }
   }
 
-  if (!mounted) {
+  if (!mounted || status === "idle" || status === "loading" || status === "guest") {
     return (
       <main className="bg-white">
         <div className="mx-auto max-w-7xl px-4 py-14 md:px-10">
@@ -351,26 +341,15 @@ export default function CheckoutPage() {
                 </CheckoutSection>
 
                 <CheckoutSection step="02" title={t("checkout.shipping")}>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field
-                      label={t("checkout.firstName")}
-                      id="firstName"
-                      value={form.firstName}
-                      error={errors.firstName}
-                      onChange={(v) => updateField("firstName", v)}
-                      autoComplete="given-name"
-                      required
-                    />
-                    <Field
-                      label={t("checkout.lastName")}
-                      id="lastName"
-                      value={form.lastName}
-                      error={errors.lastName}
-                      onChange={(v) => updateField("lastName", v)}
-                      autoComplete="family-name"
-                      required
-                    />
-                  </div>
+                  <Field
+                    label={t("checkout.name")}
+                    id="name"
+                    value={form.name}
+                    error={errors.name}
+                    onChange={(v) => updateField("name", v)}
+                    autoComplete="name"
+                    required
+                  />
                   <Field
                     label={t("checkout.address")}
                     id="address"
@@ -387,7 +366,7 @@ export default function CheckoutPage() {
                     onChange={(v) => updateField("apartment", v)}
                     autoComplete="address-line2"
                   />
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <Field
                       label={t("checkout.city")}
                       id="city"
@@ -395,15 +374,6 @@ export default function CheckoutPage() {
                       error={errors.city}
                       onChange={(v) => updateField("city", v)}
                       autoComplete="address-level2"
-                      required
-                    />
-                    <Field
-                      label={t("checkout.state")}
-                      id="state"
-                      value={form.state}
-                      error={errors.state}
-                      onChange={(v) => updateField("state", v)}
-                      autoComplete="address-level1"
                       required
                     />
                     <Field
@@ -437,11 +407,7 @@ export default function CheckoutPage() {
                     checked={form.delivery === "standard"}
                     title={t("checkout.standardDelivery")}
                     subtitle={t("checkout.standardDeliveryTime")}
-                    price={
-                      summary.shipping === 0
-                        ? t("cart.complimentary")
-                        : formatCurrency(summary.shipping)
-                    }
+                    price={formatCurrency(summary.shipping)}
                     onChange={() => updateField("delivery", "standard")}
                   />
                   <DeliveryOption
@@ -450,7 +416,7 @@ export default function CheckoutPage() {
                     checked={form.delivery === "express"}
                     title={t("checkout.expressDelivery")}
                     subtitle={t("checkout.expressDeliveryTime")}
-                    price={formatCurrency(25)}
+                    price={formatCurrency(summary.shipping)}
                     onChange={() => updateField("delivery", "express")}
                   />
                 </div>
@@ -459,62 +425,14 @@ export default function CheckoutPage() {
 
             {activeStep === "payment" && (
               <CheckoutSection step="03" title={t("checkout.payment")}>
-                <Field
-                  label={t("checkout.cardName")}
-                  id="cardName"
-                  value={form.cardName}
-                  error={errors.cardName}
-                  onChange={(v) => updateField("cardName", v)}
-                  autoComplete="cc-name"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && form.cardName.trim()) {
-                      e.preventDefault();
-                      focusField("cardNumber");
-                    }
-                  }}
-                  required
-                />
-                <Field
-                  label={t("checkout.cardNumber")}
-                  id="cardNumber"
-                  value={form.cardNumber}
-                  error={errors.cardNumber}
-                  onChange={handleCardNumberChange}
-                  autoComplete="cc-number"
-                  inputMode="numeric"
-                  maxLength={14}
-                  placeholder="1234 5678 9012"
-                  required
-                />
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field
-                    label={t("checkout.expiry")}
-                    id="expiry"
-                    value={form.expiry}
-                    error={errors.expiry}
-                    onChange={handleExpiryChange}
-                    autoComplete="cc-exp"
-                    inputMode="numeric"
-                    maxLength={5}
-                    placeholder="05/30"
-                    required
-                  />
-                  <Field
-                    label={t("checkout.cvc")}
-                    id="cvc"
-                    value={form.cvc}
-                    error={errors.cvc}
-                    onChange={handleCvcChange}
-                    autoComplete="cc-csc"
-                    inputMode="numeric"
-                    maxLength={CVC_DIGITS}
-                    placeholder="123"
-                    required
-                  />
-                </div>
-                <p className="text-[11px] leading-relaxed text-zinc-400">
+                <p className="text-sm leading-relaxed text-zinc-500">
                   {t("checkout.paymentNote")}
                 </p>
+                {checkoutError && (
+                  <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                    {checkoutError}
+                  </p>
+                )}
               </CheckoutSection>
             )}
 
@@ -558,7 +476,7 @@ export default function CheckoutPage() {
           <aside className="hidden lg:block lg:sticky lg:top-28 lg:self-start">
             <div className="mb-6 space-y-6 border-b border-zinc-100 pb-6">
               {items.map((item) => (
-                <div key={`${item.productId}:${item.size ?? ""}`}>
+                <div key={item.sku}>
                   <div className="flex gap-4">
                     <div className="relative h-20 w-16 shrink-0 overflow-hidden bg-zinc-50">
                       <img
@@ -580,8 +498,7 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                   <CartLineControls
-                    productId={item.productId}
-                    size={item.size}
+                    sku={item.sku}
                     quantity={item.quantity}
                     price={item.price}
                     mutation={mutation}
@@ -591,13 +508,11 @@ export default function CheckoutPage() {
             </div>
 
             <OrderSummary
-              summary={{
-                ...summary,
-                total: checkoutTotal,
-                shipping: summary.shipping + expressFee,
-              }}
+              summary={summary}
+              coupon={coupon}
               promoInput={promoInput}
               promoError={promoError}
+              applyingPromo={applyingPromo}
               onPromoInputChange={setPromoInput}
               onApplyPromo={applyPromo}
               checkoutHref="#"
@@ -858,12 +773,12 @@ function MiniBag({
       </p>
       <ul className="mt-3 space-y-4">
         {items.map((item) => {
-          const pending = mutation.isPending(item.productId, item.size);
-          const action = mutation.getAction(item.productId, item.size);
+          const pending = mutation.isPending(item.sku);
+          const action = mutation.getAction(item.sku);
 
           return (
             <li
-              key={`${item.productId}:${item.size ?? ""}`}
+              key={item.sku}
               className="border-b border-zinc-100 pb-4 last:border-0 last:pb-0"
             >
               <div className="flex justify-between gap-3 text-sm">
@@ -891,27 +806,17 @@ function MiniBag({
                       quantity={item.quantity}
                       disabled={pending}
                       onDecrease={() =>
-                        mutation.decreaseQuantity(
-                          item.productId,
-                          item.size,
-                          item.quantity
-                        )
+                        mutation.decreaseQuantity(item.sku, item.quantity)
                       }
                       onIncrease={() =>
-                        mutation.increaseQuantity(
-                          item.productId,
-                          item.size,
-                          item.quantity
-                        )
+                        mutation.increaseQuantity(item.sku, item.quantity)
                       }
                     />
                   </div>
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() =>
-                      mutation.removeItem(item.productId, item.size)
-                    }
+                    onClick={() => mutation.removeItem(item.sku)}
                     className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 transition hover:text-zinc-950 disabled:cursor-wait disabled:opacity-50"
                   >
                     {t("cart.remove")}

@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "../lib/api";
-import {
-  FREE_SHIPPING_THRESHOLD,
-  PROMO_CODE,
-  PROMO_DISCOUNT,
-} from "../lib/cart";
+import { SHIPPING_FEE, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
 import { CartLineControls } from "../components/cart-line-controls";
 import { ProductPrice } from "../components/product-price";
@@ -24,26 +20,31 @@ export function meta() {
 
 export default function CartPage() {
   const { t, formatCurrency, translateProductName } = useLanguage();
-  const { items, totals } = useCart();
+  const { items, status, totals } = useCart();
   const mutation = useCartMutation();
-  const [promoCode, setPromoCode] = useState("");
+  const [coupon, setCoupon] = useState<RedeemedCoupon | null>(null);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
+  const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(promoCode);
+  const summary = totals(coupon?.discount ?? 0);
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
   }, []);
 
-  function applyPromo() {
-    const code = promoInput.trim().toUpperCase();
-    if (code === PROMO_CODE) {
-      setPromoCode(code);
-      setPromoError("");
+  async function applyPromo() {
+    const code = promoInput.trim();
+    if (!code) return;
+    setApplyingPromo(true);
+    setPromoError("");
+    const redeemed = await redeemCoupon(code);
+    setApplyingPromo(false);
+    if (redeemed) {
+      setCoupon(redeemed);
     } else {
-      setPromoCode("");
+      setCoupon(null);
       setPromoError(t("cart.invalidPromo"));
     }
   }
@@ -73,14 +74,18 @@ export default function CartPage() {
           )}
         </div>
 
-        {items.length === 0 ? (
+        {status === "guest" ? (
+          <SignInPrompt />
+        ) : status === "loading" || status === "idle" ? (
+          <BagSkeleton />
+        ) : items.length === 0 ? (
           <EmptyBag recommendations={recommendations} />
         ) : (
           <div className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16">
             <section aria-label={t("cart.bagItems")} className="space-y-0">
               {items.map((item) => (
                 <article
-                  key={`${item.productId}:${item.size ?? ""}`}
+                  key={item.sku}
                   className="grid grid-cols-[120px_1fr] gap-5 border-b border-zinc-100 py-8 first:pt-0 md:grid-cols-[160px_1fr]"
                 >
                   <Link
@@ -107,16 +112,15 @@ export default function CartPage() {
                       >
                         {translateProductName(item.productId, item.name)}
                       </Link>
-                      {item.size && (
+                      {item.color && (
                         <p className="mt-2 text-[11px] uppercase tracking-widest text-zinc-400">
-                          {t("cart.size", { size: item.size })}
+                          {item.color}
                         </p>
                       )}
                     </div>
 
                     <CartLineControls
-                      productId={item.productId}
-                      size={item.size}
+                      sku={item.sku}
                       quantity={item.quantity}
                       price={item.price}
                       mutation={mutation}
@@ -129,8 +133,10 @@ export default function CartPage() {
             <aside className="lg:sticky lg:top-28 lg:self-start">
               <OrderSummary
                 summary={summary}
+                coupon={coupon}
                 promoInput={promoInput}
                 promoError={promoError}
+                applyingPromo={applyingPromo}
                 onPromoInputChange={setPromoInput}
                 onApplyPromo={applyPromo}
                 checkoutHref="/checkout"
@@ -184,6 +190,49 @@ function EmptyBag({ recommendations }: { recommendations: Bag[] }) {
         products={recommendations}
       />
     </>
+  );
+}
+
+function SignInPrompt() {
+  const { t } = useLanguage();
+
+  return (
+    <div className="border-b border-zinc-100 py-16 text-center md:py-24">
+      <p
+        className="text-3xl font-light text-zinc-950 md:text-4xl"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        {t("profile.signInToDupli1")}
+      </p>
+      <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-400">
+        {t("profile.signInDescription")}
+      </p>
+      <Link
+        to={`/login?next=${encodeURIComponent("/cart")}`}
+        className="mt-8 inline-flex h-12 items-center bg-zinc-950 px-10 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
+      >
+        {t("login.signIn")}
+      </Link>
+    </div>
+  );
+}
+
+function BagSkeleton() {
+  return (
+    <div className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16">
+      <div className="space-y-8">
+        {[0, 1].map((i) => (
+          <div key={i} className="grid grid-cols-[120px_1fr] gap-5 md:grid-cols-[160px_1fr]">
+            <div className="aspect-[4/5] animate-pulse bg-zinc-100" />
+            <div className="space-y-3 py-2">
+              <div className="h-3 w-20 animate-pulse bg-zinc-100" />
+              <div className="h-5 w-40 animate-pulse bg-zinc-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="h-64 animate-pulse bg-zinc-50" />
+    </div>
   );
 }
 
@@ -243,8 +292,10 @@ function Recommendations({
 
 export function OrderSummary({
   summary,
+  coupon,
   promoInput,
   promoError,
+  applyingPromo = false,
   onPromoInputChange,
   onApplyPromo,
   checkoutHref,
@@ -252,8 +303,10 @@ export function OrderSummary({
   disabled = false,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
+  coupon: RedeemedCoupon | null;
   promoInput: string;
   promoError: string;
+  applyingPromo?: boolean;
   onPromoInputChange: (value: string) => void;
   onApplyPromo: () => void;
   checkoutHref: string;
@@ -261,10 +314,6 @@ export function OrderSummary({
   disabled?: boolean;
 }) {
   const { t, formatCurrency } = useLanguage();
-  const amountToFreeShipping = Math.max(
-    0,
-    FREE_SHIPPING_THRESHOLD - (summary.subtotal - summary.discount)
-  );
 
   return (
     <div className="border border-zinc-100 bg-zinc-50/50 p-6 md:p-8">
@@ -279,9 +328,9 @@ export function OrderSummary({
             {formatCurrency(summary.subtotal)}
           </dd>
         </div>
-        {summary.promoApplied && (
+        {summary.promoApplied && coupon && (
           <div className="flex justify-between text-emerald-700">
-            <dt>{t("cart.promo", { code: PROMO_CODE })}</dt>
+            <dt>{t("cart.promo", { code: coupon.code })}</dt>
             <dd className="font-medium">
               −{formatCurrency(summary.discount)}
             </dd>
@@ -303,12 +352,6 @@ export function OrderSummary({
         </div>
       </dl>
 
-      {summary.itemCount > 0 && amountToFreeShipping > 0 && (
-        <p className="mt-4 text-[11px] leading-relaxed text-zinc-400">
-          {t("cart.freeShippingProgress", { amount: formatCurrency(amountToFreeShipping) })}
-        </p>
-      )}
-
       <div className="mt-6">
         <label
           htmlFor="promo-code"
@@ -322,13 +365,15 @@ export function OrderSummary({
             type="text"
             value={promoInput}
             onChange={(e) => onPromoInputChange(e.target.value)}
-            placeholder={PROMO_CODE}
+            placeholder={t("cart.promoCode")}
+            disabled={applyingPromo}
             className="h-11 flex-1 border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
           />
           <button
             type="button"
             onClick={onApplyPromo}
-            className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white"
+            disabled={applyingPromo}
+            className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
             {t("cart.apply")}
           </button>
@@ -336,9 +381,9 @@ export function OrderSummary({
         {promoError && (
           <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
         )}
-        {summary.promoApplied && (
+        {summary.promoApplied && coupon && (
           <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", { discount: Math.round(PROMO_DISCOUNT * 100) })}
+            {t("cart.discountApplied", { discount: Math.round(coupon.discount * 100) })}
           </p>
         )}
       </div>
@@ -367,7 +412,7 @@ export function OrderSummary({
         </li>
         <li className="flex items-center gap-2">
           <TruckIcon />
-          {t("cart.complimentaryShippingOver", { amount: formatCurrency(FREE_SHIPPING_THRESHOLD) })}
+          {t("cart.shippingFeeNote", { amount: formatCurrency(SHIPPING_FEE) })}
         </li>
         <li className="flex items-center gap-2">
           <ReturnIcon />

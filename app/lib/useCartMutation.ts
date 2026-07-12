@@ -1,79 +1,69 @@
 import { useCallback, useState } from "react";
-import { type CartItem } from "./cart";
-import { useCart } from "./useCart";
-
-export const CART_MUTATION_DELAY_MS = 800;
+import {
+  CartAuthRequiredError,
+  addToCart,
+  removeItem as removeCartItem,
+  setItemQuantity,
+} from "./cart";
 
 export type CartMutationAction = "increase" | "decrease" | "remove" | "add";
 
-export function cartItemKey(productId: string, size?: string): string {
-  return `${productId}:${size ?? ""}`;
-}
-
 export function useCartMutation() {
-  const { add, setQuantity, remove } = useCart();
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<CartMutationAction | null>(
-    null
-  );
+  const [pendingSku, setPendingSku] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<CartMutationAction | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const isPending = useCallback(
-    (productId: string, size?: string) =>
-      pendingKey === cartItemKey(productId, size),
-    [pendingKey]
-  );
+  const isPending = useCallback((sku: string) => pendingSku === sku, [pendingSku]);
 
   const getAction = useCallback(
-    (productId: string, size?: string) =>
-      isPending(productId, size) ? pendingAction : null,
+    (sku: string) => (isPending(sku) ? pendingAction : null),
     [isPending, pendingAction]
   );
 
-  const withDelay = useCallback(
-    async (key: string, action: CartMutationAction, fn: () => void) => {
-      if (pendingKey) return;
-      setPendingKey(key);
+  const run = useCallback(
+    async (sku: string, action: CartMutationAction, fn: () => Promise<void>) => {
+      if (pendingSku) return;
+      setPendingSku(sku);
       setPendingAction(action);
-      await new Promise((resolve) => setTimeout(resolve, CART_MUTATION_DELAY_MS));
-      fn();
-      setPendingKey(null);
-      setPendingAction(null);
+      setError(null);
+      try {
+        await fn();
+      } catch (err) {
+        if (err instanceof CartAuthRequiredError) {
+          setAuthRequired(true);
+        } else {
+          setError(err instanceof Error ? err.message : "Something went wrong");
+        }
+      } finally {
+        setPendingSku(null);
+        setPendingAction(null);
+      }
     },
-    [pendingKey]
+    [pendingSku]
   );
 
   const increaseQuantity = useCallback(
-    (productId: string, size: string | undefined, currentQuantity: number) =>
-      withDelay(cartItemKey(productId, size), "increase", () =>
-        setQuantity(productId, size, currentQuantity + 1)
-      ),
-    [setQuantity, withDelay]
+    (sku: string, currentQuantity: number) =>
+      run(sku, "increase", () => setItemQuantity(sku, currentQuantity + 1)),
+    [run]
   );
 
   const decreaseQuantity = useCallback(
-    (productId: string, size: string | undefined, currentQuantity: number) =>
-      withDelay(cartItemKey(productId, size), "decrease", () =>
-        setQuantity(productId, size, currentQuantity - 1)
-      ),
-    [setQuantity, withDelay]
+    (sku: string, currentQuantity: number) =>
+      run(sku, "decrease", () => setItemQuantity(sku, currentQuantity - 1)),
+    [run]
   );
 
-  const removeItem = useCallback(
-    (productId: string, size?: string) =>
-      withDelay(cartItemKey(productId, size), "remove", () =>
-        remove(productId, size)
-      ),
-    [remove, withDelay]
-  );
+  const removeItem = useCallback((sku: string) => run(sku, "remove", () => removeCartItem(sku)), [run]);
 
   const addItem = useCallback(
-    (item: Omit<CartItem, "quantity"> & { quantity?: number }) =>
-      withDelay(cartItemKey(item.productId, item.size), "add", () => add(item)),
-    [add, withDelay]
+    (sku: string, quantity = 1) => run(sku, "add", () => addToCart(sku, quantity)),
+    [run]
   );
 
   return {
-    pendingKey,
+    pendingKey: pendingSku,
     pendingAction,
     isPending,
     getAction,
@@ -81,5 +71,7 @@ export function useCartMutation() {
     decreaseQuantity,
     removeItem,
     addItem,
+    authRequired,
+    error,
   };
 }

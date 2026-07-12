@@ -451,10 +451,7 @@ function SettingsSection({ user }: { user: User }) {
           {t("profile.profile")}
         </p>
         <form onSubmit={handleSave} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t("profile.firstName")} defaultValue="" placeholder="—" />
-            <Field label={t("profile.lastName")} defaultValue="" placeholder="—" />
-          </div>
+          <Field label={t("profile.name")} defaultValue="" placeholder="—" />
           <Field label={t("profile.email")} defaultValue={user.email} type="email" />
           <Field label={t("profile.phone")} defaultValue="" placeholder="+1 (000) 000-0000" type="tel" />
           <div className="pt-1">

@@ -9,7 +9,14 @@ const ACCESS_TOKEN_TTL_SECONDS = 60 * 5;
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 15_000;
 const TOKEN_AUDIENCE = "web";
 
-type ApiService = "auth" | "products";
+type ApiService =
+  | "auth"
+  | "products"
+  | "cart"
+  | "checkout"
+  | "orders"
+  | "payments"
+  | "inventory";
 
 interface TokenResponse {
   access_token?: unknown;
@@ -65,8 +72,55 @@ function productApiBaseUrl(): string {
   );
 }
 
+function cartApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_CART_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
+// Checkout sessions and orders both live on dupli1-order.
+function ordersApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_ORDER_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
+function paymentsApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_PAYMENT_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
+function inventoryApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_INVENTORY_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
 function apiBaseUrl(service: ApiService): string {
-  return service === "auth" ? authApiBaseUrl() : productApiBaseUrl();
+  switch (service) {
+    case "auth":
+      return authApiBaseUrl();
+    case "products":
+      return productApiBaseUrl();
+    case "cart":
+      return cartApiBaseUrl();
+    case "checkout":
+    case "orders":
+      return ordersApiBaseUrl();
+    case "payments":
+      return paymentsApiBaseUrl();
+    case "inventory":
+      return inventoryApiBaseUrl();
+  }
 }
 
 function upstreamUrl(service: ApiService, path: string, requestUrl?: string): string {
@@ -487,7 +541,8 @@ export async function handleLogout(request: Request): Promise<Response> {
   return json({ ok: true }, { status: 200 }, clearSessionCookie());
 }
 
-export async function proxyProductApi(
+export async function proxyBackendApi(
+  service: ApiService,
   request: Request,
   path: string,
   options: { requireAuth?: boolean; noStore?: boolean } = {}
@@ -507,7 +562,7 @@ export async function proxyProductApi(
   if (contentType) headers.set("Content-Type", contentType);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const upstream = await fetch(upstreamUrl("products", path, request.url), {
+  const upstream = await fetch(upstreamUrl(service, path, request.url), {
     method: request.method,
     headers,
     body: hasBody ? await request.arrayBuffer() : undefined,
@@ -517,4 +572,12 @@ export async function proxyProductApi(
     noStore: options.noStore ?? options.requireAuth,
     setCookie,
   });
+}
+
+export async function proxyProductApi(
+  request: Request,
+  path: string,
+  options: { requireAuth?: boolean; noStore?: boolean } = {}
+): Promise<Response> {
+  return proxyBackendApi("products", request, path, options);
 }

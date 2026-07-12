@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { login, register } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
 
@@ -10,9 +10,17 @@ export function meta() {
   ];
 }
 
+/** Only allow same-origin relative paths — never an absolute/external URL. */
+function safeNextPath(next: string | null): string {
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/profile";
+}
+
 export default function Login() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextPath = useMemo(() => safeNextPath(searchParams.get("next")), [searchParams]);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +33,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/profile", { replace: true });
+      navigate(nextPath, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.somethingWentWrong"));
     } finally {
@@ -34,20 +42,23 @@ export default function Login() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-5 py-14">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">
+    <main className="mx-auto max-w-2xl px-4 py-14 md:py-20">
+      <div className="mb-10 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
           Dupli1
-        </h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          {mode === "login" ? t("login.welcomeBack") : t("login.createYourAccount")}
         </p>
+        <h1
+          className="mt-3 text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {mode === "login" ? t("login.welcomeBack") : t("login.createYourAccount")}
+        </h1>
       </div>
 
       {mode === "login" ? (
         <form
           onSubmit={handleSubmit}
-          className="mx-auto max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm space-y-4"
+          className="mx-auto max-w-md space-y-4 border border-zinc-100 bg-zinc-50/50 p-6 md:p-8"
         >
           <AuthField
             id="email"
@@ -70,7 +81,7 @@ export default function Login() {
           />
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+            <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
               {error}
             </p>
           )}
@@ -78,16 +89,16 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-zinc-950 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
+            className="flex h-14 w-full items-center justify-center bg-zinc-950 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
           >
             {loading ? t("login.pleaseWait") : t("login.signIn")}
           </button>
         </form>
       ) : (
-        <SignupWizard onSwitchToLogin={() => setMode("login")} />
+        <SignupWizard nextPath={nextPath} onSwitchToLogin={() => setMode("login")} />
       )}
 
-      <p className="mt-5 text-center text-sm text-zinc-500">
+      <p className="mt-6 text-center text-sm text-zinc-500">
         {mode === "login" ? t("login.noAccount") : t("login.hasAccount")}{" "}
         <button
           type="button"
@@ -95,7 +106,7 @@ export default function Login() {
             setMode(mode === "login" ? "register" : "login");
             setError(null);
           }}
-          className="font-semibold text-zinc-950 underline-offset-2 hover:underline"
+          className="font-semibold text-zinc-950 underline-offset-4 hover:underline"
         >
           {mode === "login" ? t("login.signUp") : t("login.signIn")}
         </button>
@@ -106,7 +117,13 @@ export default function Login() {
 
 type SignupStep = 1 | 2 | 3 | 4;
 
-function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
+function SignupWizard({
+  nextPath,
+  onSwitchToLogin,
+}: {
+  nextPath: string;
+  onSwitchToLogin: () => void;
+}) {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [step, setStep] = useState<SignupStep>(1);
@@ -188,7 +205,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 
   if (step === 4) {
     return (
-      <section className="rounded-3xl border border-zinc-100 bg-white p-8 text-center shadow-sm md:p-10">
+      <section className="mx-auto max-w-md border border-zinc-100 bg-zinc-50/50 p-8 text-center md:p-10">
         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e]">
           {t("signup.welcomeEyebrow")}
         </p>
@@ -204,14 +221,14 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={() => navigate("/profile", { replace: true })}
-            className="inline-flex h-12 items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            onClick={() => navigate(nextPath, { replace: true })}
+            className="flex h-12 items-center justify-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
           >
             {t("signup.goToAccount")}
           </button>
           <Link
             to="/"
-            className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-8 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            className="flex h-12 items-center justify-center border border-zinc-200 px-8 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
           >
             {t("cart.continueShopping")}
           </Link>
@@ -223,7 +240,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
   return (
     <form
       onSubmit={completeSignup}
-      className="rounded-3xl border border-zinc-100 bg-white p-6 shadow-sm md:p-8"
+      className="mx-auto max-w-md border border-zinc-100 bg-zinc-50/50 p-6 md:p-8"
     >
       <SignupStepper step={step} />
 
@@ -234,7 +251,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             title={t("signup.termsTitle")}
             description={t("signup.termsDescription")}
           />
-          <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-5 text-sm leading-relaxed text-zinc-500">
+          <div className="border border-zinc-100 bg-white p-5 text-sm leading-relaxed text-zinc-500">
             <p>{t("signup.licenseIntro")}</p>
             <ul className="mt-4 space-y-2">
               <li>• {t("signup.licenseTermOne")}</li>
@@ -318,12 +335,12 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       )}
 
       {error && (
-        <p className="mt-5 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+        <p className="mt-5 rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
           {error}
         </p>
       )}
 
-      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
         {step > 1 ? (
           <button
             type="button"
@@ -331,7 +348,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               setError(null);
               setStep((current) => Math.max(current - 1, 1) as SignupStep);
             }}
-            className="h-12 rounded-xl border border-zinc-200 px-6 text-sm font-semibold text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
+            className="flex h-12 items-center justify-center border border-zinc-200 px-6 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
           >
             {t("checkout.previousStep")}
           </button>
@@ -339,7 +356,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="h-12 rounded-xl border border-zinc-200 px-6 text-sm font-semibold text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
+            className="flex h-12 items-center justify-center border border-zinc-200 px-6 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
           >
             {t("signup.backToSignIn")}
           </button>
@@ -349,7 +366,7 @@ function SignupWizard({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           type={step === 3 ? "submit" : "button"}
           disabled={loading}
           onClick={step === 3 ? undefined : nextStep}
-          className="h-12 rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
+          className="flex h-12 items-center justify-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
         >
           {loading
             ? t("login.pleaseWait")
@@ -380,7 +397,7 @@ function SignupStepper({ step }: { step: SignupStep }) {
           <li key={label} className="flex items-center gap-3">
             <span
               className={[
-                "flex size-8 items-center justify-center rounded-full border text-[10px] font-semibold",
+                "flex size-8 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
                 isActive
                   ? "border-zinc-950 bg-zinc-950 text-white"
                   : isComplete
@@ -388,7 +405,7 @@ function SignupStepper({ step }: { step: SignupStep }) {
                     : "border-zinc-200 text-zinc-300",
               ].join(" ")}
             >
-              {isComplete ? "✓" : current}
+              {isComplete ? <CheckIcon /> : current}
             </span>
             <span
               className={[
@@ -448,8 +465,11 @@ function AuthField({
   placeholder?: string;
 }) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-medium text-zinc-600">
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-600"
+      >
         {label}
       </label>
       <input
@@ -459,7 +479,7 @@ function AuthField({
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm outline-none ring-zinc-950 transition focus:border-zinc-400 focus:ring-2"
+        className="h-12 w-full border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
         placeholder={placeholder}
       />
     </div>
@@ -478,7 +498,7 @@ function CheckboxField({
   description?: string;
 }) {
   return (
-    <label className="flex cursor-pointer gap-3 rounded-2xl border border-zinc-100 p-4 transition hover:border-zinc-300">
+    <label className="flex cursor-pointer gap-3 border border-zinc-100 bg-white p-4 transition hover:border-zinc-300">
       <input
         type="checkbox"
         checked={checked}
@@ -525,9 +545,11 @@ function PasswordStrengthMeter({ strength }: { strength: PasswordStrength }) {
   const { t } = useLanguage();
 
   return (
-    <div className="rounded-2xl bg-zinc-50 p-4">
+    <div className="border border-zinc-100 bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold text-zinc-600">{t("signup.passwordSafety")}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+          {t("signup.passwordSafety")}
+        </p>
         <p className="text-xs font-semibold text-zinc-950">{t(strength.labelKey)}</p>
       </div>
       <div className="grid grid-cols-4 gap-1">
@@ -535,7 +557,7 @@ function PasswordStrengthMeter({ strength }: { strength: PasswordStrength }) {
           <span
             key={index}
             className={[
-              "h-1 rounded-full",
+              "h-1",
               index < strength.score ? "bg-zinc-950" : "bg-zinc-200",
             ].join(" ")}
           />
@@ -545,12 +567,28 @@ function PasswordStrengthMeter({ strength }: { strength: PasswordStrength }) {
         {strength.checks.map((check) => (
           <li key={check.key} className="flex items-center gap-2">
             <span className={check.passed ? "text-emerald-600" : "text-zinc-300"}>
-              {check.passed ? "✓" : "○"}
+              {check.passed ? <CheckIcon /> : <DotIcon />}
             </span>
             {t(check.key)}
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
+      <path d="M20 7 10 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function DotIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
 }

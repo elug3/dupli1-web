@@ -8,11 +8,13 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
+import { SHIPPING_FEE } from "./lib/cart";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
 
@@ -55,7 +57,9 @@ export default function App() {
         <TopNav />
         {/* announcement 32px + logo row 56px = 88px mobile; + nav row ~36px = 124px desktop */}
         <div className="pt-[5.5rem] md:pt-[7.75rem]">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </div>
         <Footer />
         <CookieBanner />
@@ -64,13 +68,23 @@ export default function App() {
   );
 }
 
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+
+  return (
+    <div key={location.pathname} className="animate-page-transition">
+      {children}
+    </div>
+  );
+}
+
 function AnnouncementBar() {
-  const { t } = useLanguage();
+  const { t, formatCurrency } = useLanguage();
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">
       <p className="text-center text-[10px] tracking-[0.18em] text-white/70 uppercase">
-        {t("announcement.freeShipping")}&ensp;·&ensp;{t("announcement.code")}&ensp;
+        {t("announcement.shipping", { amount: formatCurrency(SHIPPING_FEE) })}&ensp;·&ensp;{t("announcement.code")}&ensp;
         <span className="font-medium text-[#c8a96e] tracking-widest">SUMMER30</span>
         &ensp;—&ensp;{t("announcement.discount")}
       </p>
@@ -100,6 +114,9 @@ const desktopNavLinks = [
       { label: "Miu Miu", to: "/category/brand/miu-miu", image: "/brands/miu-miu.svg" },
       { label: "Balenciaga", to: "/category/brand/balenciaga", image: "/brands/balenciaga.svg" },
       { label: "Hermès", to: "/category/brand/hermes", image: "/brands/hermes.svg" },
+      { label: "Loewe", to: "/category/brand/loewe", image: "/brands/loewe.svg" },
+      { label: "Prada", to: "/category/brand/prada", image: "/brands/prada.svg" },
+      { label: "Saint Laurent", to: "/category/brand/ysl", image: "/brands/saint-laurent.svg" },
     ],
   },
   {
@@ -474,22 +491,6 @@ function Footer() {
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
-
-function SearchIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="m20 20-4.35-4.35M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function HistoryIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="M4 12a8 8 0 1 0 2.35-5.65M4 5v5h5m3-2v5l3 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 function ProfileIcon() {
   return (

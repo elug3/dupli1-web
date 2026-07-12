@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { getMe, type User } from "~/lib/auth";
+import { getMe, hasPermission, type User } from "~/lib/auth";
 import { createProduct, getCategories, getUploadUrl, uploadToS3 } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
 
@@ -56,7 +56,24 @@ const CATEGORY_FIELDS: Record<string, FieldDef[]> = {
   bags: [
     ...SHARED_FIELDS,
     { key: "Capacity", label: "Capacity", type: "text", placeholder: "e.g. 20L" },
-    { key: "Gender", label: "Gender", type: "select", options: ["Male", "Female", "Unisex"] },
+    {
+      key: "ProductType",
+      label: "Product Type",
+      type: "select",
+      options: ["Totes", "Shoulder Bags", "Crossbody", "Mini Bags"],
+    },
+    {
+      key: "Style",
+      label: "Style",
+      type: "select",
+      options: ["Casual", "Evening", "Business", "Weekend", "Statement"],
+    },
+    {
+      key: "Family",
+      label: "Family",
+      type: "select",
+      options: ["Women", "Men", "Kids", "Unisex"],
+    },
   ],
   clocks: [
     ...SHARED_FIELDS,
@@ -89,6 +106,9 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
   Gender: "field.gender",
   Capacity: "field.capacity",
   Type: "field.type",
+  ProductType: "field.productType",
+  Style: "field.style",
+  Family: "field.family",
 };
 
 const FIELD_PLACEHOLDER_KEYS: Record<string, string> = {
@@ -100,7 +120,7 @@ const FIELD_PLACEHOLDER_KEYS: Record<string, string> = {
 };
 
 function canManageProducts(user: User): boolean {
-  return user.role === "admin" || user.role === "product_manager";
+  return hasPermission(user, "product.create");
 }
 
 export default function ProductNew() {

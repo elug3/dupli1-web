@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
-import { TELEGRAM_URL } from "../lib/contact";
 import { brandToSlug } from "../lib/catalog";
-import { type ServerProduct, fetchProduct, productImage } from "../lib/api";
+import {
+  type ServerProduct,
+  fetchAvailableStock,
+  fetchProduct,
+  productImage,
+} from "../lib/api";
+import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
 import { useCartMutation } from "../lib/useCartMutation";
@@ -104,9 +109,11 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   }));
 
   const [activeImg, setActiveImg] = useState(0);
+  const [wishlist, setWishlist] = useState(false);
 
   useEffect(() => {
     setActiveImg(0);
+    setWishlist(false);
   }, [product.id]);
 
   const badge = (() => {
@@ -119,7 +126,7 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl px-0 md:px-8 md:py-10">
+    <div className="mx-auto max-w-7xl px-0 pb-24 md:px-8 md:py-10 md:pb-10">
       <div className="flex flex-col md:flex-row md:gap-12 lg:gap-20">
 
         {/* ── Left: image gallery ──────────────────────────────────────── */}
@@ -154,11 +161,22 @@ function ProductLayout({ product }: { product: ServerProduct }) {
             onActiveIndexChange={setActiveImg}
             alt={translateProductName(product.id, product.name)}
             badge={badge}
+            actions={
+              <button
+                type="button"
+                onClick={() => setWishlist((v) => !v)}
+                aria-label={wishlist ? t("product.removeWishlist") : t("product.addWishlist")}
+                className="flex size-10 items-center justify-center rounded-full bg-white/90 text-zinc-700 shadow-sm backdrop-blur-sm transition hover:text-zinc-950"
+              >
+                <HeartIcon filled={wishlist} />
+              </button>
+            }
           />
         </div>
 
-        {/* ── Right: product info ──────────────────────────────────────── */}
-        <div className="w-full px-4 py-8 md:w-[420px] md:shrink-0 md:px-0 md:py-0">
+        {/* ── Right: product info — pinned in place while the gallery scrolls,
+             matching the flagship PDP pattern of keeping price/CTA always in view */}
+        <div className="w-full px-4 py-8 md:w-[420px] md:shrink-0 md:self-start md:sticky md:top-28 md:px-0 md:py-0">
           <ProductInfo product={product} />
         </div>
       </div>
@@ -171,30 +189,40 @@ function ProductLayout({ product }: { product: ServerProduct }) {
 function ProductInfo({ product }: { product: ServerProduct }) {
   const {
     t,
+    formatCurrency,
     translateProductDescription,
     translateProductName,
     translateValue,
   } = useLanguage();
-  const { addItem, isPending, getAction } = useCartMutation();
+  const mutation = useCartMutation();
+  const { addItem, isPending, getAction, authRequired } = mutation;
   const navigate = useNavigate();
+  const location = useLocation();
   const [added, setAdded] = useState(false);
-  const [wishlist, setWishlist] = useState(false);
-  const adding = isPending(product.id) && getAction(product.id) === "add";
-  const inStock = product.stock > 0;
+  const [availableStock, setAvailableStock] = useState<number | null>(null);
+  const adding = isPending(product.sku) && getAction(product.sku) === "add";
+  // Inventory has no record yet for most catalog items — treat "untracked"
+  // as available; checkout's reservation step is the real stock check.
+  const inStock = availableStock === null || availableStock > 0;
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
     : "/category/product-type/handbags";
 
+  useEffect(() => {
+    if (authRequired) {
+      navigate(`/login?next=${encodeURIComponent(location.pathname)}`);
+    }
+  }, [authRequired, navigate, location.pathname]);
+
+  useEffect(() => {
+    setAvailableStock(null);
+    fetchAvailableStock(product.sku).then(setAvailableStock).catch(() => setAvailableStock(null));
+  }, [product.sku]);
+
   async function handleAddToBag() {
     if (adding) return;
-    await addItem({
-      productId: product.id,
-      name: product.name,
-      brand: product.brand,
-      price: product.price,
-      image: productImage(product.category, product.brand, product.image),
-    });
+    await addItem(product.sku);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
@@ -258,28 +286,9 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
       <div className="my-6 h-px bg-zinc-100" />
 
-      {/* CTAs */}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={handleBuy}
-          className={[
-            "flex h-14 flex-1 items-center justify-center text-xs font-semibold uppercase tracking-widest transition",
-            inStock && !adding
-              ? "bg-zinc-950 text-white hover:bg-zinc-800"
-              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-          ].join(" ")}
-        >
-          {adding ? (
-            <LoadingBadge label={t("product.addingToBag")} size="lg" />
-          ) : inStock ? (
-            t("product.buy")
-          ) : (
-            t("product.outOfStock")
-          )}
-        </button>
-
+      {/* CTA — a single dominant "Add to Bag" action, with instant checkout
+          as a lighter secondary link underneath */}
+      <div className="flex flex-col gap-3">
         <button
           type="button"
           disabled={!inStock || adding}
@@ -293,63 +302,37 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           }
           aria-busy={adding}
           className={[
-            "flex h-14 w-14 shrink-0 items-center justify-center border transition",
+            "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
             inStock && !adding
               ? added
-                ? "border-zinc-950 bg-zinc-950 text-white"
-                : "border-zinc-200 text-zinc-600 hover:border-zinc-950 hover:text-zinc-950"
-              : "cursor-not-allowed border-zinc-100 text-zinc-300",
+                ? "bg-emerald-700 text-white"
+                : "bg-zinc-950 text-white hover:bg-zinc-800"
+              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
           ].join(" ")}
         >
           {adding ? (
-            <span
-              className="size-2 animate-pulse rounded-full bg-[#c8a96e]"
-              aria-hidden="true"
-            />
+            <LoadingBadge label={t("product.addingToBag")} size="lg" />
           ) : added ? (
-            <CheckIcon />
+            t("product.added")
+          ) : inStock ? (
+            t("product.addToBag")
           ) : (
-            <BagIcon />
+            t("product.outOfStock")
           )}
         </button>
 
         <button
           type="button"
-          onClick={() => setWishlist((v) => !v)}
-          aria-label={wishlist ? t("product.removeWishlist") : t("product.addWishlist")}
-          className="flex h-14 w-14 shrink-0 items-center justify-center border border-zinc-200 text-zinc-500 transition hover:border-zinc-950 hover:text-zinc-950"
+          disabled={!inStock || adding}
+          onClick={handleBuy}
+          className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
         >
-          <HeartIcon filled={wishlist} />
+          {t("product.buy")}
         </button>
       </div>
 
-      <a
-        href={TELEGRAM_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 flex h-12 w-full items-center justify-center gap-2 border border-zinc-200 text-xs font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
-      >
-        <TelegramIcon />
-        {t("product.contactUsTelegram")}
-      </a>
-
-      {/* Trust signals */}
-      <div className="mt-8 grid grid-cols-3 gap-3 border-t border-zinc-100 pt-6">
-        {[
-          { icon: ShieldIcon, label: t("product.authenticity"), sub: t("product.guaranteed") },
-          { icon: TruckIcon, label: t("product.freeShipping"), sub: t("product.over100") },
-          { icon: ReturnIcon, label: t("product.easyReturns"), sub: t("product.days30") },
-        ].map(({ icon: Icon, label, sub }) => (
-          <div key={label} className="flex flex-col items-center gap-1.5 text-center">
-            <Icon />
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-700">{label}</p>
-            <p className="text-[9px] text-zinc-400">{sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Accordion details */}
-      <div className="mt-8 space-y-0 border-t border-zinc-100">
+      {/* Detail links */}
+      <div className="mt-8 border-t border-zinc-100">
         {[
           {
             title: t("product.productDetails"),
@@ -357,7 +340,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           },
           {
             title: t("product.shippingReturns"),
-            body: t("product.shippingReturnsBody"),
+            body: t("product.shippingReturnsBody", { amount: formatCurrency(SHIPPING_FEE) }),
           },
           {
             title: t("product.qualityAssurance"),
@@ -366,6 +349,40 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         ].map((item) => (
           <AccordionItem key={item.title} title={item.title} body={item.body} />
         ))}
+      </div>
+
+      {/* Persistent purchase bar — mobile only; the sticky info column above
+          already keeps the CTA in view on md+ viewports */}
+      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-zinc-100 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm md:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+            {translateProductName(product.id, product.name)}
+          </p>
+          <p className="text-sm font-semibold text-zinc-950">
+            {formatCurrency(product.price)}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!inStock || adding}
+          onClick={handleAddToBag}
+          className={[
+            "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
+            inStock && !adding
+              ? "bg-zinc-950 text-white hover:bg-zinc-800"
+              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
+          ].join(" ")}
+        >
+          {adding ? (
+            <LoadingBadge label={t("product.addingToBag")} />
+          ) : added ? (
+            t("product.added")
+          ) : inStock ? (
+            t("product.addToBag")
+          ) : (
+            t("product.outOfStock")
+          )}
+        </button>
       </div>
     </div>
   );
@@ -380,7 +397,7 @@ function AccordionItem({ title, body }: { title: string; body: string }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between py-4 text-left"
       >
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-700">
+        <span className="text-sm font-medium text-zinc-950">
           {title}
         </span>
         <span className={`text-zinc-400 transition ${open ? "rotate-45" : ""}`}>
@@ -388,7 +405,7 @@ function AccordionItem({ title, body }: { title: string; body: string }) {
         </span>
       </button>
       {open && (
-        <p className="pb-4 text-xs leading-relaxed text-zinc-400">{body}</p>
+        <p className="pb-4 text-sm leading-relaxed text-zinc-500">{body}</p>
       )}
     </div>
   );
@@ -408,51 +425,6 @@ function ChevronIcon() {
   return (
     <svg aria-hidden="true" className="size-3 text-zinc-300" viewBox="0 0 24 24" fill="none">
       <path d="m9 18 6-6-6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function StarIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg aria-hidden="true" className={`size-3.5 ${filled ? "fill-[#c8a96e]" : "fill-zinc-200"}`} viewBox="0 0 24 24">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-      <path d="M20 7 10 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function BagIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M6 7h15l-1.5 11H7.5L6 7Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M9 7V5a3 3 0 0 1 6 0v2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function TelegramIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M9.04 15.29 8.7 19c.43 0 .62-.18.84-.4l2.02-1.93 4.18 3.06c.77.42 1.31.2 1.5-.72l2.72-12.76h.01c.24-1.12-.4-1.56-1.12-1.3L2.6 9.44c-1.08.42-1.06 1.02-.18 1.29l4.9 1.53L18.6 7.1c.45-.28.86-.13.52.19" />
     </svg>
   );
 }
@@ -479,27 +451,3 @@ function PlusIcon() {
   );
 }
 
-function ShieldIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5 text-zinc-400" viewBox="0 0 24 24" fill="none">
-      <path d="M12 3 4 7v5c0 5.25 3.5 10.15 8 11.25C16.5 22.15 20 17.25 20 12V7l-8-4Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-      <path d="m9 12 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function TruckIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5 text-zinc-400" viewBox="0 0 24 24" fill="none">
-      <path d="M5 17H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2m0 0h3l3 4v4h-2m-4-6H14m0 0v6m0-6h7m-7 6H8m12 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm-12 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function ReturnIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5 text-zinc-400" viewBox="0 0 24 24" fill="none">
-      <path d="M4 12a8 8 0 1 0 2.35-5.65M4 5v5h5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}

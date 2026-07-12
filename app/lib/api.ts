@@ -29,6 +29,8 @@ export interface ServerProduct {
   image?: string;
   images?: string[];
   createdAt: string;
+  /** Sellable variant SKU — what cart/checkout key line items on. */
+  sku: string;
 }
 
 // ── Bag listing — public ───────────────────────────────────────────────────
@@ -57,6 +59,18 @@ export async function fetchProduct(id: string): Promise<ServerProduct> {
   if (res.status === 404) throw new Error(`Product not found: ${id}`);
   if (!res.ok) throw new Error(`Product fetch failed: ${res.status}`);
   return res.json() as Promise<ServerProduct>;
+}
+
+/**
+ * Real-time stock for a SKU. Returns `null` when inventory has no record for
+ * it yet (untracked, not necessarily zero — stock enforcement on add isn't
+ * implemented backend-side; checkout is the real enforcement point).
+ */
+export async function fetchAvailableStock(sku: string): Promise<number | null> {
+  const res = await fetch(`/api/v1/inventory/${encodeURIComponent(sku)}`);
+  if (!res.ok) return null;
+  const body = (await res.json()) as { quantity: number; reserved: number };
+  return Math.max(0, body.quantity - body.reserved);
 }
 
 // ── Brand fallback images (server has no image column) ────────────────────
@@ -247,7 +261,11 @@ export async function createProduct(
   const res = await authedFetch("/api/products", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ category, imageUrl, ...data }),
+    body: JSON.stringify({
+      category,
+      ...(imageUrl ? { imageUrls: [imageUrl] } : {}),
+      ...data,
+    }),
   });
   if (!res.ok) {
     let msg = "Failed to create product";

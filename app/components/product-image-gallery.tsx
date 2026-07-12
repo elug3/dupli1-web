@@ -12,6 +12,7 @@ type ProductImageGalleryProps = {
   onActiveIndexChange: (index: number) => void;
   alt: string;
   badge?: ReactNode;
+  actions?: ReactNode;
 };
 
 export function ProductImageGallery({
@@ -20,6 +21,7 @@ export function ProductImageGallery({
   onActiveIndexChange,
   alt,
   badge,
+  actions,
 }: ProductImageGalleryProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -87,6 +89,10 @@ export function ProductImageGallery({
 
       {badge && (
         <div className="pointer-events-none absolute left-4 top-4 z-10">{badge}</div>
+      )}
+
+      {actions && (
+        <div className="absolute right-4 top-4 z-10">{actions}</div>
       )}
 
       {images.length > 1 && (

@@ -1,11 +1,15 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
+import { getOrder, type Order } from "../lib/checkout";
 import { useLanguage } from "../lib/i18n";
 
 interface ConfirmationState {
-  orderNumber?: string;
-  total?: number;
+  orderId?: string;
   email?: string;
 }
+
+const POLL_INTERVAL_MS = 1500;
+const MAX_POLL_ATTEMPTS = 8;
 
 export function meta() {
   return [
@@ -21,6 +25,43 @@ export default function CheckoutConfirmationPage() {
   const { t, formatCurrency } = useLanguage();
   const location = useLocation();
   const state = (location.state ?? {}) as ConfirmationState;
+  const [order, setOrder] = useState<Order | null>(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const attempts = useRef(0);
+
+  useEffect(() => {
+    if (!state.orderId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    async function poll(orderId: string) {
+      try {
+        const fetched = await getOrder(orderId);
+        if (cancelled) return;
+        setOrder(fetched);
+        attempts.current += 1;
+        if (fetched.status === "pending" && attempts.current < MAX_POLL_ATTEMPTS) {
+          timer = setTimeout(() => poll(orderId), POLL_INTERVAL_MS);
+        }
+      } catch {
+        if (!cancelled) setLookupFailed(true);
+      }
+    }
+
+    poll(state.orderId);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [state.orderId]);
+
+  const total = order ? order.totalCents / 100 : undefined;
+  const statusMessage =
+    order?.status === "pending"
+      ? t("confirmation.confirmingPayment")
+      : order
+        ? t("confirmation.preparingOrder")
+        : null;
 
   return (
     <main className="bg-white">
@@ -44,19 +85,31 @@ export default function CheckoutConfirmationPage() {
             : t("confirmation.emailShortly")}
         </p>
 
-        {(state.orderNumber || state.total != null) && (
+        {statusMessage && (
+          <p className="mx-auto mt-2 max-w-md text-sm font-medium text-zinc-700">
+            {statusMessage}
+          </p>
+        )}
+
+        {lookupFailed && (
+          <p className="mx-auto mt-2 max-w-md text-sm text-red-600">
+            {t("confirmation.lookupFailed")}
+          </p>
+        )}
+
+        {(order?.id || total != null) && (
           <dl className="mx-auto mt-10 inline-grid gap-4 border border-zinc-100 bg-zinc-50/50 px-8 py-6 text-left text-sm md:min-w-[320px]">
-            {state.orderNumber && (
+            {order?.id && (
               <div className="flex justify-between gap-8">
                 <dt className="text-zinc-400">{t("confirmation.order")}</dt>
-                <dd className="font-medium text-zinc-950">{state.orderNumber}</dd>
+                <dd className="font-medium text-zinc-950">{order.id}</dd>
               </div>
             )}
-            {state.total != null && (
+            {total != null && (
               <div className="flex justify-between gap-8">
                 <dt className="text-zinc-400">{t("confirmation.total")}</dt>
                 <dd className="font-semibold text-zinc-950">
-                  {formatCurrency(state.total)}
+                  {formatCurrency(total)}
                 </dd>
               </div>
             )}

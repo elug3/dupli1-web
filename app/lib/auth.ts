@@ -1,7 +1,34 @@
+export type AccountType = "customer" | "admin" | "service";
+
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
-  role?: string;
+  account_type: AccountType;
+  permissions: string[];
+  is_active: boolean;
+  locked_at: string | null;
+  failed_login_attempts: number;
+}
+
+/** Mirrors shared/pkg/permissions eval.go: exact match, resource wildcard
+ * (e.g. "product.*"), "admin.*" (user.* domain only), then "*". */
+export function hasPermission(
+  user: User | null | undefined,
+  required: string
+): boolean {
+  const held = user?.permissions ?? [];
+  if (held.includes(required)) return true;
+  if (
+    held.some((h) => {
+      if (!h.endsWith(".*")) return false;
+      const prefix = h.slice(0, -2);
+      return prefix !== "" && (required === prefix || required.startsWith(`${prefix}.`));
+    })
+  ) {
+    return true;
+  }
+  if (held.includes("admin.*") && required.startsWith("user.")) return true;
+  return held.includes("*");
 }
 
 function post(url: string, body: unknown): Promise<Response> {

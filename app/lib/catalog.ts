@@ -3,6 +3,9 @@ export const BRAND_SLUGS: Record<string, string> = {
   "miu-miu": "Miu Miu",
   balenciaga: "Balenciaga",
   hermes: "Hermès",
+  loewe: "Loewe",
+  prada: "Prada",
+  ysl: "Saint Laurent",
 };
 
 export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
@@ -51,9 +54,9 @@ export function buildCategorySearchParams(
       return brand ? { brand } : { brand: "__no_match__" };
     }
     case "product-type": {
-      if (!(value in PRODUCT_TYPE_SLUGS)) return { type: "__no_match__" };
+      if (!(value in PRODUCT_TYPE_SLUGS)) return { productType: "__no_match__" };
       const type = PRODUCT_TYPE_SLUGS[value];
-      return type ? { type } : {};
+      return type ? { productType: type } : {};
     }
     case "style": {
       const style = STYLE_SLUGS[value];

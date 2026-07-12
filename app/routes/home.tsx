@@ -8,8 +8,8 @@ import {
   heroBagImage,
 } from "../lib/api";
 import { brandToSlug } from "../lib/catalog";
+import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
-import { ContactFloat } from "../components/contact-float";
 import { ProductPrice } from "../components/product-price";
 
 export function meta() {
@@ -63,14 +63,12 @@ export default function Home() {
     <main className="bg-[#faf8f5]">
       <Hero />
       <ValueStrip />
-      <BrandMarquee />
       <CategoryMosaic />
       <EditorialSplit />
       <BrandTiles />
       <FeaturedBags />
       <StyleEdit />
       <PromoBanner />
-      <ContactFloat />
     </main>
   );
 }
@@ -195,75 +193,31 @@ function Hero() {
 // ── Value strip ────────────────────────────────────────────────────────────
 
 function ValueStrip() {
-  const { t } = useLanguage();
+  const { t, formatCurrency } = useLanguage();
   const values = [
-    { titleKey: "home.valueFreeShipping", icon: ShippingIcon },
+    {
+      titleKey: "home.valueShipping",
+      icon: ShippingIcon,
+      values: { amount: formatCurrency(SHIPPING_FEE) },
+    },
     { titleKey: "home.valueAuthenticity", icon: ShieldIcon },
     { titleKey: "home.valueCuration", icon: StarIcon },
-  ] as const;
+  ];
 
   return (
     <section className="border-y border-[#e8e0d4] bg-white">
       <div className="mx-auto grid max-w-7xl divide-y divide-[#e8e0d4] md:grid-cols-3 md:divide-x md:divide-y-0">
-        {values.map(({ titleKey, icon: Icon }) => (
+        {values.map(({ titleKey, icon: Icon, values: interpolation }) => (
           <div
             key={titleKey}
             className="flex items-center justify-center gap-4 px-6 py-5 text-center md:py-6"
           >
             <Icon />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-800">
-              {t(titleKey)}
+              {t(titleKey, interpolation)}
             </p>
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-// ── Brand marquee ────────────────────────────────────────────────────────────
-
-function BrandMarquee() {
-  const { t } = useLanguage();
-  const [brands, setBrands] = useState<string[]>([]);
-
-  useEffect(() => {
-    fetchBags()
-      .then((bags) => {
-        const seen = new Set<string>();
-        const list: string[] = [];
-        for (const bag of bags) {
-          if (!seen.has(bag.brand)) {
-            seen.add(bag.brand);
-            list.push(bag.brand);
-          }
-        }
-        setBrands(list);
-      })
-      .catch(() => {});
-  }, []);
-
-  if (brands.length === 0) return null;
-
-  const track = [...brands, ...brands];
-
-  return (
-    <section className="overflow-hidden border-b border-[#e8e0d4] bg-[#f3ede4] py-5">
-      <p className="mb-4 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-zinc-400">
-        {t("home.brandMarquee")}
-      </p>
-      <div className="relative">
-        <div className="flex w-max animate-home-marquee gap-10 px-4">
-          {track.map((brand, index) => (
-            <span
-              key={`${brand}-${index}`}
-              className="whitespace-nowrap text-2xl font-light tracking-[0.12em] text-zinc-400/80 md:text-3xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {brand}
-            </span>
-          ))}
-        </div>
       </div>
     </section>
   );

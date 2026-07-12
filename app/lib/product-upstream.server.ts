@@ -2,13 +2,20 @@
  * Server-side client for the Dupli1 product service (elug3/dupli1).
  *
  * Public storefront reads:
- *   GET /api/v1/products/bags
+ *   GET /api/v1/products?category=bags
  *   GET /api/v1/products/{id}
  *
  * Authenticated admin reads/writes are proxied separately via proxyProductApi.
  */
 
 const API_PREFIX = "/api/v1";
+
+export interface UpstreamVariant {
+  sku: string;
+  color?: string;
+  price: number;
+  status: string;
+}
 
 export interface UpstreamProduct {
   id: string;
@@ -25,6 +32,10 @@ export interface UpstreamProduct {
   tags?: string[];
   createdAt?: string;
   capacity?: string;
+  productType?: string;
+  style?: string;
+  family?: string;
+  variants?: UpstreamVariant[];
 }
 
 export interface BagResponse {
@@ -54,6 +65,9 @@ export interface ProductResponse {
   image?: string;
   images?: string[];
   createdAt: string;
+  // Sellable variant SKU for cart/checkout — the storefront doesn't yet expose
+  // a color/size picker, so it always adds the product's first active variant.
+  sku: string;
 }
 
 export interface SearchResult {
@@ -74,7 +88,14 @@ export interface SearchResult {
   Image?: string;
 }
 
-const BAG_FILTERS = ["brand", "color", "material"] as const;
+const BAG_FILTERS = [
+  "brand",
+  "color",
+  "material",
+  "productType",
+  "style",
+  "family",
+] as const;
 const SUPPORTED_CATEGORIES = ["bags"] as const;
 
 export function productApiBaseUrl(): string {
@@ -117,6 +138,11 @@ export function toBagResponse(product: UpstreamProduct): BagResponse {
   };
 }
 
+function defaultVariantSku(product: UpstreamProduct): string {
+  const active = product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
+  return active?.sku ?? product.id;
+}
+
 export function toProductResponse(product: UpstreamProduct): ProductResponse {
   const images = (product.imageUrls ?? []).filter((url) => url.trim().length > 0);
 
@@ -129,6 +155,7 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
     color: product.color,
     material: product.material,
     stock: product.stock,
+    sku: defaultVariantSku(product),
     category: product.category || "bags",
     status: mapDisplayStatus(product.status, product.tags),
     image: images[0],
@@ -149,9 +176,9 @@ export function toSearchResult(product: UpstreamProduct): SearchResult {
     Capacity: product.capacity ?? "",
     Stock: product.stock,
     Category: product.category || "bags",
-    Type: "",
-    Style: "",
-    Gender: "",
+    Type: product.productType ?? "",
+    Style: product.style ?? "",
+    Gender: product.family ?? "",
     Status: mapDisplayStatus(product.status, product.tags),
     Image: firstImage(product.imageUrls),
   };
@@ -171,14 +198,16 @@ export function supportedFilters(category: string): string[] {
 export async function fetchUpstreamBags(
   filters: Record<string, string> = {}
 ): Promise<UpstreamProduct[]> {
-  const params = new URLSearchParams();
+  // The product service dropped the dedicated /products/bags list endpoint
+  // in favor of a single filterable search: GET /api/v1/products.
+  const params = new URLSearchParams({ category: "bags" });
   for (const key of BAG_FILTERS) {
     const value = filters[key]?.trim();
     if (value) params.set(key, value);
   }
 
   const response = await fetch(
-    upstreamUrl(`${API_PREFIX}/products/bags`, params),
+    upstreamUrl(`${API_PREFIX}/products`, params),
     { headers: { Accept: "application/json" } }
   );
 
@@ -221,12 +250,12 @@ function getSearchableValue(product: UpstreamProduct, key: string): string {
     case "producttype":
     case "product-type":
     case "type":
-      return "";
+      return product.productType ?? "";
     case "style":
-      return "";
+      return product.style ?? "";
     case "family":
     case "gender":
-      return "";
+      return product.family ?? "";
     default:
       return "";
   }

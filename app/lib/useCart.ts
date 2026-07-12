@@ -1,78 +1,106 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { fetchProduct, productImage } from "./api";
 import {
-  addToCart,
-  cartEventName,
-  clearCart,
-  getCart,
-  getCartCount,
-  getCartTotals,
-  removeFromCart,
-  updateQuantity,
+  computeTotals,
+  getCartSnapshot,
+  refreshCart,
+  subscribeCart,
   type CartItem,
+  type CartLine,
+  type CartStatus,
   type CartTotals,
 } from "./cart";
 
-function subscribe(onStoreChange: () => void): () => void {
-  const event = cartEventName();
-  window.addEventListener(event, onStoreChange);
-  window.addEventListener("storage", onStoreChange);
-  return () => {
-    window.removeEventListener(event, onStoreChange);
-    window.removeEventListener("storage", onStoreChange);
-  };
+interface ProductMeta {
+  name: string;
+  brand: string;
+  image: string;
 }
 
-function getServerSnapshot(): CartItem[] {
-  return [];
+// Must be a stable reference — useSyncExternalStore requires getServerSnapshot
+// to return the same value on every call, or React treats it as an infinite
+// loop of changes during hydration.
+const SERVER_SNAPSHOT: {
+  status: CartStatus;
+  items: CartLine[];
+  subtotalCents: number;
+  error?: string;
+} = { status: "idle", items: [], subtotalCents: 0 };
+
+function getServerSnapshot() {
+  return SERVER_SNAPSHOT;
 }
 
 export function useCart() {
-  const items = useSyncExternalStore(
-    subscribe,
-    getCart,
-    getServerSnapshot
-  );
+  const raw = useSyncExternalStore(subscribeCart, getCartSnapshot, getServerSnapshot);
+  const [meta, setMeta] = useState<Map<string, ProductMeta>>(new Map());
 
-  const count = useSyncExternalStore(
-    subscribe,
-    getCartCount,
-    () => 0
-  );
+  useEffect(() => {
+    if (raw.status === "idle") {
+      refreshCart();
+    }
+  }, [raw.status]);
 
-  const add = useCallback(
-    (item: Omit<CartItem, "quantity"> & { quantity?: number }) => {
-      addToCart(item);
-    },
-    []
-  );
+  useEffect(() => {
+    const missing = Array.from(new Set(raw.items.map((item) => item.productId))).filter(
+      (id) => !meta.has(id)
+    );
+    if (missing.length === 0) return;
 
-  const setQuantity = useCallback(
-    (productId: string, size: string | undefined, quantity: number) => {
-      updateQuantity(productId, size, quantity);
-    },
-    []
-  );
+    let cancelled = false;
+    Promise.all(
+      missing.map((id) =>
+        fetchProduct(id)
+          .then((p): [string, ProductMeta] => [
+            id,
+            { name: p.name, brand: p.brand, image: productImage(p.category, p.brand, p.image) },
+          ])
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const resolved = results.filter((entry): entry is [string, ProductMeta] => entry != null);
+      if (resolved.length === 0) return;
+      setMeta((prev) => {
+        const next = new Map(prev);
+        for (const entry of resolved) {
+          next.set(entry[0], entry[1]);
+        }
+        return next;
+      });
+    });
 
-  const remove = useCallback((productId: string, size?: string) => {
-    removeFromCart(productId, size);
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [raw.items, meta]);
 
-  const clear = useCallback(() => {
-    clearCart();
-  }, []);
+  const items: CartItem[] = raw.items.map((line) => {
+    const productMeta = meta.get(line.productId);
+    return {
+      ...line,
+      name: productMeta?.name ?? line.productId,
+      brand: productMeta?.brand ?? "",
+      price: line.unitPriceCents / 100,
+      image: line.imageUrl ?? productMeta?.image ?? "",
+    };
+  });
+
+  const count = raw.items.reduce((sum, item) => sum + item.quantity, 0);
 
   const totals = useCallback(
-    (promoCode?: string): CartTotals => getCartTotals(promoCode),
-    [items]
+    (discountFraction = 0): CartTotals => computeTotals(raw.items, raw.subtotalCents, discountFraction),
+    [raw.items, raw.subtotalCents]
   );
+
+  const refresh = useCallback(() => refreshCart(), []);
 
   return {
     items,
     count,
-    add,
-    setQuantity,
-    remove,
-    clear,
+    status: raw.status,
+    error: raw.error,
     totals,
+    refresh,
   };
 }

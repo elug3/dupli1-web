@@ -3,21 +3,19 @@ import { useLanguage } from "../lib/i18n";
 import { type useCartMutation } from "../lib/useCartMutation";
 
 export function CartLineControls({
-  productId,
-  size,
+  sku,
   quantity,
   price,
   mutation,
 }: {
-  productId: string;
-  size?: string;
+  sku: string;
   quantity: number;
   price: number;
   mutation: ReturnType<typeof useCartMutation>;
 }) {
   const { t, formatCurrency } = useLanguage();
-  const pending = mutation.isPending(productId, size);
-  const action = mutation.getAction(productId, size);
+  const pending = mutation.isPending(sku);
+  const action = mutation.getAction(sku);
 
   if (pending && action === "remove") {
     return (
@@ -41,12 +39,8 @@ export function CartLineControls({
         <QuantityControl
           quantity={quantity}
           disabled={pending}
-          onDecrease={() =>
-            mutation.decreaseQuantity(productId, size, quantity)
-          }
-          onIncrease={() =>
-            mutation.increaseQuantity(productId, size, quantity)
-          }
+          onDecrease={() => mutation.decreaseQuantity(sku, quantity)}
+          onIncrease={() => mutation.increaseQuantity(sku, quantity)}
         />
       </div>
 
@@ -62,7 +56,7 @@ export function CartLineControls({
         <button
           type="button"
           disabled={pending}
-          onClick={() => mutation.removeItem(productId, size)}
+          onClick={() => mutation.removeItem(sku)}
           className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 underline-offset-4 transition hover:text-zinc-950 hover:underline disabled:cursor-wait disabled:opacity-50"
         >
           {t("cart.remove")}

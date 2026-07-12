@@ -23,6 +23,19 @@ export function meta() {
   ];
 }
 
+function facetEyebrowKey(facet: CategoryFacet): string {
+  switch (facet) {
+    case "product-type":
+      return "nav.productType";
+    case "brand":
+      return "nav.brand";
+    case "style":
+      return "nav.style";
+    case "family":
+      return "nav.family";
+  }
+}
+
 export default function CategoryPage() {
   const { facet = "product-type", value } = useParams();
   const resolvedFacet = isCategoryFacet(facet) ? facet : "product-type";
@@ -39,10 +52,12 @@ export default function CategoryPage() {
 // ── Shared layout pieces ─────────────────────────────────────────────────────
 
 function CategoryShell({
+  eyebrow,
   title,
   count,
   children,
 }: {
+  eyebrow: string;
   title: string;
   count?: number;
   children: React.ReactNode;
@@ -51,33 +66,37 @@ function CategoryShell({
 
   return (
     <main className="bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
-        <nav className="mb-6 flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-400">
+      <div className="mx-auto max-w-7xl px-4 pt-6 md:px-8">
+        <nav className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-400">
           <Link to="/" className="transition hover:text-zinc-950">
             {t("product.home")}
           </Link>
           <span>/</span>
           <span className="text-zinc-600">{title}</span>
         </nav>
+      </div>
 
-        <div className="mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e]">
-              {t("home.categoryBags")}
-            </p>
-            <h1
-              className="mt-2 text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {title}
-            </h1>
-          </div>
-          {typeof count === "number" && (
-            <p className="text-sm text-zinc-400">
-              {count} {count === 1 ? t("cart.item") : t("cart.items")}
-            </p>
-          )}
+      {/* Solid-color banner — shared across every category/style/target/brand page */}
+      <div className="mt-6 bg-zinc-950">
+        <div className="mx-auto max-w-7xl px-4 py-12 text-center md:px-8 md:py-16">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
+            {eyebrow}
+          </p>
+          <h1
+            className="mt-3 text-4xl font-light tracking-tight text-white md:text-5xl"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {title}
+          </h1>
         </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
+        {typeof count === "number" && (
+          <p className="mb-6 text-sm text-zinc-400">
+            {count} {count === 1 ? t("cart.item") : t("cart.items")}
+          </p>
+        )}
 
         {children}
       </div>
@@ -114,6 +133,7 @@ function FacetLanding({ facet }: { facet: CategoryFacet }) {
   const [loading, setLoading] = useState(true);
 
   const title = categoryDisplayLabel(facet, undefined, t);
+  const eyebrow = t(facetEyebrowKey(facet));
 
   useEffect(() => {
     setLoading(true);
@@ -147,7 +167,7 @@ function FacetLanding({ facet }: { facet: CategoryFacet }) {
   }, [facet, products, t]);
 
   return (
-    <CategoryShell title={title}>
+    <CategoryShell eyebrow={eyebrow} title={title}>
       {loading ? (
         <ProductSkeletonGrid />
       ) : (
@@ -203,6 +223,7 @@ function FacetResults({
   const [loading, setLoading] = useState(true);
 
   const title = categoryDisplayLabel(facet, value, t);
+  const eyebrow = t(facetEyebrowKey(facet));
 
   useEffect(() => {
     setLoading(true);
@@ -214,7 +235,7 @@ function FacetResults({
   }, [facet, value]);
 
   return (
-    <CategoryShell title={title} count={loading ? undefined : products.length}>
+    <CategoryShell eyebrow={eyebrow} title={title} count={loading ? undefined : products.length}>
       {loading ? (
         <ProductSkeletonGrid />
       ) : products.length === 0 ? (
