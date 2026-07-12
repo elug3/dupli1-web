@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /profile
+Disallow: /products/new
+
+Sitemap: https://dupli1.com/sitemap.xml

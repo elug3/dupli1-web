@@ -24,5 +24,6 @@ export default [
   route("login", "routes/login.tsx"),
   route("products/new", "routes/product-new.tsx"),
   route("category/:facet/:value?", "routes/category.tsx"),
+  route("sitemap.xml", "routes/sitemap[.]xml.ts"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
