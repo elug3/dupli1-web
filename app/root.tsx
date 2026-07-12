@@ -97,8 +97,8 @@ const desktopNavLinks = [
     to: "/category/brand/louis-vuitton",
     items: [
       { label: "Louis Vuitton", to: "/category/brand/louis-vuitton", image: "/brands/louis-vuitton.svg" },
-      { label: "Miu Miu", to: "/category/brand/miu-miu", image: "/brands/prada.svg" },
-      { label: "Balenciaga", to: "/category/brand/balenciaga", image: "/brands/gucci.svg" },
+      { label: "Miu Miu", to: "/category/brand/miu-miu", image: "/brands/miu-miu.svg" },
+      { label: "Balenciaga", to: "/category/brand/balenciaga", image: "/brands/balenciaga.svg" },
       { label: "Hermès", to: "/category/brand/hermes", image: "/brands/hermes.svg" },
     ],
   },
