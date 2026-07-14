@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { getMe, hasPermission, type User } from "~/lib/auth";
-import { createProduct, getCategories, uploadProductImage } from "~/lib/api";
+import { createProduct, getCategories, getUploadUrl, uploadToS3 } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
 
 export function meta() {
@@ -194,8 +194,6 @@ export default function ProductNew() {
             onClick={() => {
               setSuccess(false);
               setValues({});
-              setCategory("");
-              handleImageChange(null);
               setError(null);
             }}
             className="inline-flex h-12 items-center justify-center rounded-xl bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
@@ -236,19 +234,16 @@ export default function ProductNew() {
         }
       }
 
-      // Create first so the product (and default variant) exist, then upload
-      // via POST /api/v1/products/{id}/images (multipart field `image`).
-      const { id } = await createProduct(category, data);
-
+      let imageUrl: string | undefined;
       if (imageFile) {
         setUploadingImage(true);
-        try {
-          await uploadProductImage(id, imageFile);
-        } finally {
-          setUploadingImage(false);
-        }
+        const { uploadUrl, publicUrl } = await getUploadUrl(imageFile.name, imageFile.type);
+        await uploadToS3(uploadUrl, imageFile);
+        imageUrl = publicUrl;
+        setUploadingImage(false);
       }
 
+      await createProduct(category, data, imageUrl);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.somethingWentWrong"));
