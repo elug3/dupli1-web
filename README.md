@@ -98,8 +98,6 @@ Product catalog BFF routes (`/api/products/bags`, `/api/products/:id`,
 - Public bag search: `GET /api/v1/products/bags`
 - Public product detail: `GET /api/v1/products/{id}` (active products only)
 - Admin product CRUD is proxied to `/api/v1/products` with the user's session token
-- Admin image upload is proxied to `POST /api/v1/products/{id}/images`
-  (multipart field `image`) via `POST /api/products/:id/images`
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
