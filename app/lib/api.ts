@@ -231,47 +231,73 @@ export async function searchProducts(
   };
 }
 
-export async function getUploadUrl(
-  filename: string,
-  contentType: string
-): Promise<{ uploadUrl: string; publicUrl: string }> {
-  const res = await authedFetch("/api/products/upload-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, contentType }),
-  });
-  if (!res.ok) throw new Error("Failed to get upload URL");
-  return res.json() as Promise<{ uploadUrl: string; publicUrl: string }>;
-}
-
-export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!res.ok) throw new Error("Image upload to S3 failed");
-}
+/** Map products/new form keys (PascalCase) onto the product API JSON fields. */
+const CREATE_FIELD_MAP: Record<string, string> = {
+  Name: "name",
+  Title: "name",
+  Brand: "brand",
+  Price: "price",
+  Stock: "stock",
+  Description: "description",
+  Color: "color",
+  Material: "material",
+  Capacity: "capacity",
+  Status: "status",
+};
 
 export async function createProduct(
   category: string,
-  data: Record<string, unknown>,
-  imageUrl?: string
-): Promise<void> {
+  data: Record<string, unknown>
+): Promise<{ id: string }> {
+  const body: Record<string, unknown> = { category };
+  for (const [key, value] of Object.entries(data)) {
+    const apiKey = CREATE_FIELD_MAP[key] ?? key;
+    // Prefer the first mapped value when Title and Name both exist.
+    if (body[apiKey] === undefined) body[apiKey] = value;
+  }
+
   const res = await authedFetch("/api/products", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      category,
-      ...(imageUrl ? { imageUrls: [imageUrl] } : {}),
-      ...data,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     let msg = "Failed to create product";
     try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) msg = body.error;
+      const errBody = (await res.json()) as { error?: string };
+      if (errBody.error) msg = errBody.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  const created = (await res.json()) as { id?: string };
+  if (!created.id) throw new Error("Product created without an id");
+  return { id: created.id };
+}
+
+/**
+ * Upload a product image via the BFF →
+ * `POST /api/v1/products/{id}/images` (multipart field `image`).
+ * Appends to the product's default variant.
+ */
+export async function uploadProductImage(
+  productId: string,
+  file: File
+): Promise<void> {
+  const form = new FormData();
+  form.append("image", file, file.name);
+
+  const res = await authedFetch(
+    `/api/products/${encodeURIComponent(productId)}/images`,
+    {
+      method: "POST",
+      body: form,
+    }
+  );
+  if (!res.ok) {
+    let msg = "Image upload failed";
+    try {
+      const errBody = (await res.json()) as { error?: string };
+      if (errBody.error) msg = errBody.error;
     } catch {}
     throw new Error(msg);
   }
