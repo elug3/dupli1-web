@@ -97,8 +97,12 @@ already routes (`/api/*` → nginx proxy). The browser uses:
 
 - Public bag search: `GET /api/v1/products?category=bags`
 - Public product detail: `GET /api/v1/products/{id}` (active products only)
-- Admin product create: `POST /api/v1/products` (requires `product.create`)
+- Admin product create: `POST /api/v1/products` (requires `product.create`; body needs existing catalog `brandCode` + `styleCode`)
 - Admin image upload: `POST /api/v1/products/{id}/images` (multipart field `image`)
+
+Product `imageUrls` are absolute CDN/gateway URLs from the product service
+(CloudFront / `images.dupli1.com` in AWS; local Compose uses
+`/product-images/...`). The storefront does not rewrite or proxy them.
 
 Local `npm run dev` registers matching React Router BFF proxies at the same
 `/api/v1/products*` paths so the client code works without an ALB.

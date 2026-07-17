@@ -23,6 +23,9 @@ interface FieldDef {
 const SHARED_FIELDS: FieldDef[] = [
   { key: "Name", label: "Name", type: "text", required: true, placeholder: "Product name" },
   { key: "Brand", label: "Brand", type: "text", required: true, placeholder: "Brand name" },
+  // Phase C (dupli1-product): create requires existing catalog masters.
+  { key: "BrandCode", label: "Brand code", type: "text", required: true, placeholder: "e.g. GUC" },
+  { key: "StyleCode", label: "Style code", type: "text", required: true, placeholder: "e.g. TOTE01" },
   { key: "Price", label: "Price ($)", type: "number", required: true, placeholder: "0.00" },
   { key: "Stock", label: "Stock", type: "number", placeholder: "0" },
   { key: "Description", label: "Description", type: "textarea", placeholder: "Product description…" },
@@ -94,6 +97,8 @@ const DISPLAY_NAMES: Record<string, string> = {
 const FIELD_LABEL_KEYS: Record<string, string> = {
   Name: "field.name",
   Brand: "product.brand",
+  BrandCode: "field.brandCode",
+  StyleCode: "field.styleCode",
   Price: "field.price",
   Stock: "field.stock",
   Description: "field.description",

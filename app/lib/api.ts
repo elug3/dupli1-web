@@ -414,6 +414,8 @@ const CREATE_FIELD_MAP: Record<string, string> = {
   Name: "name",
   Title: "name",
   Brand: "brand",
+  BrandCode: "brandCode",
+  StyleCode: "styleCode",
   Price: "price",
   Stock: "stock",
   Description: "description",
