@@ -146,9 +146,6 @@ function Hero() {
             className="group relative mt-12 flex animate-home-fade-up flex-col items-center lg:mt-0"
             style={{ animationDelay: "120ms" }}
           >
-            <span className="mb-4 inline-flex border border-[#c8a96e]/35 bg-[#c8a96e]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c8a96e] backdrop-blur-sm">
-              {t("home.heroFeatured")}
-            </span>
             <div className="relative w-full max-w-sm">
               <div className="absolute inset-x-6 bottom-0 h-20 rounded-full bg-[#c8a96e]/20 blur-3xl" />
               <img
