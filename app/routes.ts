@@ -14,6 +14,11 @@ export default [
   route("api/categories", "routes/api.categories.ts"),
   route("api/filters", "routes/api.filters.ts"),
   route("api/coupons/redeem", "routes/api.coupons.redeem.ts"),
+  // Gateway-aligned product paths (used by the browser; ALB sends /api/* to
+  // the proxy in production, and these BFF handlers cover local `npm run dev`).
+  route("api/v1/products", "routes/api.v1.products.ts"),
+  route("api/v1/products/:id/images", "routes/api.v1.products.$id.images.ts"),
+  route("api/v1/products/:id", "routes/api.v1.products.$id.ts"),
   route("api/v1/cart", "routes/api.v1.cart.ts"),
   route("api/v1/cart/items", "routes/api.v1.cart.items.ts"),
   route("api/v1/cart/items/:sku", "routes/api.v1.cart.items.$sku.ts"),

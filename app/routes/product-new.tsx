@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { getMe, hasPermission, type User } from "~/lib/auth";
-import { createProduct, getCategories, getUploadUrl, uploadToS3 } from "~/lib/api";
+import { createProduct, getCategories, uploadProductImage } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
 
 export function meta() {
@@ -23,6 +23,9 @@ interface FieldDef {
 const SHARED_FIELDS: FieldDef[] = [
   { key: "Name", label: "Name", type: "text", required: true, placeholder: "Product name" },
   { key: "Brand", label: "Brand", type: "text", required: true, placeholder: "Brand name" },
+  // Phase C (dupli1-product): create requires existing catalog masters.
+  { key: "BrandCode", label: "Brand code", type: "text", required: true, placeholder: "e.g. GUC" },
+  { key: "StyleCode", label: "Style code", type: "text", required: true, placeholder: "e.g. TOTE01" },
   { key: "Price", label: "Price ($)", type: "number", required: true, placeholder: "0.00" },
   { key: "Stock", label: "Stock", type: "number", placeholder: "0" },
   { key: "Description", label: "Description", type: "textarea", placeholder: "Product description…" },
@@ -94,6 +97,8 @@ const DISPLAY_NAMES: Record<string, string> = {
 const FIELD_LABEL_KEYS: Record<string, string> = {
   Name: "field.name",
   Brand: "product.brand",
+  BrandCode: "field.brandCode",
+  StyleCode: "field.styleCode",
   Price: "field.price",
   Stock: "field.stock",
   Description: "field.description",
@@ -234,16 +239,18 @@ export default function ProductNew() {
         }
       }
 
-      let imageUrl: string | undefined;
-      if (imageFile) {
+      let createdId: string | undefined;
+      // Create first so multipart image upload can target /products/{id}/images.
+      // Color/price seed a default variant that the image attaches to.
+      const created = await createProduct(category, data);
+      createdId = created.id;
+
+      if (imageFile && createdId) {
         setUploadingImage(true);
-        const { uploadUrl, publicUrl } = await getUploadUrl(imageFile.name, imageFile.type);
-        await uploadToS3(uploadUrl, imageFile);
-        imageUrl = publicUrl;
+        await uploadProductImage(createdId, imageFile);
         setUploadingImage(false);
       }
 
-      await createProduct(category, data, imageUrl);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.somethingWentWrong"));

@@ -21,14 +21,21 @@ export interface UpstreamProduct {
   id: string;
   name: string;
   description: string;
-  price: number;
+  /** Legacy mirror of cheapest active variant; prefer priceFrom. */
+  price?: number;
+  priceFrom?: number;
+  sellingPrice?: number;
+  sellingPriceFrom?: number;
   brand: string;
-  color: string;
+  color?: string;
   material: string;
-  stock: number;
+  stock?: number;
   category: string;
   status?: string;
   imageUrls?: string[];
+  defaultImageUrl?: string;
+  availableColors?: string[];
+  availableSizes?: string[];
   tags?: string[];
   createdAt?: string;
   capacity?: string;
@@ -96,6 +103,8 @@ const BAG_FILTERS = [
   "style",
   "family",
 ] as const;
+/** Query params the product service actually filters on. */
+const UPSTREAM_BAG_FILTERS = ["brand", "color", "material", "size", "tags"] as const;
 const SUPPORTED_CATEGORIES = ["bags"] as const;
 
 export function productApiBaseUrl(): string {
@@ -112,8 +121,13 @@ function upstreamUrl(path: string, searchParams?: URLSearchParams): string {
   return url.toString();
 }
 
-function firstImage(imageUrls?: string[]): string | undefined {
-  return imageUrls?.find((url) => url.trim().length > 0);
+function firstImage(product: UpstreamProduct): string | undefined {
+  if (product.defaultImageUrl?.trim()) return product.defaultImageUrl.trim();
+  return product.imageUrls?.find((url) => url.trim().length > 0);
+}
+
+function productPrice(product: UpstreamProduct): number {
+  return product.priceFrom ?? product.price ?? 0;
 }
 
 function mapDisplayStatus(status?: string, tags?: string[]): string {
@@ -128,13 +142,13 @@ export function toBagResponse(product: UpstreamProduct): BagResponse {
     id: product.id,
     name: product.name,
     description: product.description,
-    price: product.price,
+    price: productPrice(product),
     brand: product.brand,
-    color: product.color,
+    color: product.color ?? "",
     material: product.material,
     capacity: product.capacity ?? "",
-    stock: product.stock,
-    image: firstImage(product.imageUrls),
+    stock: product.stock ?? 0,
+    image: firstImage(product),
   };
 }
 
@@ -145,16 +159,19 @@ function defaultVariantSku(product: UpstreamProduct): string {
 
 export function toProductResponse(product: UpstreamProduct): ProductResponse {
   const images = (product.imageUrls ?? []).filter((url) => url.trim().length > 0);
+  if (images.length === 0 && product.defaultImageUrl?.trim()) {
+    images.push(product.defaultImageUrl.trim());
+  }
 
   return {
     id: product.id,
     name: product.name,
     description: product.description,
-    price: product.price,
+    price: productPrice(product),
     brand: product.brand,
-    color: product.color,
+    color: product.color ?? "",
     material: product.material,
-    stock: product.stock,
+    stock: product.stock ?? 0,
     sku: defaultVariantSku(product),
     category: product.category || "bags",
     status: mapDisplayStatus(product.status, product.tags),
@@ -169,18 +186,18 @@ export function toSearchResult(product: UpstreamProduct): SearchResult {
     ID: product.id,
     Name: product.name,
     Description: product.description,
-    Price: product.price,
+    Price: productPrice(product),
     Brand: product.brand,
-    Color: product.color,
+    Color: product.color ?? "",
     Material: product.material,
     Capacity: product.capacity ?? "",
-    Stock: product.stock,
+    Stock: product.stock ?? 0,
     Category: product.category || "bags",
     Type: product.productType ?? "",
     Style: product.style ?? "",
     Gender: product.family ?? "",
     Status: mapDisplayStatus(product.status, product.tags),
-    Image: firstImage(product.imageUrls),
+    Image: firstImage(product),
   };
 }
 
@@ -198,10 +215,10 @@ export function supportedFilters(category: string): string[] {
 export async function fetchUpstreamBags(
   filters: Record<string, string> = {}
 ): Promise<UpstreamProduct[]> {
-  // The product service dropped the dedicated /products/bags list endpoint
-  // in favor of a single filterable search: GET /api/v1/products.
+  // Public catalog search: GET /api/v1/products?category=bags
+  // (the dedicated /products/bags alias was removed from dupli1-product).
   const params = new URLSearchParams({ category: "bags" });
-  for (const key of BAG_FILTERS) {
+  for (const key of UPSTREAM_BAG_FILTERS) {
     const value = filters[key]?.trim();
     if (value) params.set(key, value);
   }
@@ -244,7 +261,7 @@ function getSearchableValue(product: UpstreamProduct, key: string): string {
     case "brand":
       return product.brand;
     case "color":
-      return product.color;
+      return product.color ?? "";
     case "material":
       return product.material;
     case "producttype":
@@ -275,12 +292,20 @@ export async function searchUpstreamProducts(
     const normalizedValue = value.trim();
     if (!normalizedValue || key === "category" || key === "query") continue;
 
-    if ((BAG_FILTERS as readonly string[]).includes(key)) {
+    if (normalizedValue.toLowerCase() === "__no_match__") {
+      return [];
+    }
+
+    if ((UPSTREAM_BAG_FILTERS as readonly string[]).includes(key)) {
       upstreamFilters[key] = normalizedValue;
       continue;
     }
 
-    localFilters.push([key, normalizedValue]);
+    // productType / style / family are storefront facets only — filter locally
+    // when the product payload includes them.
+    if ((BAG_FILTERS as readonly string[]).includes(key)) {
+      localFilters.push([key, normalizedValue]);
+    }
   }
 
   try {
@@ -288,9 +313,10 @@ export async function searchUpstreamProducts(
 
     return products.filter((product) => {
       for (const [key, normalizedValue] of localFilters) {
-        if (normalizedValue.toLowerCase() === "__no_match__") return false;
-
         const productValue = getSearchableValue(product, key);
+        // Skip facets the catalog does not populate yet (would otherwise
+        // empty every category page).
+        if (!productValue) continue;
         if (productValue.toLowerCase() !== normalizedValue.toLowerCase()) {
           return false;
         }
@@ -302,7 +328,7 @@ export async function searchUpstreamProducts(
         product.name,
         product.brand,
         product.description,
-        product.color,
+        product.color ?? "",
         product.material,
       ].some((value) => value.toLowerCase().includes(query));
     });
