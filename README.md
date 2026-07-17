@@ -91,13 +91,17 @@ DUPLI1_WEB_SERVICE_TOKEN=<access_token>
 The BFF sends this token as `Authorization: Bearer <token>` when calling
 `POST /api/v1/auth/register`. Never expose the token to browsers.
 
-Product catalog BFF routes (`/api/products/bags`, `/api/products/:id`,
-`/api/products/search`) read from the Dupli1 product service
-([elug3/dupli1](https://github.com/elug3/dupli1)) via the gateway:
+Product catalog reads call the Dupli1 product service
+([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the ALB
+already routes (`/api/*` → nginx proxy). The browser uses:
 
-- Public bag search: `GET /api/v1/products/bags`
+- Public bag search: `GET /api/v1/products?category=bags`
 - Public product detail: `GET /api/v1/products/{id}` (active products only)
-- Admin product CRUD is proxied to `/api/v1/products` with the user's session token
+- Admin product create: `POST /api/v1/products` (requires `product.create`)
+- Admin image upload: `POST /api/v1/products/{id}/images` (multipart field `image`)
+
+Local `npm run dev` registers matching React Router BFF proxies at the same
+`/api/v1/products*` paths so the client code works without an ALB.
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused

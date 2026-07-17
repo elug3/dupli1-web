@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { getMe, hasPermission, type User } from "~/lib/auth";
-import { createProduct, getCategories, getUploadUrl, uploadToS3 } from "~/lib/api";
+import { createProduct, getCategories, uploadProductImage } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
 
 export function meta() {
@@ -234,16 +234,18 @@ export default function ProductNew() {
         }
       }
 
-      let imageUrl: string | undefined;
-      if (imageFile) {
+      let createdId: string | undefined;
+      // Create first so multipart image upload can target /products/{id}/images.
+      // Color/price seed a default variant that the image attaches to.
+      const created = await createProduct(category, data);
+      createdId = created.id;
+
+      if (imageFile && createdId) {
         setUploadingImage(true);
-        const { uploadUrl, publicUrl } = await getUploadUrl(imageFile.name, imageFile.type);
-        await uploadToS3(uploadUrl, imageFile);
-        imageUrl = publicUrl;
+        await uploadProductImage(createdId, imageFile);
         setUploadingImage(false);
       }
 
-      await createProduct(category, data, imageUrl);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.somethingWentWrong"));
