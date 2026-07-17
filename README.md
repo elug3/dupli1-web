@@ -154,6 +154,10 @@ The production server is then available at:
 http://localhost:3000
 ```
 
+## Language & Audience
+
+The storefront supports **English**, Korean, and Chinese via the in-app language switcher (`app/lib/i18n.tsx`). **Primary users are Korean.** Write and review UX copy, marketing, and product content with a Korean audience first; keep English (and Chinese) translations accurate and complete, but do not treat English as the default customer voice.
+
 ## Content Guidelines
 
 **MUST USE Korean product names.** Product titles shown in the catalog, search results, cart, and checkout must use the Korean product name (for example, `루이비통 익스프레스 MM`), not English-only alternatives.

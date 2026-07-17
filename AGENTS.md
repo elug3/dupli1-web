@@ -4,6 +4,10 @@ Guidance for AI agents working in `dupli1-web`.
 
 `dupli1-web` is the **customer-facing storefront** for the Dupli1 fashion-bag marketplace: a React Router 7 (React 19 + Vite + Tailwind v4) SSR app. The browser talks only to same-origin routes; the React Router server acts as a BFF and forwards `/api/v1/*` calls to the backend nginx gateway. Standard commands (`npm run dev`, `npm run build`, `npm run start`, `npm run typecheck`) and env vars are documented in [README.md](README.md).
 
+## Language & audience
+
+English is supported (along with Korean and Chinese in `app/lib/i18n.tsx`), but **primary users are Korean**. Prefer Korean-first product naming and copy; keep English strings correct for the language switcher, and follow the Korean product-name rules in [README.md](README.md#content-guidelines).
+
 ## Cursor Cloud specific instructions
 
 - Dependencies (`npm install`) are refreshed automatically by the cloud update script; no manual install needed on a fresh VM.
