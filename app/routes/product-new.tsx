@@ -26,7 +26,7 @@ const SHARED_FIELDS: FieldDef[] = [
   // Phase C (dupli1-product): create requires existing catalog masters.
   { key: "BrandCode", label: "Brand code", type: "text", required: true, placeholder: "e.g. GUC" },
   { key: "StyleCode", label: "Style code", type: "text", required: true, placeholder: "e.g. TOTE01" },
-  { key: "Price", label: "Price ($)", type: "number", required: true, placeholder: "0.00" },
+  { key: "Price", label: "Price (₩)", type: "number", required: true, placeholder: "0" },
   { key: "Stock", label: "Stock", type: "number", placeholder: "0" },
   { key: "Description", label: "Description", type: "textarea", placeholder: "Product description…" },
   { key: "Color", label: "Color", type: "text", placeholder: "e.g. Black" },
@@ -36,7 +36,7 @@ const SHARED_FIELDS: FieldDef[] = [
 const CATEGORY_FIELDS: Record<string, FieldDef[]> = {
   consultations: [
     { key: "Title", label: "Title", type: "text", required: true, placeholder: "Consultation name" },
-    { key: "Price", label: "Price ($)", type: "number", required: true, placeholder: "0.00" },
+    { key: "Price", label: "Price (₩)", type: "number", required: true, placeholder: "0" },
     { key: "Description", label: "Description", type: "textarea", placeholder: "Describe the consultation…" },
     { key: "Status", label: "Status", type: "select", options: ["available", "unavailable"] },
     { key: "Duration", label: "Duration (min)", type: "number", placeholder: "60" },

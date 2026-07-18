@@ -197,8 +197,9 @@ export async function redeemCoupon(code: string): Promise<RedeemedCoupon | null>
 }
 
 export function formatPrice(amount: number): string {
-  return `$${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
+  return new Intl.NumberFormat("ko-KR", {
+    style: "currency",
+    currency: "KRW",
     maximumFractionDigits: 0,
-  })}`;
+  }).format(amount);
 }

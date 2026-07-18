@@ -8,6 +8,8 @@ Guidance for AI agents working in `dupli1-web`.
 
 English is supported (along with Korean and Chinese in `app/lib/i18n.tsx`), but **primary users are Korean**. Prefer Korean-first product naming and copy; keep English strings correct for the language switcher, and follow the Korean product-name rules in [README.md](README.md#content-guidelines).
 
+**Currency is KRW only.** Display and enter all product prices in Korean Won — do not convert to USD or other currencies by language.
+
 ## Cursor Cloud specific instructions
 
 - Dependencies (`npm install`) are refreshed automatically by the cloud update script; no manual install needed on a fresh VM.
