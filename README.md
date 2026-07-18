@@ -158,6 +158,8 @@ http://localhost:3000
 
 The storefront supports **English**, Korean, and Chinese via the in-app language switcher (`app/lib/i18n.tsx`). **Primary users are Korean.** Write and review UX copy, marketing, and product content with a Korean audience first; keep English (and Chinese) translations accurate and complete, but do not treat English as the default customer voice.
 
+**All prices use KRW (Korean Won) only.** The UI formats every amount as KRW regardless of the selected language — there is no USD conversion.
+
 ## Content Guidelines
 
 **MUST USE Korean product names.** Product titles shown in the catalog, search results, cart, and checkout must use the Korean product name (for example, `루이비통 익스프레스 MM`), not English-only alternatives.

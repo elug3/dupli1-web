@@ -506,7 +506,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "field.brandName": "Brand name",
     "field.brandCode": "Brand code",
     "field.styleCode": "Style code",
-    "field.price": "Price",
+    "field.price": "Price (₩)",
     "field.stock": "Stock",
     "field.description": "Description",
     "field.productDescription": "Product description…",
@@ -979,7 +979,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "field.brandName": "브랜드명",
     "field.brandCode": "브랜드 코드",
     "field.styleCode": "스타일 코드",
-    "field.price": "가격",
+    "field.price": "가격 (원)",
     "field.stock": "재고",
     "field.description": "설명",
     "field.productDescription": "제품 설명…",
@@ -1436,7 +1436,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "field.brandName": "品牌名称",
     "field.brandCode": "品牌代码",
     "field.styleCode": "款式代码",
-    "field.price": "价格",
+    "field.price": "价格 (₩)",
     "field.stock": "库存",
     "field.description": "描述",
     "field.productDescription": "产品描述…",
@@ -1862,9 +1862,9 @@ const fallbackLanguageContext: LanguageContextValue = {
   setLanguage: () => {},
   t: (key, values) => interpolate(dictionaries.en[key] ?? key, values),
   formatCurrency: (amount) =>
-    new Intl.NumberFormat("en-US", {
+    new Intl.NumberFormat("ko-KR", {
       style: "currency",
-      currency: "USD",
+      currency: "KRW",
       maximumFractionDigits: 0,
     }).format(amount),
   translateProductName: (_id, fallback) => fallback,
@@ -1921,24 +1921,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
 
     function formatCurrency(amount: number): string {
-      if (amount >= 10000) {
-        if (language === "ko") {
-          return new Intl.NumberFormat("ko-KR", {
-            style: "currency",
-            currency: "KRW",
-            maximumFractionDigits: 0,
-          }).format(amount);
-        }
-        return new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumFractionDigits: 0,
-        }).format(Math.round(amount / 1350));
-      }
-
       return new Intl.NumberFormat(languageOption.locale, {
         style: "currency",
-        currency: "USD",
+        currency: "KRW",
         maximumFractionDigits: 0,
       }).format(amount);
     }
