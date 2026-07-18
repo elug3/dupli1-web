@@ -18,7 +18,9 @@ env:
   ECS_SERVICE: dupli1-web
   ECS_CLUSTER: production
   ECS_TASK_DEFINITION: .aws/task-definition.json
-  CONTAINER_NAME: web-container
+  # Must match live Terraform (ecs_frontends.tf): bridge EC2 service
+  # family dupli1-web / container "web" — not Fargate awsvpc / web-container.
+  CONTAINER_NAME: web
 
 jobs:
   deploy:
