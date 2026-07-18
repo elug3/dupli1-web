@@ -93,7 +93,13 @@ function mapLine(raw: RawCartLine): CartLine {
 async function cartRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
-  const res = await fetch(path, { ...init, credentials: "same-origin", headers });
+  // Via session gateway so production ALB does not send this to the raw proxy
+  // without a Bearer token (see /auth/session/gateway in routes.ts).
+  const res = await fetch(`/auth/session/gateway${path}`, {
+    ...init,
+    credentials: "same-origin",
+    headers,
+  });
   if (res.status === 401) throw new CartAuthRequiredError();
   return res;
 }

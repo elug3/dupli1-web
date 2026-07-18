@@ -574,6 +574,54 @@ export async function proxyBackendApi(
   });
 }
 
+/**
+ * Map a gateway-relative API path to the upstream service.
+ * Used by `/auth/session/gateway/*` so authenticated browser calls stay outside
+ * the ALB `/api/*` rule that forwards to dupli1-proxy (see elug3/dupli1).
+ */
+function serviceForApiPath(path: string): ApiService | null {
+  if (path.startsWith("/api/v1/auth")) return "auth";
+  if (
+    path.startsWith("/api/v1/products") ||
+    path.startsWith("/api/v1/coupons") ||
+    path.startsWith("/api/v1/catalog") ||
+    path.startsWith("/api/v1/variants")
+  ) {
+    return "products";
+  }
+  if (path.startsWith("/api/v1/cart")) return "cart";
+  if (path.startsWith("/api/v1/checkout") || path.startsWith("/api/v1/orders")) {
+    return "orders";
+  }
+  if (path.startsWith("/api/v1/payments")) return "payments";
+  if (path.startsWith("/api/v1/inventory")) return "inventory";
+  return null;
+}
+
+/**
+ * Cookie-authenticated proxy for browser calls that must attach a Bearer token.
+ * Path shape: `/auth/session/gateway/api/v1/...` → upstream `/api/v1/...`.
+ */
+export async function handleSessionGatewayProxy(
+  request: Request
+): Promise<Response> {
+  const url = new URL(request.url);
+  const gatewayPath = url.pathname.replace(/^\/auth\/session\/gateway/, "");
+  if (!gatewayPath.startsWith("/api/")) {
+    return json({ error: "Not found" }, { status: 404 });
+  }
+
+  const service = serviceForApiPath(gatewayPath);
+  if (!service) {
+    return json({ error: "Not found" }, { status: 404 });
+  }
+
+  return proxyBackendApi(service, request, gatewayPath, {
+    requireAuth: true,
+    noStore: true,
+  });
+}
+
 export async function proxyProductApi(
   request: Request,
   path: string,

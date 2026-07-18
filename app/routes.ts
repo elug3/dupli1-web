@@ -1,11 +1,16 @@
 import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
-  route("api/v1/auth/login", "routes/api.v1.auth.login.ts"),
-  route("api/v1/auth/register", "routes/api.v1.auth.register.ts"),
-  route("api/v1/auth/refresh", "routes/api.v1.auth.refresh.ts"),
-  route("api/v1/auth/me", "routes/api.v1.auth.me.ts"),
-  route("api/v1/auth/logout", "routes/api.v1.auth.logout.ts"),
+  // Auth session BFF must live outside /api/* — production ALB forwards
+  // `/api/*` and `/gateway/*` to dupli1-proxy (elug3/dupli1 ecs_frontends.tf),
+  // so browser login/me under `/api/v1/auth/*` never reaches this app and never
+  // sets the HttpOnly session cookie. Same pattern as dupli1-manage-web.
+  route("auth/session/login", "routes/api.v1.auth.login.ts"),
+  route("auth/session/register", "routes/api.v1.auth.register.ts"),
+  route("auth/session/refresh", "routes/api.v1.auth.refresh.ts"),
+  route("auth/session/me", "routes/api.v1.auth.me.ts"),
+  route("auth/session/logout", "routes/api.v1.auth.logout.ts"),
+  route("auth/session/gateway/*", "routes/auth.session.gateway.ts"),
   route("api/products/bags", "routes/api.products.bags.ts"),
   route("api/products/search", "routes/api.products.search.ts"),
   route("api/products/upload-url", "routes/api.products.upload-url.ts"),
@@ -14,11 +19,13 @@ export default [
   route("api/categories", "routes/api.categories.ts"),
   route("api/filters", "routes/api.filters.ts"),
   route("api/coupons/redeem", "routes/api.coupons.redeem.ts"),
-  // Gateway-aligned product paths (used by the browser; ALB sends /api/* to
-  // the proxy in production, and these BFF handlers cover local `npm run dev`).
+  // Public catalog: browser hits `/api/v1/products*` so production ALB can
+  // forward to the gateway. These BFF handlers cover local `npm run dev` only.
+  // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.
   route("api/v1/products", "routes/api.v1.products.ts"),
   route("api/v1/products/:id/images", "routes/api.v1.products.$id.images.ts"),
   route("api/v1/products/:id", "routes/api.v1.products.$id.ts"),
+  // Local-dev BFF mirrors for cart/checkout (unused in production ALB path).
   route("api/v1/cart", "routes/api.v1.cart.ts"),
   route("api/v1/cart/items", "routes/api.v1.cart.items.ts"),
   route("api/v1/cart/items/:sku", "routes/api.v1.cart.items.$sku.ts"),

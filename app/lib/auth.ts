@@ -10,6 +10,14 @@ export interface User {
   failed_login_attempts: number;
 }
 
+/** Browser auth session endpoints (outside `/api/*` so production ALB does not
+ * forward them to dupli1-proxy). See routes.ts and elug3/dupli1 ALB rules. */
+const SESSION_LOGIN = "/auth/session/login";
+const SESSION_REGISTER = "/auth/session/register";
+const SESSION_ME = "/auth/session/me";
+const SESSION_LOGOUT = "/auth/session/logout";
+const SESSION_GATEWAY = "/auth/session/gateway";
+
 /** Mirrors shared/pkg/permissions eval.go: exact match, resource wildcard
  * (e.g. "product.*"), "admin.*" (user.* domain only), then "*". */
 export function hasPermission(
@@ -41,7 +49,7 @@ function post(url: string, body: unknown): Promise<Response> {
 }
 
 export async function getMe(): Promise<User | null> {
-  const res = await fetch("/api/v1/auth/me", {
+  const res = await fetch(SESSION_ME, {
     credentials: "same-origin",
   });
 
@@ -60,7 +68,7 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
 }
 
 export async function login(email: string, password: string): Promise<void> {
-  const res = await post("/api/v1/auth/login", { email, password });
+  const res = await post(SESSION_LOGIN, { email, password });
   if (!res.ok) throw new Error(await errorMessage(res, "Login failed"));
 }
 
@@ -68,17 +76,19 @@ export async function register(
   email: string,
   password: string
 ): Promise<void> {
-  const res = await post("/api/v1/auth/register", { email, password });
+  const res = await post(SESSION_REGISTER, { email, password });
   if (!res.ok) throw new Error(await errorMessage(res, "Registration failed"));
 }
 
+/** Authenticated API calls go through the cookie session gateway, which
+ * attaches a Bearer access token server-side (ALB would strip BFF under `/api/*`). */
 export async function authedFetch(
   url: string,
   init: RequestInit = {}
 ): Promise<Response> {
   const headers = new Headers(init.headers as HeadersInit);
 
-  const res = await fetch(url, {
+  const res = await fetch(`${SESSION_GATEWAY}${url}`, {
     ...init,
     credentials: "same-origin",
     headers,
@@ -92,5 +102,5 @@ export async function authedFetch(
 }
 
 export async function logout(): Promise<void> {
-  await post("/api/v1/auth/logout", {}).catch(() => {});
+  await post(SESSION_LOGOUT, {}).catch(() => {});
 }
