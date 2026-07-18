@@ -143,18 +143,10 @@ function Hero() {
         {heroBag ? (
           <Link
             to={`/product/${heroBag.id}`}
-            className="group relative mt-12 flex animate-home-fade-up flex-col items-center lg:mt-0"
+            className="group relative mt-12 flex w-full max-w-sm animate-home-fade-up flex-col items-center lg:mt-0 lg:items-start"
             style={{ animationDelay: "120ms" }}
           >
-            <div className="relative w-full max-w-sm">
-              <div className="absolute inset-x-6 bottom-0 h-20 rounded-full bg-[#c8a96e]/20 blur-3xl" />
-              <img
-                src={heroBagImage(heroBag.image, heroBag.brand)}
-                alt={translateProductName(heroBag.id, heroBag.name)}
-                className="animate-home-float relative z-10 mx-auto max-h-[22rem] w-full object-contain transition duration-700 group-hover:scale-[1.03] md:max-h-[30rem]"
-              />
-            </div>
-            <div className="mt-8 w-full max-w-sm border-t border-white/10 pt-5 text-center lg:text-left">
+            <div className="w-full border-t border-white/10 pt-5 text-center lg:text-left">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c8a96e]">
                 {heroBag.brand}
               </p>
@@ -175,7 +167,7 @@ function Hero() {
             </div>
           </Link>
         ) : (
-          <div className="mt-12 h-[22rem] w-full max-w-sm animate-pulse rounded-3xl bg-white/5 lg:mt-0" />
+          <div className="mt-12 h-28 w-full max-w-sm animate-pulse bg-white/5 lg:mt-0" />
         )}
       </div>
 
