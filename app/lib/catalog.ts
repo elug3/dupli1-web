@@ -2,6 +2,7 @@ export const BRAND_SLUGS: Record<string, string> = {
   "louis-vuitton": "Louis Vuitton",
   "miu-miu": "Miu Miu",
   balenciaga: "Balenciaga",
+  chanel: "Chanel",
   hermes: "Hermès",
   loewe: "Loewe",
   prada: "Prada",
