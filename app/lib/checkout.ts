@@ -5,7 +5,12 @@
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
-  const res = await fetch(path, { ...init, credentials: "same-origin", headers });
+  // Cookie session gateway attaches Bearer token; keeps calls off ALB `/api/*`.
+  const res = await fetch(`/auth/session/gateway${path}`, {
+    ...init,
+    credentials: "same-origin",
+    headers,
+  });
   if (!res.ok) throw new Error(await readError(res));
   return res;
 }
