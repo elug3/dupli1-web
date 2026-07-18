@@ -80,6 +80,27 @@ If auth and product services are deployed at separate origins, override the
 shared gateway with `DUPLI1_AUTH_API_BASE_URL` and
 `DUPLI1_PRODUCT_API_BASE_URL`.
 
+### Local HTTPS gateway (optional)
+
+The Dupli1 Compose gateway mounts self-signed certs but historically served HTTP
+only ([elug3/dupli1#48](https://github.com/elug3/dupli1/issues/48)). Wire dual-mode
+HTTP+HTTPS into a sibling `../dupli1` checkout:
+
+```bash
+./scripts/dupli1-local-tls/apply.sh
+cd ../dupli1 && sudo docker compose up -d --build dupli1-proxy
+```
+
+Then point this app at HTTPS and trust the local cert:
+
+```bash
+DUPLI1_API_BASE_URL=https://localhost:443
+DUPLI1_API_CA_FILE=../dupli1/certs/server.crt
+```
+
+Plain `http://localhost:8080` remains the default and needs no CA file. See
+[scripts/dupli1-local-tls/README.md](scripts/dupli1-local-tls/README.md).
+
 Customer registration requires a dupli1-web service account bearer token. Issue an
 access token for the seeded `customer_registrar` account on `dupli1-auth` and
 configure it on dupli1-web:

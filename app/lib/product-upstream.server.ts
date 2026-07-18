@@ -8,6 +8,8 @@
  * Authenticated admin reads/writes are proxied separately via proxyProductApi.
  */
 
+import "./tls-ca.server";
+
 const API_PREFIX = "/api/v1";
 
 export interface UpstreamVariant {
