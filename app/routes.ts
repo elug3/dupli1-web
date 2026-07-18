@@ -26,8 +26,14 @@ export default [
   route("api/v1/products/:id/images", "routes/api.v1.products.$id.images.ts"),
   route("api/v1/products/:id", "routes/api.v1.products.$id.ts"),
   // Local-dev BFF mirrors for cart/checkout (unused in production ALB path).
+  // Browser cart/checkout calls go through `/auth/session/gateway` so the BFF
+  // attaches the session Bearer token (see elug3/dupli1 docs/cart-service.md).
   route("api/v1/cart", "routes/api.v1.cart.ts"),
   route("api/v1/cart/items", "routes/api.v1.cart.items.ts"),
+  route(
+    "api/v1/cart/items/by-sku-id/:skuId",
+    "routes/api.v1.cart.items.by-sku-id.$skuId.ts"
+  ),
   route("api/v1/cart/items/:sku", "routes/api.v1.cart.items.$sku.ts"),
   route("api/v1/checkout/sessions", "routes/api.v1.checkout.sessions.ts"),
   route("api/v1/checkout/sessions/:id", "routes/api.v1.checkout.sessions.$id.ts"),

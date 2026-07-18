@@ -85,7 +85,7 @@ export default function CartPage() {
             <section aria-label={t("cart.bagItems")} className="space-y-0">
               {items.map((item) => (
                 <article
-                  key={item.sku}
+                  key={item.skuId ?? item.sku}
                   className="grid grid-cols-[120px_1fr] gap-5 border-b border-zinc-100 py-8 first:pt-0 md:grid-cols-[160px_1fr]"
                 >
                   <Link
@@ -121,6 +121,7 @@ export default function CartPage() {
 
                     <CartLineControls
                       sku={item.sku}
+                      skuId={item.skuId}
                       quantity={item.quantity}
                       price={item.price}
                       mutation={mutation}

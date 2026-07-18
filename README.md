@@ -107,6 +107,20 @@ Product `imageUrls` are absolute CDN/gateway URLs from the product service
 Local `npm run dev` registers matching React Router BFF proxies at the same
 `/api/v1/products*` paths so the client code works without an ALB.
 
+Authenticated cart, checkout, orders, and payments call
+`/auth/session/gateway/api/v1/...`. The BFF attaches the session Bearer token
+and forwards to the gateway (`DUPLI1_API_BASE_URL`, or per-service overrides
+such as `DUPLI1_CART_API_BASE_URL`). Cart owns persistent bag lines
+([elug3/dupli1 cart-service](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md)):
+
+- `GET|DELETE /api/v1/cart`
+- `POST|PUT /api/v1/cart/items` (body: `{ sku` or `sku_id`, `quantity }`)
+- `DELETE /api/v1/cart/items/{sku}` or `.../items/by-sku-id/{skuId}`
+
+Cart `unit_price_cents` / `subtotal_cents` are **whole KRW won** (KRW is a
+zero-decimal currency — do not divide by 100). There is no guest cart yet;
+unsigned callers get 401 and the UI treats the bag as empty until login.
+
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The

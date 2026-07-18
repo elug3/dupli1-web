@@ -81,7 +81,8 @@ export function useCart() {
       ...line,
       name: productMeta?.name ?? line.productId,
       brand: productMeta?.brand ?? "",
-      price: line.unitPriceCents / 100,
+      // unit_price_cents is whole KRW won (zero-decimal); do not ÷100.
+      price: line.unitPriceCents,
       image: line.imageUrl ?? productMeta?.image ?? "",
     };
   });

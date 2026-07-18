@@ -26,7 +26,10 @@ async function readError(res: Response): Promise<string> {
 
 export interface SessionItem {
   sku: string;
+  /** Canonical variant id when known (order stores as sku_id). */
+  sku_id?: string;
   quantity: number;
+  /** Whole KRW won (zero-decimal Stripe minor units). */
   unit_price_cents: number;
 }
 
@@ -42,7 +45,9 @@ export interface CheckoutSession {
 
 export interface OrderItem {
   sku: string;
+  skuId?: string;
   quantity: number;
+  /** Whole KRW won (JSON `unit_price_cents`). */
   unitPriceCents: number;
 }
 
@@ -74,6 +79,7 @@ interface RawSession {
 
 interface RawOrderItem {
   sku: string;
+  sku_id?: string;
   quantity: number;
   unit_price_cents: number;
 }
@@ -106,6 +112,7 @@ function mapOrder(raw: RawOrder): Order {
     totalCents: raw.total_cents ?? 0,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
+      skuId: item.sku_id || undefined,
       quantity: item.quantity,
       unitPriceCents: item.unit_price_cents,
     })),

@@ -31,6 +31,8 @@ export interface ServerProduct {
   createdAt: string;
   /** Sellable variant SKU — what cart/checkout key line items on. */
   sku: string;
+  /** Canonical variant ULID from product (`skuId`) when present. */
+  skuId?: string;
 }
 
 /** Raw parent-style payload from `GET /api/v1/products` (dupli1-product). */
@@ -56,6 +58,7 @@ interface UpstreamProduct {
   family?: string;
   variants?: Array<{
     sku: string;
+    skuId?: string;
     color?: string;
     price: number;
     status: string;
@@ -92,10 +95,16 @@ function upstreamStatus(product: UpstreamProduct): string {
   return product.status;
 }
 
+function upstreamVariant(product: UpstreamProduct) {
+  return product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
+}
+
 function upstreamSku(product: UpstreamProduct): string {
-  const active =
-    product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
-  return active?.sku ?? product.id;
+  return upstreamVariant(product)?.sku ?? product.id;
+}
+
+function upstreamSkuId(product: UpstreamProduct): string | undefined {
+  return upstreamVariant(product)?.skuId || undefined;
 }
 
 function toBag(product: UpstreamProduct): Bag {
@@ -125,6 +134,7 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     material: product.material,
     stock: product.stock ?? 0,
     sku: upstreamSku(product),
+    skuId: upstreamSkuId(product),
     category: product.category || "bags",
     status: upstreamStatus(product),
     image: images[0],

@@ -4,18 +4,20 @@ import { type useCartMutation } from "../lib/useCartMutation";
 
 export function CartLineControls({
   sku,
+  skuId,
   quantity,
   price,
   mutation,
 }: {
   sku: string;
+  skuId?: string;
   quantity: number;
   price: number;
   mutation: ReturnType<typeof useCartMutation>;
 }) {
   const { t, formatCurrency } = useLanguage();
-  const pending = mutation.isPending(sku);
-  const action = mutation.getAction(sku);
+  const pending = mutation.isPending(sku, skuId);
+  const action = mutation.getAction(sku, skuId);
 
   if (pending && action === "remove") {
     return (
@@ -39,8 +41,8 @@ export function CartLineControls({
         <QuantityControl
           quantity={quantity}
           disabled={pending}
-          onDecrease={() => mutation.decreaseQuantity(sku, quantity)}
-          onIncrease={() => mutation.increaseQuantity(sku, quantity)}
+          onDecrease={() => mutation.decreaseQuantity(sku, quantity, skuId)}
+          onIncrease={() => mutation.increaseQuantity(sku, quantity, skuId)}
         />
       </div>
 
@@ -56,7 +58,7 @@ export function CartLineControls({
         <button
           type="button"
           disabled={pending}
-          onClick={() => mutation.removeItem(sku)}
+          onClick={() => mutation.removeItem(sku, skuId)}
           className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 underline-offset-4 transition hover:text-zinc-950 hover:underline disabled:cursor-wait disabled:opacity-50"
         >
           {t("cart.remove")}

@@ -12,6 +12,8 @@ const API_PREFIX = "/api/v1";
 
 export interface UpstreamVariant {
   sku: string;
+  /** Canonical ULID from dupli1-product (`json:"skuId"`). */
+  skuId?: string;
   color?: string;
   price: number;
   status: string;
@@ -72,9 +74,11 @@ export interface ProductResponse {
   image?: string;
   images?: string[];
   createdAt: string;
-  // Sellable variant SKU for cart/checkout — the storefront doesn't yet expose
+  // Sellable variant for cart/checkout — the storefront doesn't yet expose
   // a color/size picker, so it always adds the product's first active variant.
   sku: string;
+  /** Canonical variant ULID when the product service returns it. */
+  skuId?: string;
 }
 
 export interface SearchResult {
@@ -152,9 +156,16 @@ export function toBagResponse(product: UpstreamProduct): BagResponse {
   };
 }
 
+function defaultVariant(product: UpstreamProduct): UpstreamVariant | undefined {
+  return product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
+}
+
 function defaultVariantSku(product: UpstreamProduct): string {
-  const active = product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
-  return active?.sku ?? product.id;
+  return defaultVariant(product)?.sku ?? product.id;
+}
+
+function defaultVariantSkuId(product: UpstreamProduct): string | undefined {
+  return defaultVariant(product)?.skuId || undefined;
 }
 
 export function toProductResponse(product: UpstreamProduct): ProductResponse {
@@ -173,6 +184,7 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
     material: product.material,
     stock: product.stock ?? 0,
     sku: defaultVariantSku(product),
+    skuId: defaultVariantSkuId(product),
     category: product.category || "bags",
     status: mapDisplayStatus(product.status, product.tags),
     image: images[0],

@@ -4,27 +4,35 @@ import {
   addToCart,
   removeItem as removeCartItem,
   setItemQuantity,
+  type CartItemRef,
 } from "./cart";
 
 export type CartMutationAction = "increase" | "decrease" | "remove" | "add";
 
+function pendingKeyFor(ref: CartItemRef): string {
+  return ref.skuId ?? ref.sku;
+}
+
 export function useCartMutation() {
-  const [pendingSku, setPendingSku] = useState<string | null>(null);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<CartMutationAction | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isPending = useCallback((sku: string) => pendingSku === sku, [pendingSku]);
+  const isPending = useCallback(
+    (sku: string, skuId?: string) => pendingKey === (skuId ?? sku),
+    [pendingKey]
+  );
 
   const getAction = useCallback(
-    (sku: string) => (isPending(sku) ? pendingAction : null),
+    (sku: string, skuId?: string) => (isPending(sku, skuId) ? pendingAction : null),
     [isPending, pendingAction]
   );
 
   const run = useCallback(
-    async (sku: string, action: CartMutationAction, fn: () => Promise<void>) => {
-      if (pendingSku) return;
-      setPendingSku(sku);
+    async (ref: CartItemRef, action: CartMutationAction, fn: () => Promise<void>) => {
+      if (pendingKey) return;
+      setPendingKey(pendingKeyFor(ref));
       setPendingAction(action);
       setError(null);
       try {
@@ -36,34 +44,43 @@ export function useCartMutation() {
           setError(err instanceof Error ? err.message : "Something went wrong");
         }
       } finally {
-        setPendingSku(null);
+        setPendingKey(null);
         setPendingAction(null);
       }
     },
-    [pendingSku]
+    [pendingKey]
   );
 
   const increaseQuantity = useCallback(
-    (sku: string, currentQuantity: number) =>
-      run(sku, "increase", () => setItemQuantity(sku, currentQuantity + 1)),
+    (sku: string, currentQuantity: number, skuId?: string) =>
+      run({ sku, skuId }, "increase", () =>
+        setItemQuantity({ sku, skuId }, currentQuantity + 1)
+      ),
     [run]
   );
 
   const decreaseQuantity = useCallback(
-    (sku: string, currentQuantity: number) =>
-      run(sku, "decrease", () => setItemQuantity(sku, currentQuantity - 1)),
+    (sku: string, currentQuantity: number, skuId?: string) =>
+      run({ sku, skuId }, "decrease", () =>
+        setItemQuantity({ sku, skuId }, currentQuantity - 1)
+      ),
     [run]
   );
 
-  const removeItem = useCallback((sku: string) => run(sku, "remove", () => removeCartItem(sku)), [run]);
+  const removeItem = useCallback(
+    (sku: string, skuId?: string) =>
+      run({ sku, skuId }, "remove", () => removeCartItem({ sku, skuId })),
+    [run]
+  );
 
   const addItem = useCallback(
-    (sku: string, quantity = 1) => run(sku, "add", () => addToCart(sku, quantity)),
+    (sku: string, quantity = 1, skuId?: string) =>
+      run({ sku, skuId }, "add", () => addToCart({ sku, skuId }, quantity)),
     [run]
   );
 
   return {
-    pendingKey: pendingSku,
+    pendingKey,
     pendingAction,
     isPending,
     getAction,
