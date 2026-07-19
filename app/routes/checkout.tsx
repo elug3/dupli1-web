@@ -11,6 +11,7 @@ import {
   createPayment,
   replaceSessionItems,
   simulatePaymentSuccess,
+  type PaymentMethod,
 } from "../lib/checkout";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
@@ -37,6 +38,8 @@ interface FormState {
   country: string;
   phone: string;
   delivery: "standard" | "express";
+  /** Storefront methods only — bypass is manage-web (elug3/dupli1#108). */
+  paymentMethod: PaymentMethod;
 }
 
 const initialForm: FormState = {
@@ -49,6 +52,7 @@ const initialForm: FormState = {
   country: "",
   phone: "",
   delivery: "standard",
+  paymentMethod: "credit_card",
 };
 
 const checkoutSteps = ["information", "delivery", "payment"] as const;
@@ -229,9 +233,14 @@ export default function CheckoutPage() {
         await applySessionCoupon(session.id, coupon.code);
       }
       const { order } = await completeCheckoutSession(session.id);
-      const payment = await createPayment(order.id);
+      const payment = await createPayment(order.id, form.paymentMethod);
 
-      if (payment.checkoutUrl.includes("/simulate-success")) {
+      if (!payment.checkoutUrl || payment.status === "succeeded") {
+        await clearCart();
+        navigate("/checkout/confirmation", {
+          state: { orderId: order.id, email: form.email },
+        });
+      } else if (payment.checkoutUrl.includes("/simulate-success")) {
         // Dev mode: no Stripe key configured, complete the payment directly.
         await simulatePaymentSuccess(payment.id);
         await clearCart();
@@ -426,6 +435,17 @@ export default function CheckoutPage() {
 
             {activeStep === "payment" && (
               <CheckoutSection step="03" title={t("checkout.payment")}>
+                <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
+                  <PaymentMethodOption
+                    name="paymentMethod"
+                    value="credit_card"
+                    checked={form.paymentMethod === "credit_card"}
+                    title={t("checkout.methodCreditCard")}
+                    subtitle={t("checkout.methodCreditCardHint")}
+                    badge={t("checkout.methodSecureRedirect")}
+                    onChange={() => updateField("paymentMethod", "credit_card")}
+                  />
+                </div>
                 <p className="text-sm leading-relaxed text-zinc-500">
                   {t("checkout.paymentNote")}
                 </p>
@@ -753,6 +773,58 @@ function DeliveryOption({
         </div>
       </div>
       <span className="text-sm font-medium text-zinc-950">{price}</span>
+    </label>
+  );
+}
+
+function PaymentMethodOption({
+  name,
+  value,
+  checked,
+  title,
+  subtitle,
+  badge,
+  onChange,
+  disabled = false,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  title: string;
+  subtitle: string;
+  badge: string;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={[
+        "flex items-center justify-between border px-4 py-4 transition",
+        disabled
+          ? "cursor-not-allowed border-zinc-100 bg-zinc-50/50 opacity-60"
+          : checked
+            ? "cursor-pointer border-zinc-950 bg-zinc-50"
+            : "cursor-pointer border-zinc-200 hover:border-zinc-400",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-3">
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          disabled={disabled}
+          onChange={onChange}
+          className="size-4 accent-zinc-950 disabled:cursor-not-allowed"
+        />
+        <div>
+          <p className="text-sm font-medium text-zinc-950">{title}</p>
+          <p className="text-[11px] text-zinc-400">{subtitle}</p>
+        </div>
+      </div>
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+        {badge}
+      </span>
     </label>
   );
 }

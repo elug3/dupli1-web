@@ -59,12 +59,16 @@ export interface Order {
   items: OrderItem[];
 }
 
+export type PaymentMethod = "credit_card";
+
 export interface Payment {
   id: string;
   orderId: string;
   amountCents: number;
   status: string;
-  checkoutUrl: string;
+  method: PaymentMethod | string;
+  /** Present for credit_card (Stripe or local simulate). Omitted for bypass. */
+  checkoutUrl?: string;
 }
 
 interface RawSession {
@@ -157,24 +161,29 @@ export async function completeCheckoutSession(
   return { session: mapSession(body.session), order: mapOrder(body.order) };
 }
 
-export async function createPayment(orderId: string): Promise<Payment> {
+export async function createPayment(
+  orderId: string,
+  method: PaymentMethod = "credit_card"
+): Promise<Payment> {
   const res = await request("/api/v1/payments", {
     method: "POST",
-    body: JSON.stringify({ order_id: orderId }),
+    body: JSON.stringify({ order_id: orderId, method }),
   });
   const body = (await res.json()) as {
     id: string;
     order_id: string;
     amount_cents: number;
     status: string;
-    checkout_url: string;
+    method?: string;
+    checkout_url?: string;
   };
   return {
     id: body.id,
     orderId: body.order_id,
     amountCents: body.amount_cents,
     status: body.status,
-    checkoutUrl: body.checkout_url,
+    method: body.method ?? method,
+    checkoutUrl: body.checkout_url || undefined,
   };
 }
 

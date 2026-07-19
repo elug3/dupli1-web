@@ -142,6 +142,11 @@ Cart `unit_price_cents` / `subtotal_cents` are **whole KRW won** (KRW is a
 zero-decimal currency — do not divide by 100). There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 
+Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
+The storefront payment step offers **credit card** only (`POST /api/v1/payments`
+with `{ order_id, method: "credit_card" }` → Stripe Checkout redirect). Bypass
+is manager-only and is not shown here.
+
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The
