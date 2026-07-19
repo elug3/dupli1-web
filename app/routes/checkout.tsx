@@ -252,6 +252,8 @@ export default function CheckoutPage() {
       if (coupon) {
         await applySessionCoupon(session.id, coupon.code);
       }
+      // Complete → pending order + stock reserved on dupli1-product inventory.
+      // Payment then marks paid (card redirect / bypass); ship commits stock.
       const { order } = await completeCheckoutSession(session.id);
       const payment = await createPayment(order.id, form.paymentMethod, {
         note: form.bypassNote,

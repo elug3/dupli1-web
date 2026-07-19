@@ -150,6 +150,11 @@ Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
 (`customer` | `manager` | `service` — backend `account_type` is
 `customer` | `admin` | `service`; managers are `admin` staff).
 
+**Stock path (no standalone inventory service):** PDP stock hints and cart
+`available_qty` come from product-owned `GET /api/v1/inventory/{sku}` (or
+`…/by-sku-id/{skuId}`). Checkout `complete` reserves stock there; payment
+only collects money; order ship commits the reservation.
+
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The

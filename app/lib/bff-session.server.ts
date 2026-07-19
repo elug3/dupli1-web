@@ -16,8 +16,7 @@ type ApiService =
   | "cart"
   | "checkout"
   | "orders"
-  | "payments"
-  | "inventory";
+  | "payments";
 
 interface TokenResponse {
   access_token?: unknown;
@@ -98,14 +97,6 @@ function paymentsApiBaseUrl(): string {
   );
 }
 
-function inventoryApiBaseUrl(): string {
-  return (
-    process.env.DUPLI1_INVENTORY_API_BASE_URL ??
-    sharedApiBaseUrl() ??
-    "http://localhost:8080"
-  );
-}
-
 function apiBaseUrl(service: ApiService): string {
   switch (service) {
     case "auth":
@@ -119,8 +110,6 @@ function apiBaseUrl(service: ApiService): string {
       return ordersApiBaseUrl();
     case "payments":
       return paymentsApiBaseUrl();
-    case "inventory":
-      return inventoryApiBaseUrl();
   }
 }
 
@@ -586,7 +575,9 @@ function serviceForApiPath(path: string): ApiService | null {
     path.startsWith("/api/v1/products") ||
     path.startsWith("/api/v1/coupons") ||
     path.startsWith("/api/v1/catalog") ||
-    path.startsWith("/api/v1/variants")
+    path.startsWith("/api/v1/variants") ||
+    // Stock/reservations live on dupli1-product (standalone inventory service removed).
+    path.startsWith("/api/v1/inventory")
   ) {
     return "products";
   }
@@ -595,7 +586,6 @@ function serviceForApiPath(path: string): ApiService | null {
     return "orders";
   }
   if (path.startsWith("/api/v1/payments")) return "payments";
-  if (path.startsWith("/api/v1/inventory")) return "inventory";
   return null;
 }
 

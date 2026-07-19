@@ -61,6 +61,11 @@ export default [
   ),
   route("api/v1/orders", "routes/api.v1.orders.ts"),
   route("api/v1/orders/:id", "routes/api.v1.orders.$id.ts"),
+  // Stock is owned by dupli1-product (standalone inventory service removed).
+  route(
+    "api/v1/inventory/by-sku-id/:skuId",
+    "routes/api.v1.inventory.by-sku-id.$skuId.ts"
+  ),
   route("api/v1/inventory/:sku", "routes/api.v1.inventory.$sku.ts"),
   index("routes/home.tsx"),
   route("product/:id", "routes/product.tsx"),

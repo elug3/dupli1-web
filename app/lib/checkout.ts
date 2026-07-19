@@ -1,6 +1,10 @@
 // Client for the real checkout flow: checkout sessions + orders live on
 // dupli1-order, payments on dupli1-payment (both proxied through our BFF).
 // See docs/checkout-session.md and docs/payment-service.md.
+//
+// Stock: on `complete`, order reserves via product-owned `/api/v1/inventory`
+// (standalone inventory service removed). Payment does not touch stock;
+// ship commits the reservation.
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
