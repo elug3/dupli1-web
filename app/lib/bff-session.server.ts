@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { User } from "./auth";
 import { getServiceAccountAccessToken, serviceAccountConfigured } from "./service-account.server";
+import "./tls-ca.server";
 
 const SESSION_COOKIE_NAME = "dupli1_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;

@@ -18,5 +18,7 @@ Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (
 - Dev server: `npm run dev` (defaults to `http://localhost:5173`). The sibling admin app (`dupli1-manage-web`) also defaults to 5173, so if you run both at once, start one on another port, e.g. `npm run dev -- --port 5174`.
 - This app needs the **`dupli1` backend running** (nginx gateway at `http://localhost:8080`). See `../dupli1/AGENTS.md` for starting Docker + `docker compose up`. Without it, pages that hit the API return errors.
 - Env vars the SSR/BFF reads (set before `npm run dev`):
-  - `DUPLI1_API_BASE_URL=http://localhost:8080` — the gateway.
+  - `DUPLI1_API_BASE_URL=http://localhost:8080` — the gateway (use `https://localhost:443` after local TLS is wired).
+  - `DUPLI1_API_CA_FILE=../dupli1/certs/server.crt` — optional; trust the Compose self-signed gateway cert when using HTTPS.
   - `DUPLI1_WEB_SERVICE_TOKEN=<access_token>` — required only for **customer registration**. It's a short-lived (~15 min) access token for the seeded `dupli1-web@web.dupli1.com` service account. Mint one against the running backend: `POST /api/v1/auth/login` (email `dupli1-web@web.dupli1.com`, password `dupli1-web-dev-secret`) → take `refresh_token` → `POST /api/v1/auth/refresh` → use the returned `token`. Browsing/catalog does not need it.
+- Local TLS for the sibling gateway: `./scripts/dupli1-local-tls/apply.sh` (see that folder’s README; implements [elug3/dupli1#48](https://github.com/elug3/dupli1/issues/48)).
