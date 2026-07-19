@@ -1,5 +1,13 @@
 export type AccountType = "customer" | "admin" | "service";
 
+/**
+ * Coarse storefront kind matching how operators talk about accounts.
+ * Backend `account_type` is only customer | admin | service — "manager" is
+ * auth's management tier for `account_type: admin` staff (see elug3/dupli1
+ * auth/pkg/domain/abac.go UserClass). Service accounts stay distinct.
+ */
+export type UserKind = "customer" | "manager" | "service";
+
 export interface User {
   user_id: string;
   email: string;
@@ -17,6 +25,36 @@ const SESSION_REGISTER = "/auth/session/register";
 const SESSION_ME = "/auth/session/me";
 const SESSION_LOGOUT = "/auth/session/logout";
 const SESSION_GATEWAY = "/auth/session/gateway";
+
+/**
+ * Detect customer vs manager vs service from `/auth/session/me`.
+ * Returns null when signed out.
+ */
+export function detectUserKind(user: User | null | undefined): UserKind | null {
+  if (!user) return null;
+  switch (user.account_type) {
+    case "service":
+      return "service";
+    case "admin":
+      // Staff operators (order managers, admins, owners) share admin account_type.
+      return "manager";
+    case "customer":
+    default:
+      return "customer";
+  }
+}
+
+export function isCustomer(user: User | null | undefined): boolean {
+  return detectUserKind(user) === "customer";
+}
+
+export function isManager(user: User | null | undefined): boolean {
+  return detectUserKind(user) === "manager";
+}
+
+export function isServiceAccount(user: User | null | undefined): boolean {
+  return detectUserKind(user) === "service";
+}
 
 /** Mirrors shared/pkg/permissions eval.go: exact match, resource wildcard
  * (e.g. "product.*"), "admin.*" (user.* domain only), then "*". */
@@ -37,6 +75,15 @@ export function hasPermission(
   }
   if (held.includes("admin.*") && required.startsWith("user.")) return true;
   return held.includes("*");
+}
+
+/**
+ * Mirrors shared/pkg/permissions.CanBypassPayment: payment.bypass, admin.*, or *.
+ * Distinct from ABAC bypass helpers — this is the Bypass *payment method*.
+ */
+export function canBypassPayment(user: User | null | undefined): boolean {
+  const held = user?.permissions ?? [];
+  return held.includes("*") || held.includes("admin.*") || held.includes("payment.bypass");
 }
 
 function post(url: string, body: unknown): Promise<Response> {

@@ -143,9 +143,12 @@ zero-decimal currency — do not divide by 100). There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 
 Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
-The storefront payment step offers **credit card** only (`POST /api/v1/payments`
-with `{ order_id, method: "credit_card" }` → Stripe Checkout redirect). Bypass
-is manager-only and is not shown here.
+The storefront payment step offers **credit card** for customers
+(`method: "credit_card"` → Stripe Checkout). Staff sessions with
+`payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
+Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
+(`customer` | `manager` | `service` — backend `account_type` is
+`customer` | `admin` | `service`; managers are `admin` staff).
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
