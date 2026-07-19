@@ -21,7 +21,7 @@ export interface CartItemRef {
   skuId?: string;
 }
 
-/** One backend cart line, enriched with product/inventory data on read. */
+/** One backend cart line, enriched with product/stock data on read. */
 export interface CartLine {
   sku: string;
   skuId?: string;

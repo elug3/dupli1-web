@@ -202,8 +202,8 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const [availableStock, setAvailableStock] = useState<number | null>(null);
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
-  // Inventory has no record yet for most catalog items — treat "untracked"
-  // as available; checkout's reservation step is the real stock check.
+  // No stock row yet for most catalog items — treat "untracked" as available;
+  // order complete reserves via product-owned /api/v1/inventory (not a separate service).
   const inStock = availableStock === null || availableStock > 0;
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
@@ -218,8 +218,10 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
   useEffect(() => {
     setAvailableStock(null);
-    fetchAvailableStock(product.sku).then(setAvailableStock).catch(() => setAvailableStock(null));
-  }, [product.sku]);
+    fetchAvailableStock(product.sku, product.skuId)
+      .then(setAvailableStock)
+      .catch(() => setAvailableStock(null));
+  }, [product.sku, product.skuId]);
 
   async function handleAddToBag() {
     if (adding) return;

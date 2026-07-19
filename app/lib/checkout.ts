@@ -1,6 +1,10 @@
 // Client for the real checkout flow: checkout sessions + orders live on
 // dupli1-order, payments on dupli1-payment (both proxied through our BFF).
 // See docs/checkout-session.md and docs/payment-service.md.
+//
+// Stock: on `complete`, order reserves via product-owned `/api/v1/inventory`
+// (standalone inventory service removed). Payment does not touch stock;
+// ship commits the reservation.
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
@@ -59,12 +63,16 @@ export interface Order {
   items: OrderItem[];
 }
 
+export type PaymentMethod = "credit_card" | "bypass";
+
 export interface Payment {
   id: string;
   orderId: string;
   amountCents: number;
   status: string;
-  checkoutUrl: string;
+  method: PaymentMethod | string;
+  /** Present for credit_card (Stripe or local simulate). Omitted for bypass. */
+  checkoutUrl?: string;
 }
 
 interface RawSession {
@@ -157,24 +165,37 @@ export async function completeCheckoutSession(
   return { session: mapSession(body.session), order: mapOrder(body.order) };
 }
 
-export async function createPayment(orderId: string): Promise<Payment> {
+export async function createPayment(
+  orderId: string,
+  method: PaymentMethod = "credit_card",
+  options: { note?: string } = {}
+): Promise<Payment> {
+  const body: { order_id: string; method: PaymentMethod; note?: string } = {
+    order_id: orderId,
+    method,
+  };
+  if (method === "bypass" && options.note?.trim()) {
+    body.note = options.note.trim();
+  }
   const res = await request("/api/v1/payments", {
     method: "POST",
-    body: JSON.stringify({ order_id: orderId }),
+    body: JSON.stringify(body),
   });
-  const body = (await res.json()) as {
+  const raw = (await res.json()) as {
     id: string;
     order_id: string;
     amount_cents: number;
     status: string;
-    checkout_url: string;
+    method?: string;
+    checkout_url?: string;
   };
   return {
-    id: body.id,
-    orderId: body.order_id,
-    amountCents: body.amount_cents,
-    status: body.status,
-    checkoutUrl: body.checkout_url,
+    id: raw.id,
+    orderId: raw.order_id,
+    amountCents: raw.amount_cents,
+    status: raw.status,
+    method: raw.method ?? method,
+    checkoutUrl: raw.checkout_url || undefined,
   };
 }
 

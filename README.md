@@ -142,6 +142,19 @@ Cart `unit_price_cents` / `subtotal_cents` are **whole KRW won** (KRW is a
 zero-decimal currency — do not divide by 100). There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 
+Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
+The storefront payment step offers **credit card** for customers
+(`method: "credit_card"` → Stripe Checkout). Staff sessions with
+`payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
+Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
+(`customer` | `manager` | `service` — backend `account_type` is
+`customer` | `admin` | `service`; managers are `admin` staff).
+
+**Stock path (no standalone inventory service):** PDP stock hints and cart
+`available_qty` come from product-owned `GET /api/v1/inventory/{sku}` (or
+`…/by-sku-id/{skuId}`). Checkout `complete` reserves stock there; payment
+only collects money; order ship commits the reservation.
+
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The

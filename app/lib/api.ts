@@ -191,14 +191,26 @@ export async function fetchProduct(id: string): Promise<ServerProduct> {
 }
 
 /**
- * Real-time stock for a SKU. Returns `null` when inventory has no record for
- * it yet (untracked, not necessarily zero — stock enforcement on add isn't
- * implemented backend-side; checkout is the real enforcement point).
+ * Real-time stock for a sellable variant.
+ * Served by dupli1-product at `/api/v1/inventory/*` (standalone inventory
+ * service removed). Prefer canonical `skuId` when known.
+ * Returns `null` when there is no stock row yet (untracked, not necessarily
+ * zero — reservation on checkout complete is the enforcement point).
  */
-export async function fetchAvailableStock(sku: string): Promise<number | null> {
-  const res = await fetch(`/api/v1/inventory/${encodeURIComponent(sku)}`);
+export async function fetchAvailableStock(
+  sku: string,
+  skuId?: string
+): Promise<number | null> {
+  const path = skuId
+    ? `/api/v1/inventory/by-sku-id/${encodeURIComponent(skuId)}`
+    : `/api/v1/inventory/${encodeURIComponent(sku)}`;
+  const res = await fetch(path);
   if (!res.ok) return null;
-  const body = (await res.json()) as { quantity: number; reserved: number };
+  const body = (await res.json()) as {
+    quantity: number;
+    reserved: number;
+    skuId?: string;
+  };
   return Math.max(0, body.quantity - body.reserved);
 }
 

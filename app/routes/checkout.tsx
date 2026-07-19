@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CartLineControls } from "../components/cart-line-controls";
 import { LoadingBadge } from "../components/loading-badge";
-import { getMe } from "../lib/auth";
+import { canBypassPayment, getMe, type User } from "../lib/auth";
 import { clearCart, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
 import {
   applySessionCoupon,
@@ -11,6 +11,7 @@ import {
   createPayment,
   replaceSessionItems,
   simulatePaymentSuccess,
+  type PaymentMethod,
 } from "../lib/checkout";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
@@ -37,6 +38,9 @@ interface FormState {
   country: string;
   phone: string;
   delivery: "standard" | "express";
+  /** credit_card for everyone; bypass only when canBypassPayment (elug3/dupli1#108). */
+  paymentMethod: PaymentMethod;
+  bypassNote: string;
 }
 
 const initialForm: FormState = {
@@ -49,6 +53,8 @@ const initialForm: FormState = {
   country: "",
   phone: "",
   delivery: "standard",
+  paymentMethod: "credit_card",
+  bypassNote: "",
 };
 
 const checkoutSteps = ["information", "delivery", "payment"] as const;
@@ -91,10 +97,28 @@ export default function CheckoutPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const allowBypass = canBypassPayment(sessionUser);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMe().then((user) => {
+      if (!cancelled) setSessionUser(user);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!allowBypass && form.paymentMethod === "bypass") {
+      setForm((prev) => ({ ...prev, paymentMethod: "credit_card", bypassNote: "" }));
+    }
+  }, [allowBypass, form.paymentMethod]);
 
   useEffect(() => {
     setForm((prev) => ({ ...prev, country: lockedCountry }));
@@ -228,10 +252,19 @@ export default function CheckoutPage() {
       if (coupon) {
         await applySessionCoupon(session.id, coupon.code);
       }
+      // Complete → pending order + stock reserved on dupli1-product inventory.
+      // Payment then marks paid (card redirect / bypass); ship commits stock.
       const { order } = await completeCheckoutSession(session.id);
-      const payment = await createPayment(order.id);
+      const payment = await createPayment(order.id, form.paymentMethod, {
+        note: form.bypassNote,
+      });
 
-      if (payment.checkoutUrl.includes("/simulate-success")) {
+      if (!payment.checkoutUrl || payment.status === "succeeded") {
+        await clearCart();
+        navigate("/checkout/confirmation", {
+          state: { orderId: order.id, email: form.email },
+        });
+      } else if (payment.checkoutUrl.includes("/simulate-success")) {
         // Dev mode: no Stripe key configured, complete the payment directly.
         await simulatePaymentSuccess(payment.id);
         await clearCart();
@@ -426,8 +459,51 @@ export default function CheckoutPage() {
 
             {activeStep === "payment" && (
               <CheckoutSection step="03" title={t("checkout.payment")}>
+                <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
+                  <PaymentMethodOption
+                    name="paymentMethod"
+                    value="credit_card"
+                    checked={form.paymentMethod === "credit_card"}
+                    title={t("checkout.methodCreditCard")}
+                    subtitle={t("checkout.methodCreditCardHint")}
+                    badge={t("checkout.methodSecureRedirect")}
+                    onChange={() => updateField("paymentMethod", "credit_card")}
+                  />
+                  {allowBypass && (
+                    <PaymentMethodOption
+                      name="paymentMethod"
+                      value="bypass"
+                      checked={form.paymentMethod === "bypass"}
+                      title={t("checkout.methodBypass")}
+                      subtitle={t("checkout.methodBypassHint")}
+                      badge={t("checkout.methodBypassBadge")}
+                      onChange={() => updateField("paymentMethod", "bypass")}
+                    />
+                  )}
+                </div>
+                {allowBypass && form.paymentMethod === "bypass" && (
+                  <div>
+                    <label
+                      htmlFor="bypassNote"
+                      className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+                    >
+                      {t("checkout.bypassNote")}
+                    </label>
+                    <input
+                      id="bypassNote"
+                      type="text"
+                      value={form.bypassNote}
+                      onChange={(e) => updateField("bypassNote", e.target.value)}
+                      placeholder={t("checkout.bypassNotePlaceholder")}
+                      maxLength={200}
+                      className="h-12 w-full border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+                    />
+                  </div>
+                )}
                 <p className="text-sm leading-relaxed text-zinc-500">
-                  {t("checkout.paymentNote")}
+                  {form.paymentMethod === "bypass"
+                    ? t("checkout.bypassNoteHelp")
+                    : t("checkout.paymentNote")}
                 </p>
                 {checkoutError && (
                   <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
@@ -753,6 +829,58 @@ function DeliveryOption({
         </div>
       </div>
       <span className="text-sm font-medium text-zinc-950">{price}</span>
+    </label>
+  );
+}
+
+function PaymentMethodOption({
+  name,
+  value,
+  checked,
+  title,
+  subtitle,
+  badge,
+  onChange,
+  disabled = false,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  title: string;
+  subtitle: string;
+  badge: string;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={[
+        "flex items-center justify-between border px-4 py-4 transition",
+        disabled
+          ? "cursor-not-allowed border-zinc-100 bg-zinc-50/50 opacity-60"
+          : checked
+            ? "cursor-pointer border-zinc-950 bg-zinc-50"
+            : "cursor-pointer border-zinc-200 hover:border-zinc-400",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-3">
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          disabled={disabled}
+          onChange={onChange}
+          className="size-4 accent-zinc-950 disabled:cursor-not-allowed"
+        />
+        <div>
+          <p className="text-sm font-medium text-zinc-950">{title}</p>
+          <p className="text-[11px] text-zinc-400">{subtitle}</p>
+        </div>
+      </div>
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+        {badge}
+      </span>
     </label>
   );
 }
