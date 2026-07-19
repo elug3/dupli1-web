@@ -447,7 +447,10 @@ export async function handleRegister(request: Request): Promise<Response> {
   return json({ ok: true }, { status: 200 }, sessionResult.setCookie);
 }
 
-export async function getAccessToken(request: Request): Promise<AccessTokenResult | Response> {
+export async function getAccessToken(
+  request: Request,
+  options: { forceRefresh?: boolean } = {}
+): Promise<AccessTokenResult | Response> {
   const session = readSession(request);
   if (!session) {
     return json(
@@ -458,6 +461,7 @@ export async function getAccessToken(request: Request): Promise<AccessTokenResul
   }
 
   const shouldRefresh =
+    options.forceRefresh ||
     session.record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS <= now();
 
   if (!shouldRefresh) {
@@ -486,31 +490,47 @@ export async function getAccessToken(request: Request): Promise<AccessTokenResul
 }
 
 export async function handleRefresh(request: Request): Promise<Response> {
-  const result = await getAccessToken(request);
+  const result = await getAccessToken(request, { forceRefresh: true });
   if (result instanceof Response) return result;
   return json({ ok: true }, { status: 200 }, result.setCookie);
+}
+
+async function fetchAuthMe(
+  token: string,
+  setCookie?: string
+): Promise<Response> {
+  const upstream = await fetch(upstreamUrl("auth", "/api/v1/auth/me"), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return proxyResponse(upstream, { noStore: true, setCookie });
 }
 
 export async function handleMe(request: Request): Promise<Response> {
   const result = await getAccessToken(request);
   if (result instanceof Response) return result;
 
-  const upstream = await fetch(upstreamUrl("auth", "/api/v1/auth/me"), {
-    headers: {
-      Authorization: `Bearer ${result.token}`,
-    },
-  });
+  let me = await fetchAuthMe(result.token, result.setCookie);
 
-  if (upstream.status === 401) {
-    forgetSession(request);
-    return json(
-      { error: "Not authenticated" },
-      { status: 401 },
-      clearSessionCookie()
-    );
+  // Auth is source of truth: if /me rejects a cached access token, force a
+  // refresh handshake once before treating the browser session as dead.
+  if (me.status === 401) {
+    const refreshed = await getAccessToken(request, { forceRefresh: true });
+    if (refreshed instanceof Response) return refreshed;
+
+    me = await fetchAuthMe(refreshed.token, refreshed.setCookie);
+    if (me.status === 401) {
+      forgetSession(request);
+      return json(
+        { error: "Not authenticated" },
+        { status: 401 },
+        clearSessionCookie()
+      );
+    }
   }
 
-  return proxyResponse(upstream, { noStore: true, setCookie: result.setCookie });
+  return me;
 }
 
 export async function handleLogout(request: Request): Promise<Response> {
@@ -540,6 +560,15 @@ export async function proxyBackendApi(
   const headers = new Headers();
   headers.set("Accept", request.headers.get("Accept") ?? "application/json");
 
+  const contentType = request.headers.get("Content-Type");
+  if (contentType) headers.set("Content-Type", contentType);
+
+  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+  // Buffer once so a post-refresh retry can resend the same payload.
+  const body = hasBody ? await request.arrayBuffer() : undefined;
+  const target = upstreamUrl(service, path, request.url);
+  const noStore = options.noStore ?? options.requireAuth;
+
   let setCookie: string | undefined;
   if (options.requireAuth) {
     const result = await getAccessToken(request);
@@ -548,20 +577,44 @@ export async function proxyBackendApi(
     setCookie = result.setCookie;
   }
 
-  const contentType = request.headers.get("Content-Type");
-  if (contentType) headers.set("Content-Type", contentType);
-
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const upstream = await fetch(upstreamUrl(service, path, request.url), {
+  let upstream = await fetch(target, {
     method: request.method,
     headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
+    body,
   });
 
-  return proxyResponse(upstream, {
-    noStore: options.noStore ?? options.requireAuth,
-    setCookie,
-  });
+  // Non-auth services are not the source of truth for login state. If one
+  // returns 401, force a refresh_token handshake with auth and retry once.
+  // Only auth refresh failure clears the session / surfaces 401 to the browser.
+  if (options.requireAuth && upstream.status === 401 && service !== "auth") {
+    const refreshed = await getAccessToken(request, { forceRefresh: true });
+    if (refreshed instanceof Response) return refreshed;
+
+    headers.set("Authorization", `Bearer ${refreshed.token}`);
+    setCookie = refreshed.setCookie ?? setCookie;
+
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body,
+    });
+
+    if (upstream.status === 401) {
+      // Session is still valid per auth; the upstream rejected the token
+      // (misconfig, outage, etc.). Do not log the user out.
+      return json(
+        {
+          error: `${service} rejected a valid session token`,
+          code: "upstream_unauthorized",
+          service,
+        },
+        { status: 502 },
+        setCookie
+      );
+    }
+  }
+
+  return proxyResponse(upstream, { noStore, setCookie });
 }
 
 /**
