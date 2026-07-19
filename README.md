@@ -162,6 +162,14 @@ BFF includes `audience: "web"` in token requests for the backend contract, but
 the current Go auth service must also support/enforce that claim and configure
 its JWT expiry if the token `exp` itself must be exactly five minutes.
 
+**Auth is the source of truth for login state.** When cart/order/payment (or
+another non-auth upstream) returns `401`, the BFF force-refreshes via
+`POST /api/v1/auth/refresh` and retries once. Only a failed auth refresh (or
+`/auth/session/me`) clears the session and surfaces `401` to the browser —
+upstream rejection after a successful refresh is returned as `502`
+(`code: upstream_unauthorized`) so the UI can show an error without bouncing
+to `/login`.
+
 ## Quality Checks
 
 Run TypeScript and React Router type generation:

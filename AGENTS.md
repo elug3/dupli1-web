@@ -14,6 +14,8 @@ Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (
 
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.
 
+Non-auth upstream `401` → BFF force-refreshes with auth and retries once; do not treat that as logout unless auth refresh/`/me` fails (then `401`). Persistent upstream rejection after refresh → `502` `upstream_unauthorized`.
+
 ## Cursor Cloud specific instructions
 
 - Dependencies (`npm install`) are refreshed automatically by the cloud update script; no manual install needed on a fresh VM.
