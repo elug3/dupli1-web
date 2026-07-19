@@ -220,6 +220,7 @@ export default function CheckoutPage() {
         session.id,
         items.map((item) => ({
           sku: item.sku,
+          sku_id: item.skuId,
           quantity: item.quantity,
           unit_price_cents: item.unitPriceCents,
         }))
@@ -476,7 +477,7 @@ export default function CheckoutPage() {
           <aside className="hidden lg:block lg:sticky lg:top-28 lg:self-start">
             <div className="mb-6 space-y-6 border-b border-zinc-100 pb-6">
               {items.map((item) => (
-                <div key={item.sku}>
+                <div key={item.skuId ?? item.sku}>
                   <div className="flex gap-4">
                     <div className="relative h-20 w-16 shrink-0 overflow-hidden bg-zinc-50">
                       <img
@@ -499,6 +500,7 @@ export default function CheckoutPage() {
                   </div>
                   <CartLineControls
                     sku={item.sku}
+                    skuId={item.skuId}
                     quantity={item.quantity}
                     price={item.price}
                     mutation={mutation}
@@ -773,12 +775,12 @@ function MiniBag({
       </p>
       <ul className="mt-3 space-y-4">
         {items.map((item) => {
-          const pending = mutation.isPending(item.sku);
-          const action = mutation.getAction(item.sku);
+          const pending = mutation.isPending(item.sku, item.skuId);
+          const action = mutation.getAction(item.sku, item.skuId);
 
           return (
             <li
-              key={item.sku}
+              key={item.skuId ?? item.sku}
               className="border-b border-zinc-100 pb-4 last:border-0 last:pb-0"
             >
               <div className="flex justify-between gap-3 text-sm">
@@ -806,17 +808,17 @@ function MiniBag({
                       quantity={item.quantity}
                       disabled={pending}
                       onDecrease={() =>
-                        mutation.decreaseQuantity(item.sku, item.quantity)
+                        mutation.decreaseQuantity(item.sku, item.quantity, item.skuId)
                       }
                       onIncrease={() =>
-                        mutation.increaseQuantity(item.sku, item.quantity)
+                        mutation.increaseQuantity(item.sku, item.quantity, item.skuId)
                       }
                     />
                   </div>
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => mutation.removeItem(item.sku)}
+                    onClick={() => mutation.removeItem(item.sku, item.skuId)}
                     className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 transition hover:text-zinc-950 disabled:cursor-wait disabled:opacity-50"
                   >
                     {t("cart.remove")}

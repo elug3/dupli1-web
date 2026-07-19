@@ -55,7 +55,8 @@ export default function CheckoutConfirmationPage() {
     };
   }, [state.orderId]);
 
-  const total = order ? order.totalCents / 100 : undefined;
+  // total_cents is whole KRW won (zero-decimal); do not ÷100.
+  const total = order ? order.totalCents : undefined;
   const statusMessage =
     order?.status === "pending"
       ? t("confirmation.confirmingPayment")

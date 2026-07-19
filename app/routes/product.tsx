@@ -200,7 +200,8 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const location = useLocation();
   const [added, setAdded] = useState(false);
   const [availableStock, setAvailableStock] = useState<number | null>(null);
-  const adding = isPending(product.sku) && getAction(product.sku) === "add";
+  const adding =
+    isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
   // Inventory has no record yet for most catalog items — treat "untracked"
   // as available; checkout's reservation step is the real stock check.
   const inStock = availableStock === null || availableStock > 0;
@@ -222,7 +223,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
   async function handleAddToBag() {
     if (adding) return;
-    await addItem(product.sku);
+    await addItem(product.sku, 1, product.skuId);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
