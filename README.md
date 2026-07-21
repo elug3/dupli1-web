@@ -101,16 +101,22 @@ DUPLI1_API_CA_FILE=../dupli1/certs/server.crt
 Plain `http://localhost:8080` remains the default and needs no CA file. See
 [scripts/dupli1-local-tls/README.md](scripts/dupli1-local-tls/README.md).
 
-Customer registration requires a dupli1-web service account bearer token. Issue an
-access token for the seeded `customer_registrar` account on `dupli1-auth` and
-configure it on dupli1-web:
+Customer registration requires a dupli1-web service account. Prefer email + password
+so the BFF can mint and refresh access tokens:
+
+```bash
+DUPLI1_WEB_SERVICE_EMAIL=dupli1-web@web.dupli1.com
+DUPLI1_WEB_SERVICE_PASSWORD=<service-account-password>
+```
+
+Optionally set a short-lived access token instead (skips login/refresh):
 
 ```bash
 DUPLI1_WEB_SERVICE_TOKEN=<access_token>
 ```
 
-The BFF sends this token as `Authorization: Bearer <token>` when calling
-`POST /api/v1/auth/register`. Never expose the token to browsers.
+The BFF sends the access token as `Authorization: Bearer <token>` when calling
+`POST /api/v1/auth/register`. Never expose these credentials to browsers.
 
 Product catalog reads call the Dupli1 product service
 ([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the ALB
@@ -262,7 +268,12 @@ Deployment uses GitHub OIDC to assume `arn:aws:iam::845061289093:role/github-act
 
 The container listens on port `3000` behind the `dupli1-web-3000-tg` load balancer target group. Backend API calls are routed through `DUPLI1_API_BASE_URL=http://proxy.dupli1.local`.
 
-Set `DUPLI1_WEB_SERVICE_TOKEN` on the ECS task (prefer AWS Secrets Manager) so customer registration can authenticate with the dupli1-auth service account.
+Set `DUPLI1_WEB_SERVICE_EMAIL` + `DUPLI1_WEB_SERVICE_PASSWORD` (preferred) or
+`DUPLI1_WEB_SERVICE_TOKEN` on the ECS task via GitHub Actions secrets so customer
+registration can authenticate with the dupli1-auth service account. The deploy
+workflow injects whichever secrets are present; you can also run
+`scripts/configure-web-service-ecs.sh` or the "Configure web service account on ECS"
+workflow to update a live service without rebuilding the image.
 
 ## Deployment Notes
 

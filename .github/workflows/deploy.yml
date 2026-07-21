@@ -51,6 +51,26 @@ jobs:
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Build web service account env overrides
+        id: web-env
+        env:
+          DUPLI1_WEB_SERVICE_EMAIL: ${{ secrets.DUPLI1_WEB_SERVICE_EMAIL }}
+          DUPLI1_WEB_SERVICE_PASSWORD: ${{ secrets.DUPLI1_WEB_SERVICE_PASSWORD }}
+          DUPLI1_WEB_SERVICE_TOKEN: ${{ secrets.DUPLI1_WEB_SERVICE_TOKEN }}
+        run: |
+          {
+            echo 'vars<<EOF'
+            if [[ -n "${DUPLI1_WEB_SERVICE_EMAIL}" && -n "${DUPLI1_WEB_SERVICE_PASSWORD}" ]]; then
+              echo "DUPLI1_WEB_SERVICE_EMAIL=${DUPLI1_WEB_SERVICE_EMAIL}"
+              echo "DUPLI1_WEB_SERVICE_PASSWORD=${DUPLI1_WEB_SERVICE_PASSWORD}"
+            elif [[ -n "${DUPLI1_WEB_SERVICE_TOKEN}" ]]; then
+              echo "DUPLI1_WEB_SERVICE_TOKEN=${DUPLI1_WEB_SERVICE_TOKEN}"
+            else
+              echo "::warning::Set secrets DUPLI1_WEB_SERVICE_EMAIL + DUPLI1_WEB_SERVICE_PASSWORD (preferred) or DUPLI1_WEB_SERVICE_TOKEN so registration works"
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Render Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -58,6 +78,7 @@ jobs:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
+          environment-variables: ${{ steps.web-env.outputs.vars }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
