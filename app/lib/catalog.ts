@@ -9,6 +9,42 @@ export const BRAND_SLUGS: Record<string, string> = {
   ysl: "Saint Laurent",
 };
 
+/**
+ * Upstream catalog brand filter values. Display names in BRAND_SLUGS may use
+ * typographic accents (Hermès) while the product service seeds ASCII names
+ * (Hermes) — filters must match the seeded name for ILIKE/contains search.
+ */
+export const BRAND_API_NAMES: Record<string, string> = {
+  "louis-vuitton": "Louis Vuitton",
+  "miu-miu": "Miu Miu",
+  balenciaga: "Balenciaga",
+  chanel: "Chanel",
+  hermes: "Hermes",
+  loewe: "Loewe",
+  prada: "Prada",
+  ysl: "Saint Laurent",
+};
+
+/** Brand pages that render a dedicated full-bleed brand hero. */
+export const FEATURED_BRAND_SLUGS = [
+  "louis-vuitton",
+  "hermes",
+  "prada",
+] as const;
+
+export type FeaturedBrandSlug = (typeof FEATURED_BRAND_SLUGS)[number];
+
+export const BRAND_LOGOS: Record<string, string> = {
+  "louis-vuitton": "/brands/louis-vuitton.svg",
+  "miu-miu": "/brands/miu-miu.svg",
+  balenciaga: "/brands/balenciaga.svg",
+  chanel: "/brands/chanel.svg",
+  hermes: "/brands/hermes.svg",
+  loewe: "/brands/loewe.svg",
+  prada: "/brands/prada.svg",
+  ysl: "/brands/saint-laurent.svg",
+};
+
 export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
   handbags: "",
   totes: "Totes",
@@ -43,6 +79,32 @@ export function isCategoryFacet(facet: string): facet is CategoryFacet {
   );
 }
 
+/** Accent-insensitive brand key for matching Hermes / Hermès. */
+export function normalizeBrandKey(brand: string): string {
+  return brand
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function brandsMatch(a: string, b: string): boolean {
+  return normalizeBrandKey(a) === normalizeBrandKey(b);
+}
+
+export function brandApiName(slug: string): string | undefined {
+  return BRAND_API_NAMES[slug] ?? BRAND_SLUGS[slug];
+}
+
+export function isFeaturedBrandSlug(slug: string): slug is FeaturedBrandSlug {
+  return (FEATURED_BRAND_SLUGS as readonly string[]).includes(slug);
+}
+
+export function brandBlurbKey(slug: string): string | null {
+  if (!isFeaturedBrandSlug(slug)) return null;
+  return `brand.${slug}.blurb`;
+}
+
 export function buildCategorySearchParams(
   facet: CategoryFacet,
   value?: string
@@ -51,7 +113,7 @@ export function buildCategorySearchParams(
 
   switch (facet) {
     case "brand": {
-      const brand = BRAND_SLUGS[value];
+      const brand = brandApiName(value);
       return brand ? { brand } : { brand: "__no_match__" };
     }
     case "product-type": {
@@ -125,8 +187,10 @@ export function productMatchesFacetValue(
   const get = (key: string) => String(details[key] ?? "");
 
   switch (facet) {
-    case "brand":
-      return get("Brand") === (BRAND_SLUGS[value] ?? value);
+    case "brand": {
+      const expected = brandApiName(value) ?? BRAND_SLUGS[value] ?? value;
+      return brandsMatch(get("Brand"), expected);
+    }
     case "product-type": {
       if (value === "handbags") return true;
       const type = PRODUCT_TYPE_SLUGS[value];
@@ -144,8 +208,24 @@ export function productMatchesFacetValue(
 }
 
 export function brandToSlug(brand: string): string | null {
-  const entry = Object.entries(BRAND_SLUGS).find(([, name]) => name === brand);
-  return entry?.[0] ?? null;
+  const key = normalizeBrandKey(brand);
+  const fromApi = Object.entries(BRAND_API_NAMES).find(
+    ([, name]) => normalizeBrandKey(name) === key
+  );
+  if (fromApi) return fromApi[0];
+
+  const fromDisplay = Object.entries(BRAND_SLUGS).find(
+    ([, name]) => normalizeBrandKey(name) === key
+  );
+  return fromDisplay?.[0] ?? null;
+}
+
+/** Prefer typographic display names (Hermès) over upstream ASCII (Hermes). */
+export function brandDisplayName(brandOrSlug: string): string {
+  if (BRAND_SLUGS[brandOrSlug]) return BRAND_SLUGS[brandOrSlug];
+  const slug = brandToSlug(brandOrSlug);
+  if (slug) return BRAND_SLUGS[slug];
+  return brandOrSlug;
 }
 
 export function categoryDisplayLabel(
@@ -154,7 +234,7 @@ export function categoryDisplayLabel(
   t: (key: string) => string
 ): string {
   if (facet === "brand" && value) {
-    return BRAND_SLUGS[value] ?? value.replace(/-/g, " ");
+    return brandDisplayName(value);
   }
 
   const key = categoryTitleKey(facet, value);

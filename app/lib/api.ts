@@ -222,6 +222,7 @@ const BRAND_IMAGES: Record<string, string> = {
   Chanel: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=600&h=720&fit=crop",
   Prada: "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&h=720&fit=crop",
   Coach: "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=600&h=720&fit=crop",
+  Hermes: "https://images.unsplash.com/photo-1473188588951-666fce8e7c68?w=600&h=720&fit=crop",
   "Hermès": "https://images.unsplash.com/photo-1473188588951-666fce8e7c68?w=600&h=720&fit=crop",
   Dior: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600&h=720&fit=crop",
   "Bottega Veneta": "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=600&h=720&fit=crop",
