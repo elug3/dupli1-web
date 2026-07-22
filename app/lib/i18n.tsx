@@ -480,6 +480,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.description":
       "The page you are looking for does not exist or has been moved.",
     "category.empty": "No products match this category yet. Browse the full collection instead.",
+    "brand.shopCollection": "Shop the collection",
+    "brand.collection": "Collection",
+    "brand.louis-vuitton.blurb":
+      "Monogram icons and contemporary leatherwork — curated Louis Vuitton bags for everyday and occasion.",
+    "brand.hermes.blurb":
+      "Quiet craft and enduring silhouettes — Hermès bags selected for form, finish, and presence.",
+    "brand.prada.blurb":
+      "Architectural lines and nylon heritage — Prada bags with a precise, modern edge.",
 
     "history.metaTitle": "History | Dupli1",
     "history.metaDescription": "View recent browsing history.",
@@ -965,6 +973,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.description":
       "찾고 있는 페이지가 존재하지 않거나 이동되었습니다.",
     "category.empty": "이 카테고리에 해당하는 상품이 없습니다. 전체 컬렉션을 둘러보세요.",
+    "brand.shopCollection": "컬렉션 쇼핑하기",
+    "brand.collection": "컬렉션",
+    "brand.louis-vuitton.blurb":
+      "모노그램 아이콘과 현대적 레더워크 — 일상과 특별한 순간을 위한 루이 비통 셀렉션.",
+    "brand.hermes.blurb":
+      "절제된 장인 정신과 오래 남는 실루엣 — 형태와 마감이 돋보이는 에르메스 가방.",
+    "brand.prada.blurb":
+      "건축적 라인과 나일론 헤리티지 — 정교하고 모던한 프라다 가방.",
 
     "history.metaTitle": "내역 | Dupli1",
     "history.metaDescription": "최근 탐색 내역을 확인하세요.",
@@ -1434,6 +1450,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.title": "页面未找到",
     "notFound.description": "您查找的页面不存在或已被移动。",
     "category.empty": "此分类暂无商品，请浏览全部系列。",
+    "brand.shopCollection": "选购系列",
+    "brand.collection": "系列",
+    "brand.louis-vuitton.blurb":
+      "经典老花与当代皮革工艺 — 日常与场合皆宜的路易威登精选包袋。",
+    "brand.hermes.blurb":
+      "克制的匠心与经久廓形 — 精选形态、工艺与气场兼具的爱马仕包袋。",
+    "brand.prada.blurb":
+      "建筑感线条与尼龙传承 — 精准而现代的普拉达包袋。",
 
     "history.metaTitle": "历史 | Dupli1",
     "history.metaDescription": "查看最近浏览历史。",

@@ -7,7 +7,7 @@ import {
   bannerBagImage,
   heroBagImage,
 } from "../lib/api";
-import { brandToSlug } from "../lib/catalog";
+import { brandDisplayName, brandToSlug } from "../lib/catalog";
 import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
 import { ProductPrice } from "../components/product-price";
@@ -401,6 +401,7 @@ function BrandTiles() {
         <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
           {tiles.map(({ brand, image }) => {
             const slug = brandToSlug(brand);
+            const label = brandDisplayName(brand);
             return (
             <Link
               key={brand}
@@ -410,7 +411,7 @@ function BrandTiles() {
               <div className="relative overflow-hidden" style={{ paddingBottom: "125%" }}>
                 <img
                   src={bagImage(brand, image)}
-                  alt={brand}
+                  alt={label}
                   className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/10 to-transparent transition duration-500 group-hover:from-zinc-950/90" />
@@ -419,7 +420,7 @@ function BrandTiles() {
                     className="text-xl font-light text-white md:text-2xl"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
-                    {brand}
+                    {label}
                   </p>
                   <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8a96e] opacity-0 transition duration-300 group-hover:opacity-100">
                     {t("home.categoryExplore")} →
