@@ -1,0 +1,58 @@
+name: Configure web service account on ECS
+
+# Updates the live dupli1-web task definition with registration credentials
+# without rebuilding the image. Requires repo secrets:
+#   DUPLI1_WEB_SERVICE_EMAIL + DUPLI1_WEB_SERVICE_PASSWORD  (preferred)
+#   or DUPLI1_WEB_SERVICE_TOKEN                             (short-lived fallback)
+#
+# Run from Actions → "Configure web service account on ECS" → Run workflow
+# after setting the secrets above.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: configure-web-service-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: production
+  ECS_SERVICE: dupli1-web
+  CONTAINER_NAME: web
+
+jobs:
+  configure:
+    name: Configure ECS env
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require service account secrets
+        env:
+          DUPLI1_WEB_SERVICE_EMAIL: ${{ secrets.DUPLI1_WEB_SERVICE_EMAIL }}
+          DUPLI1_WEB_SERVICE_PASSWORD: ${{ secrets.DUPLI1_WEB_SERVICE_PASSWORD }}
+          DUPLI1_WEB_SERVICE_TOKEN: ${{ secrets.DUPLI1_WEB_SERVICE_TOKEN }}
+        run: |
+          if [[ -z "${DUPLI1_WEB_SERVICE_TOKEN}" && ( -z "${DUPLI1_WEB_SERVICE_EMAIL}" || -z "${DUPLI1_WEB_SERVICE_PASSWORD}" ) ]]; then
+            echo "::error::Set GitHub Actions secrets DUPLI1_WEB_SERVICE_EMAIL + DUPLI1_WEB_SERVICE_PASSWORD (preferred) or DUPLI1_WEB_SERVICE_TOKEN"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::845061289093:role/github-actions-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update ECS task environment
+        env:
+          DUPLI1_WEB_SERVICE_EMAIL: ${{ secrets.DUPLI1_WEB_SERVICE_EMAIL }}
+          DUPLI1_WEB_SERVICE_PASSWORD: ${{ secrets.DUPLI1_WEB_SERVICE_PASSWORD }}
+          DUPLI1_WEB_SERVICE_TOKEN: ${{ secrets.DUPLI1_WEB_SERVICE_TOKEN }}
+        run: bash scripts/configure-web-service-ecs.sh
