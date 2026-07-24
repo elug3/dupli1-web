@@ -53,9 +53,14 @@ interface UpstreamProduct {
   tags?: string[];
   createdAt?: string;
   capacity?: string;
+  /** @deprecated Prefer subCategory (dupli1#128 bag taxonomy). */
   productType?: string;
+  subCategory?: string;
+  /** Bag occasion/look code — not SKU styleCode. */
   style?: string;
+  /** @deprecated Prefer target (dupli1#128). */
   family?: string;
+  target?: string;
   variants?: Array<{
     sku: string;
     skuId?: string;
@@ -149,7 +154,52 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
 //   GET /api/v1/products?category=bags
 //   GET /api/v1/products/{id}
 
-const UPSTREAM_FILTER_KEYS = ["brand", "color", "material", "size", "tags"] as const;
+/** Query params forwarded to `GET /api/v1/products` (dupli1 product service). */
+const UPSTREAM_FILTER_KEYS = [
+  "brand",
+  "color",
+  "material",
+  "size",
+  "tags",
+  "subcategory",
+  "subCategory",
+  "style",
+  "target",
+  "sort",
+  "order",
+  "limit",
+  "offset",
+  "q",
+  "period",
+] as const;
+
+export type BagSort =
+  | "newest"
+  | "views"
+  | "sold"
+  | "wishlist"
+  | "price"
+  | "name"
+  | "popular";
+
+export type BagSearchFilters = {
+  brand?: string;
+  color?: string;
+  material?: string;
+  /** Bag type code: handbags | tote | shoulder | cross | mini */
+  subcategory?: string;
+  /** Occasion/look code: casual | evening | business | weekend | statement */
+  style?: string;
+  /** Audience code: men | women | kids */
+  target?: string;
+  tags?: string;
+  sort?: BagSort;
+  order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+  q?: string;
+  period?: "day" | "week" | "month";
+};
 
 async function searchUpstream(
   filters: Record<string, string> = {}
@@ -169,18 +219,77 @@ async function searchUpstream(
   return data.results ?? [];
 }
 
-export async function fetchBags(filters?: {
-  brand?: string;
-  color?: string;
-  material?: string;
-}): Promise<Bag[]> {
-  const products = await searchUpstream({
-    category: "bags",
-    ...(filters?.brand ? { brand: filters.brand } : {}),
-    ...(filters?.color ? { color: filters.color } : {}),
-    ...(filters?.material ? { material: filters.material } : {}),
-  });
+function bagSearchToUpstream(
+  filters?: BagSearchFilters
+): Record<string, string> {
+  if (!filters) return { category: "bags" };
+  const out: Record<string, string> = { category: "bags" };
+  if (filters.brand) out.brand = filters.brand;
+  if (filters.color) out.color = filters.color;
+  if (filters.material) out.material = filters.material;
+  if (filters.subcategory) out.subcategory = filters.subcategory;
+  if (filters.style) out.style = filters.style;
+  if (filters.target) out.target = filters.target;
+  if (filters.tags) out.tags = filters.tags;
+  if (filters.sort) out.sort = filters.sort;
+  if (filters.order) out.order = filters.order;
+  if (filters.q) out.q = filters.q;
+  if (filters.period) out.period = filters.period;
+  if (typeof filters.limit === "number" && filters.limit > 0) {
+    out.limit = String(filters.limit);
+  }
+  if (typeof filters.offset === "number" && filters.offset >= 0) {
+    out.offset = String(filters.offset);
+  }
+  return out;
+}
+
+export async function fetchBags(
+  filters?: BagSearchFilters
+): Promise<Bag[]> {
+  const products = await searchUpstream(bagSearchToUpstream(filters));
   return products.map(toBag);
+}
+
+/**
+ * Prefer a known product id when present in the filtered page; otherwise
+ * return the first result. Used by home hero / editorial / promo slots.
+ */
+export async function fetchCuratedBag(
+  filters: BagSearchFilters & { preferredId?: string } = {}
+): Promise<Bag | null> {
+  const { preferredId, ...query } = filters;
+  const bags = await fetchBags({
+    limit: query.limit ?? 8,
+    ...query,
+  });
+  if (preferredId) {
+    const hit = bags.find((bag) => bag.id === preferredId);
+    if (hit) return hit;
+  }
+  return bags[0] ?? null;
+}
+
+/** Prefer one product per brand, then fill remaining slots. */
+export function diversifyBagsByBrand(bags: Bag[], limit: number): Bag[] {
+  if (limit <= 0 || bags.length === 0) return [];
+  const picked: Bag[] = [];
+  const seenBrands = new Set<string>();
+
+  for (const bag of bags) {
+    const key = bag.brand.trim().toLowerCase();
+    if (!key || seenBrands.has(key)) continue;
+    seenBrands.add(key);
+    picked.push(bag);
+    if (picked.length >= limit) return picked;
+  }
+
+  for (const bag of bags) {
+    if (picked.some((item) => item.id === bag.id)) continue;
+    picked.push(bag);
+    if (picked.length >= limit) break;
+  }
+  return picked;
 }
 
 export async function fetchProduct(id: string): Promise<ServerProduct> {
@@ -346,7 +455,25 @@ export async function getCategories(): Promise<string[]> {
 
 export async function getFilters(category: string): Promise<string[]> {
   if (category.toLowerCase() !== "bags") return [];
-  return ["brand", "color", "material", "productType", "style", "family"];
+  return ["brand", "color", "material", "subcategory", "style", "target"];
+}
+
+function taxonomyValue(product: UpstreamProduct, key: string): string {
+  switch (key.toLowerCase()) {
+    case "producttype":
+    case "product-type":
+    case "type":
+    case "subcategory":
+      return product.subCategory ?? product.productType ?? "";
+    case "style":
+      return product.style ?? "";
+    case "family":
+    case "gender":
+    case "target":
+      return product.target ?? product.family ?? "";
+    default:
+      return "";
+  }
 }
 
 export async function searchProducts(
@@ -359,7 +486,8 @@ export async function searchProducts(
 
   const upstream: Record<string, string> = { category: "bags" };
   const local: Array<[string, string]> = [];
-  const query = params.query?.trim().toLowerCase() ?? "";
+  const query =
+    params.q?.trim().toLowerCase() ?? params.query?.trim().toLowerCase() ?? "";
 
   for (const [key, value] of Object.entries(params)) {
     const trimmed = value.trim();
@@ -377,21 +505,7 @@ export async function searchProducts(
   const products = await searchUpstream(upstream);
   const filtered = products.filter((product) => {
     for (const [key, wanted] of local) {
-      const actual = (() => {
-        switch (key.toLowerCase()) {
-          case "producttype":
-          case "product-type":
-          case "type":
-            return product.productType ?? "";
-          case "style":
-            return product.style ?? "";
-          case "family":
-          case "gender":
-            return product.family ?? "";
-          default:
-            return "";
-        }
-      })();
+      const actual = taxonomyValue(product, key);
       // Facets not populated on the parent yet — don't empty the grid.
       if (!actual) continue;
       if (actual.toLowerCase() !== wanted.toLowerCase()) return false;
@@ -419,9 +533,9 @@ export async function searchProducts(
         Capacity: product.capacity ?? "",
         Stock: product.stock ?? 0,
         Category: product.category || "bags",
-        Type: product.productType ?? "",
+        Type: product.subCategory ?? product.productType ?? "",
         Style: product.style ?? "",
-        Gender: product.family ?? "",
+        Gender: product.target ?? product.family ?? "",
         Status: upstreamStatus(product),
         Image: upstreamImage(product),
       },

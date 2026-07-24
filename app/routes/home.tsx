@@ -2,12 +2,18 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
   type Bag,
+  diversifyBagsByBrand,
   fetchBags,
+  fetchCuratedBag,
   bagImage,
   bannerBagImage,
   heroBagImage,
 } from "../lib/api";
-import { brandDisplayName, brandToSlug } from "../lib/catalog";
+import {
+  PRODUCT_TYPE_TO_SUBCATEGORY,
+  brandDisplayName,
+  brandToSlug,
+} from "../lib/catalog";
 import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
 import { ProductPrice } from "../components/product-price";
@@ -19,6 +25,7 @@ export function meta() {
   ];
 }
 
+/** Soft preferences when the seeded id still exists in the filtered page. */
 const HERO_BAG_ID = "bag-chanel-classic-flap-medium";
 const EDITORIAL_BAG_ID = "bag-lv-capucines-bb";
 const SUMMER_EDIT_BAG_ID = "bag-hermes-garden-party-30";
@@ -26,24 +33,28 @@ const SUMMER_EDIT_BAG_ID = "bag-hermes-garden-party-30";
 const categoryTiles = [
   {
     key: "handbags",
+    slug: "handbags",
     titleKey: "home.categoryBags",
     to: "/category/product-type/handbags",
     className: "md:col-span-2 md:row-span-2 min-h-[18rem] md:min-h-[28rem]",
   },
   {
     key: "totes",
+    slug: "totes",
     titleKey: "category.totes",
     to: "/category/product-type/totes",
     className: "min-h-[14rem]",
   },
   {
     key: "shoulder",
+    slug: "shoulder-bags",
     titleKey: "category.shoulderBags",
     to: "/category/product-type/shoulder-bags",
     className: "min-h-[14rem]",
   },
   {
     key: "crossbody",
+    slug: "crossbody",
     titleKey: "category.crossbody",
     to: "/category/product-type/crossbody",
     className: "min-h-[14rem] md:col-span-2",
@@ -56,6 +67,18 @@ const styleTiles = [
   { key: "business", titleKey: "category.business", to: "/category/style/business" },
   { key: "weekend", titleKey: "category.weekend", to: "/category/style/weekend" },
   { key: "statement", titleKey: "category.statement", to: "/category/style/statement" },
+] as const;
+
+/** Prefer these brands (API names) for the shop-by-brand strip. */
+const HOME_BRAND_ORDER = [
+  "Chanel",
+  "Louis Vuitton",
+  "Hermes",
+  "Prada",
+  "Balenciaga",
+  "Loewe",
+  "Miu Miu",
+  "Saint Laurent",
 ] as const;
 
 export default function Home() {
@@ -80,15 +103,18 @@ function Hero() {
   const [heroBag, setHeroBag] = useState<Bag | null>(null);
 
   useEffect(() => {
-    fetchBags()
-      .then((bags) => {
-        const selected =
-          bags.find((bag) => bag.id === HERO_BAG_ID) ??
-          bags.find((bag) => bag.brand === "Chanel") ??
-          bags[0] ??
-          null;
-        setHeroBag(selected);
+    // Chanel spotlight: brand-scoped + popular, not the undifferentiated bags[0].
+    fetchCuratedBag({
+      brand: "Chanel",
+      sort: "views",
+      limit: 8,
+      preferredId: HERO_BAG_ID,
+    })
+      .then(async (bag) => {
+        if (bag) return bag;
+        return fetchCuratedBag({ sort: "views", limit: 8 });
       })
+      .then((bag) => setHeroBag(bag))
       .catch(() => {});
   }, []);
 
@@ -148,7 +174,7 @@ function Hero() {
           >
             <div className="w-full border-t border-white/10 pt-5 text-center lg:text-left">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c8a96e]">
-                {heroBag.brand}
+                {brandDisplayName(heroBag.brand)}
               </p>
               <h2
                 className="mt-2 text-2xl font-light leading-tight text-white"
@@ -216,23 +242,42 @@ function ValueStrip() {
 
 function CategoryMosaic() {
   const { t } = useLanguage();
-  const [bags, setBags] = useState<Bag[]>([]);
+  const [images, setImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetchBags().then(setBags).catch(() => {});
-  }, []);
+    let cancelled = false;
 
-  const imageForTile = (key: string) => {
-    const match =
-      bags.find((bag) => {
-        if (key === "handbags") return true;
-        if (key === "totes") return bag.name.toLowerCase().includes("tote");
-        if (key === "shoulder") return bag.name.toLowerCase().includes("shoulder");
-        if (key === "crossbody") return bag.name.toLowerCase().includes("cross");
-        return false;
-      }) ?? bags[0];
-    return match ? heroBagImage(match.image, match.brand) : null;
-  };
+    Promise.all(
+      categoryTiles.map(async (tile) => {
+        const subcategory = PRODUCT_TYPE_TO_SUBCATEGORY[tile.slug];
+        let bags = await fetchBags({
+          subcategory,
+          sort: "views",
+          limit: 1,
+        }).catch(() => [] as Bag[]);
+
+        // Taxonomy may be unset on older catalog rows — fall back to newest.
+        if (bags.length === 0) {
+          bags = await fetchBags({ sort: "newest", limit: 4 }).catch(
+            () => [] as Bag[]
+          );
+        }
+
+        const bag = bags[0];
+        return [
+          tile.key,
+          bag ? heroBagImage(bag.image, bag.brand) : "",
+        ] as const;
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setImages(Object.fromEntries(entries.filter(([, url]) => url)));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="px-4 py-16 md:px-8 md:py-24">
@@ -254,7 +299,7 @@ function CategoryMosaic() {
 
         <div className="grid gap-3 md:grid-cols-3 md:grid-rows-2">
           {categoryTiles.map((tile) => {
-            const image = imageForTile(tile.key);
+            const image = images[tile.key];
             return (
               <Link
                 key={tile.key}
@@ -301,17 +346,25 @@ function EditorialSplit() {
   const [bag, setBag] = useState<Bag | null>(null);
 
   useEffect(() => {
-    fetchBags()
-      .then((bags) => {
-        const selected =
-          bags.find((b) => b.id === EDITORIAL_BAG_ID) ??
-          bags.find((b) => b.brand === "Louis Vuitton") ??
-          bags[0] ??
-          null;
-        setBag(selected);
+    fetchCuratedBag({
+      brand: "Louis Vuitton",
+      sort: "newest",
+      limit: 8,
+      preferredId: EDITORIAL_BAG_ID,
+    })
+      .then(async (selected) => {
+        if (selected) return selected;
+        return fetchCuratedBag({ sort: "newest", limit: 8 });
       })
+      .then(setBag)
       .catch(() => {});
   }, []);
+
+  const ctaTo = bag
+    ? brandToSlug(bag.brand)
+      ? `/category/brand/${brandToSlug(bag.brand)}`
+      : `/product/${bag.id}`
+    : "/category/brand/louis-vuitton";
 
   return (
     <section className="overflow-hidden bg-zinc-950 text-white">
@@ -330,7 +383,7 @@ function EditorialSplit() {
             {t("home.editorialBody")}
           </p>
           <Link
-            to="/category/product-type/handbags"
+            to={ctaTo}
             className="mt-10 inline-flex h-12 w-fit items-center border border-[#c8a96e]/50 px-8 text-xs font-semibold uppercase tracking-[0.2em] text-[#c8a96e] transition hover:bg-[#c8a96e] hover:text-zinc-950"
           >
             {t("home.editorialCta")}
@@ -363,19 +416,57 @@ function BrandTiles() {
   const [tiles, setTiles] = useState<{ brand: string; id: string; image?: string }[]>([]);
 
   useEffect(() => {
-    fetchBags()
-      .then((bags) => {
-        const seen = new Set<string>();
-        const unique: { brand: string; id: string; image?: string }[] = [];
-        for (const b of bags) {
-          if (!seen.has(b.brand)) {
-            seen.add(b.brand);
-            unique.push({ brand: b.brand, id: b.id, image: b.image });
-          }
-        }
-        setTiles(unique);
+    let cancelled = false;
+
+    // One product per preferred house so tiles don't all share bags[0].
+    Promise.all(
+      HOME_BRAND_ORDER.map(async (brand) => {
+        const bags = await fetchBags({
+          brand,
+          sort: "views",
+          limit: 1,
+        }).catch(() => [] as Bag[]);
+        const bag = bags[0];
+        if (!bag) return null;
+        return { brand: bag.brand, id: bag.id, image: bag.image } as {
+          brand: string;
+          id: string;
+          image?: string;
+        };
       })
-      .catch(() => {});
+    ).then(async (preferred) => {
+      if (cancelled) return;
+      const tilesFromPreferred = preferred.flatMap((tile) =>
+        tile ? [tile] : []
+      );
+
+      if (tilesFromPreferred.length >= 4) {
+        setTiles(tilesFromPreferred);
+        return;
+      }
+
+      // Fill from a broader newest page when some brands are missing.
+      const more = await fetchBags({ sort: "newest", limit: 40 }).catch(
+        () => [] as Bag[]
+      );
+      if (cancelled) return;
+
+      const seen = new Set(
+        tilesFromPreferred.map((tile) => tile.brand.trim().toLowerCase())
+      );
+      const merged = [...tilesFromPreferred];
+      for (const bag of more) {
+        const key = bag.brand.trim().toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ brand: bag.brand, id: bag.id, image: bag.image });
+      }
+      setTiles(merged);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (tiles.length === 0) return null;
@@ -445,8 +536,8 @@ function FeaturedBags() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchBags()
-      .then(setBags)
+    fetchBags({ sort: "views", limit: 24 })
+      .then((results) => setBags(diversifyBagsByBrand(results, 8)))
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : t("home.failedToLoadBags"))
       )
@@ -488,7 +579,7 @@ function FeaturedBags() {
                   <div className="mt-2 h-3 w-20 bg-zinc-200" />
                 </div>
               ))
-            : bags.slice(0, 8).map((bag) => (
+            : bags.map((bag) => (
                 <Link key={bag.id} to={`/product/${bag.id}`} className="group">
                   <div
                     className="relative mb-4 overflow-hidden bg-white"
@@ -507,7 +598,7 @@ function FeaturedBags() {
                     )}
                   </div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a7b45]">
-                    {bag.brand}
+                    {brandDisplayName(bag.brand)}
                   </p>
                   <p className="mt-1 text-sm font-medium leading-snug text-zinc-950 transition group-hover:text-zinc-600">
                     {translateProductName(bag.id, bag.name)}
@@ -525,16 +616,40 @@ function FeaturedBags() {
 
 function StyleEdit() {
   const { t } = useLanguage();
-  const [bags, setBags] = useState<Bag[]>([]);
+  const [images, setImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetchBags().then(setBags).catch(() => {});
-  }, []);
+    let cancelled = false;
 
-  const imageForStyle = (index: number) => {
-    const bag = bags[index % Math.max(bags.length, 1)];
-    return bag ? bagImage(bag.brand, bag.image) : null;
-  };
+    Promise.all(
+      styleTiles.map(async (tile) => {
+        let bags = await fetchBags({
+          style: tile.key,
+          sort: "views",
+          limit: 1,
+        }).catch(() => [] as Bag[]);
+
+        if (bags.length === 0) {
+          bags = await fetchBags({ sort: "newest", limit: 8 }).catch(
+            () => [] as Bag[]
+          );
+        }
+
+        const bag = bags[0];
+        return [
+          tile.key,
+          bag ? bagImage(bag.brand, bag.image) : "",
+        ] as const;
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setImages(Object.fromEntries(entries.filter(([, url]) => url)));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="border-t border-[#e8e0d4] bg-white px-4 py-16 md:px-8 md:py-24">
@@ -555,8 +670,8 @@ function StyleEdit() {
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-5 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
-          {styleTiles.map((tile, index) => {
-            const image = imageForStyle(index);
+          {styleTiles.map((tile) => {
+            const image = images[tile.key];
             return (
               <Link
                 key={tile.key}
@@ -599,21 +714,28 @@ function PromoBanner() {
   const [summerBag, setSummerBag] = useState<Bag | null>(null);
 
   useEffect(() => {
-    fetchBags()
-      .then((bags) => {
-        const selected =
-          bags.find((bag) => bag.id === SUMMER_EDIT_BAG_ID) ??
-          bags.find((bag) => bag.brand === "Hermès") ??
-          bags[0] ??
-          null;
-        setSummerBag(selected);
+    // Use seeded ASCII "Hermes" (not Hermès) for the brand filter.
+    fetchCuratedBag({
+      brand: "Hermes",
+      sort: "newest",
+      limit: 8,
+      preferredId: SUMMER_EDIT_BAG_ID,
+    })
+      .then(async (bag) => {
+        if (bag) return bag;
+        return fetchCuratedBag({
+          subcategory: "tote",
+          sort: "views",
+          limit: 8,
+        });
       })
+      .then(setSummerBag)
       .catch(() => {});
   }, []);
 
   const shopLink = summerBag
     ? `/product/${summerBag.id}`
-    : "/category/product-type/handbags";
+    : "/category/brand/hermes";
 
   return (
     <section className="relative overflow-hidden">
