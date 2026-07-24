@@ -43,9 +43,13 @@ export interface UpstreamProduct {
   tags?: string[];
   createdAt?: string;
   capacity?: string;
+  /** @deprecated Prefer subCategory (dupli1#128). */
   productType?: string;
+  subCategory?: string;
   style?: string;
+  /** @deprecated Prefer target (dupli1#128). */
   family?: string;
+  target?: string;
   variants?: UpstreamVariant[];
 }
 
@@ -105,12 +109,28 @@ const BAG_FILTERS = [
   "brand",
   "color",
   "material",
-  "productType",
+  "subcategory",
   "style",
-  "family",
+  "target",
 ] as const;
-/** Query params the product service actually filters on. */
-const UPSTREAM_BAG_FILTERS = ["brand", "color", "material", "size", "tags"] as const;
+/** Query params the product service filters / paginates on (dupli1#128 + rich search). */
+const UPSTREAM_BAG_FILTERS = [
+  "brand",
+  "color",
+  "material",
+  "size",
+  "tags",
+  "subcategory",
+  "subCategory",
+  "style",
+  "target",
+  "sort",
+  "order",
+  "limit",
+  "offset",
+  "q",
+  "period",
+] as const;
 const SUPPORTED_CATEGORIES = ["bags"] as const;
 
 export function productApiBaseUrl(): string {
@@ -207,9 +227,9 @@ export function toSearchResult(product: UpstreamProduct): SearchResult {
     Capacity: product.capacity ?? "",
     Stock: product.stock ?? 0,
     Category: product.category || "bags",
-    Type: product.productType ?? "",
+    Type: product.subCategory ?? product.productType ?? "",
     Style: product.style ?? "",
-    Gender: product.family ?? "",
+    Gender: product.target ?? product.family ?? "",
     Status: mapDisplayStatus(product.status, product.tags),
     Image: firstImage(product),
   };
@@ -281,12 +301,14 @@ function getSearchableValue(product: UpstreamProduct, key: string): string {
     case "producttype":
     case "product-type":
     case "type":
-      return product.productType ?? "";
+    case "subcategory":
+      return product.subCategory ?? product.productType ?? "";
     case "style":
       return product.style ?? "";
     case "family":
     case "gender":
-      return product.family ?? "";
+    case "target":
+      return product.target ?? product.family ?? "";
     default:
       return "";
   }
@@ -298,13 +320,22 @@ export async function searchUpstreamProducts(
   const category = params.get("category")?.toLowerCase();
   if (category && category !== "bags") return [];
 
-  const query = params.get("query")?.trim().toLowerCase();
+  const query =
+    params.get("q")?.trim().toLowerCase() ??
+    params.get("query")?.trim().toLowerCase();
   const upstreamFilters: Record<string, string> = {};
   const localFilters: Array<[string, string]> = [];
 
   for (const [key, value] of params.entries()) {
     const normalizedValue = value.trim();
-    if (!normalizedValue || key === "category" || key === "query") continue;
+    if (
+      !normalizedValue ||
+      key === "category" ||
+      key === "query" ||
+      key === "q"
+    ) {
+      continue;
+    }
 
     if (normalizedValue.toLowerCase() === "__no_match__") {
       return [];
@@ -315,8 +346,7 @@ export async function searchUpstreamProducts(
       continue;
     }
 
-    // productType / style / family are storefront facets only — filter locally
-    // when the product payload includes them.
+    // Legacy storefront facet aliases — filter locally if still present.
     if ((BAG_FILTERS as readonly string[]).includes(key)) {
       localFilters.push([key, normalizedValue]);
     }

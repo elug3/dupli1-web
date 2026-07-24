@@ -53,6 +53,18 @@ export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
   "mini-bags": "Mini Bags",
 };
 
+/**
+ * URL slug → upstream `subcategory` code (elug3/dupli1#128).
+ * Distinct from legacy display labels in PRODUCT_TYPE_SLUGS.
+ */
+export const PRODUCT_TYPE_TO_SUBCATEGORY: Record<string, string> = {
+  handbags: "handbags",
+  totes: "tote",
+  "shoulder-bags": "shoulder",
+  crossbody: "cross",
+  "mini-bags": "mini",
+};
+
 export const STYLE_SLUGS: Record<string, string> = {
   casual: "Casual",
   evening: "Evening",
@@ -66,6 +78,14 @@ export const FAMILY_SLUGS: Record<string, string> = {
   men: "Men",
   kids: "Kids",
   unisex: "Unisex",
+};
+
+/** URL slug → upstream `target` code. `unisex` has no backend master. */
+export const FAMILY_TO_TARGET: Record<string, string | null> = {
+  women: "women",
+  men: "men",
+  kids: "kids",
+  unisex: null,
 };
 
 export type CategoryFacet = "product-type" | "brand" | "style" | "family";
@@ -117,17 +137,20 @@ export function buildCategorySearchParams(
       return brand ? { brand } : { brand: "__no_match__" };
     }
     case "product-type": {
-      if (!(value in PRODUCT_TYPE_SLUGS)) return { productType: "__no_match__" };
-      const type = PRODUCT_TYPE_SLUGS[value];
-      return type ? { productType: type } : {};
+      if (!(value in PRODUCT_TYPE_TO_SUBCATEGORY)) {
+        return { subcategory: "__no_match__" };
+      }
+      return { subcategory: PRODUCT_TYPE_TO_SUBCATEGORY[value] };
     }
     case "style": {
-      const style = STYLE_SLUGS[value];
-      return style ? { style } : { style: "__no_match__" };
+      if (!(value in STYLE_SLUGS)) return { style: "__no_match__" };
+      // Upstream expects taxonomy codes (casual), not display names (Casual).
+      return { style: value };
     }
     case "family": {
-      const family = FAMILY_SLUGS[value];
-      return family ? { family } : { family: "__no_match__" };
+      if (!(value in FAMILY_TO_TARGET)) return { target: "__no_match__" };
+      const target = FAMILY_TO_TARGET[value];
+      return target ? { target } : { target: "__no_match__" };
     }
   }
 }
@@ -192,17 +215,21 @@ export function productMatchesFacetValue(
       return brandsMatch(get("Brand"), expected);
     }
     case "product-type": {
-      if (value === "handbags") return true;
-      const type = PRODUCT_TYPE_SLUGS[value];
-      return type ? get("Type") === type : false;
+      const code = PRODUCT_TYPE_TO_SUBCATEGORY[value];
+      if (!code) return false;
+      const actual = get("Type") || get("SubCategory");
+      return actual.toLowerCase() === code.toLowerCase();
     }
     case "style": {
-      const style = STYLE_SLUGS[value];
-      return style ? get("Style") === style : false;
+      if (!(value in STYLE_SLUGS)) return false;
+      const actual = get("Style");
+      return actual.toLowerCase() === value.toLowerCase();
     }
     case "family": {
-      const family = FAMILY_SLUGS[value];
-      return family ? get("Gender") === family : false;
+      const target = FAMILY_TO_TARGET[value];
+      if (!target) return false;
+      const actual = get("Gender") || get("Target");
+      return actual.toLowerCase() === target.toLowerCase();
     }
   }
 }
