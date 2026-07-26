@@ -1,10 +1,9 @@
-export type AccountType = "customer" | "admin" | "service";
+export type AccountType = "customer" | "manager" | "service" | "admin";
 
 /**
  * Coarse storefront kind matching how operators talk about accounts.
- * Backend `account_type` is only customer | admin | service — "manager" is
- * auth's management tier for `account_type: admin` staff (see elug3/dupli1
- * auth/pkg/domain/abac.go UserClass). Service accounts stay distinct.
+ * Backend `account_type` is `customer` | `manager` | `service` (elug3/dupli1#125).
+ * Legacy `"admin"` is still accepted briefly and treated as manager.
  */
 export type UserKind = "customer" | "manager" | "service";
 
@@ -35,8 +34,8 @@ export function detectUserKind(user: User | null | undefined): UserKind | null {
   switch (user.account_type) {
     case "service":
       return "service";
-    case "admin":
-      // Staff operators (order managers, admins, owners) share admin account_type.
+    case "manager":
+    case "admin": // legacy wire value from before elug3/dupli1#125
       return "manager";
     case "customer":
     default:

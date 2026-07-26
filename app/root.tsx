@@ -141,6 +141,7 @@ const desktopNavLinks = [
       { labelKey: "category.men", to: "/category/family/men" },
       { labelKey: "category.kids", to: "/category/family/kids" },
       { labelKey: "category.unisex", to: "/category/family/unisex" },
+      { labelKey: "category.all", to: "/category/family/all" },
     ],
   },
 ];

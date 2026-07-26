@@ -7,10 +7,14 @@ import { ProductPrice } from "~/components/product-price";
 import { brandToSlug } from "../lib/catalog";
 import {
   type ServerProduct,
+  addToWishlist,
   fetchAvailableStock,
   fetchProduct,
+  listWishlist,
   productImage,
+  removeFromWishlist,
 } from "../lib/api";
+import { getMe } from "../lib/auth";
 import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
@@ -110,11 +114,58 @@ function ProductLayout({ product }: { product: ServerProduct }) {
 
   const [activeImg, setActiveImg] = useState(0);
   const [wishlist, setWishlist] = useState(false);
+  const [wishlistBusy, setWishlistBusy] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setActiveImg(0);
     setWishlist(false);
+    let cancelled = false;
+    listWishlist()
+      .then((items) => {
+        if (!cancelled) {
+          setWishlist(items.some((item) => item.id === product.id));
+        }
+      })
+      .catch(() => {
+        // Signed-out or wishlist unavailable — leave heart empty.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [product.id]);
+
+  async function toggleWishlist() {
+    if (wishlistBusy) return;
+    setWishlistBusy(true);
+    try {
+      const user = await getMe();
+      if (!user) {
+        navigate(
+          `/login?next=${encodeURIComponent(`/product/${product.id}`)}`
+        );
+        return;
+      }
+      if (wishlist) {
+        await removeFromWishlist(product.id);
+        setWishlist(false);
+      } else {
+        await addToWishlist(product.id);
+        setWishlist(true);
+      }
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.toLowerCase().includes("session expired")
+      ) {
+        navigate(
+          `/login?next=${encodeURIComponent(`/product/${product.id}`)}`
+        );
+      }
+    } finally {
+      setWishlistBusy(false);
+    }
+  }
 
   const badge = (() => {
     const b = getBadge(product);
@@ -164,9 +215,10 @@ function ProductLayout({ product }: { product: ServerProduct }) {
             actions={
               <button
                 type="button"
-                onClick={() => setWishlist((v) => !v)}
+                onClick={() => void toggleWishlist()}
+                disabled={wishlistBusy}
                 aria-label={wishlist ? t("product.removeWishlist") : t("product.addWishlist")}
-                className="flex size-10 items-center justify-center rounded-full bg-white/90 text-zinc-700 shadow-sm backdrop-blur-sm transition hover:text-zinc-950"
+                className="flex size-10 items-center justify-center rounded-full bg-white/90 text-zinc-700 shadow-sm backdrop-blur-sm transition hover:text-zinc-950 disabled:opacity-60"
               >
                 <HeartIcon filled={wishlist} />
               </button>
@@ -257,7 +309,11 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
       {/* Price + stock */}
       <div className="mt-5 flex items-baseline gap-3">
-        <ProductPrice price={product.price} size="lg" />
+        <ProductPrice
+          price={product.price}
+          officialPrice={product.officialPrice}
+          size="lg"
+        />
         <span
           className={`text-[10px] font-semibold uppercase tracking-widest ${inStock ? "text-emerald-600" : "text-zinc-400"}`}
         >

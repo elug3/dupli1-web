@@ -17,7 +17,9 @@ export interface UpstreamVariant {
   /** Canonical ULID from dupli1-product (`json:"skuId"`). */
   skuId?: string;
   color?: string;
-  price: number;
+  /** Echo of parent price for cart clients (elug3/dupli1#129+). */
+  price?: number;
+  officialPrice?: number;
   status: string;
 }
 
@@ -25,11 +27,10 @@ export interface UpstreamProduct {
   id: string;
   name: string;
   description: string;
-  /** Legacy mirror of cheapest active variant; prefer priceFrom. */
+  /** Actual sale price on the parent (elug3/dupli1#129–#133). */
   price?: number;
-  priceFrom?: number;
-  sellingPrice?: number;
-  sellingPriceFrom?: number;
+  /** Reference / list price on the parent. */
+  officialPrice?: number;
   brand: string;
   color?: string;
   material: string;
@@ -50,6 +51,8 @@ export interface UpstreamProduct {
   /** @deprecated Prefer target (dupli1#128). */
   family?: string;
   target?: string;
+  wishlistCount?: number;
+  soldCount?: number;
   variants?: UpstreamVariant[];
 }
 
@@ -58,6 +61,7 @@ export interface BagResponse {
   name: string;
   description: string;
   price: number;
+  officialPrice?: number;
   brand: string;
   color: string;
   material: string;
@@ -71,6 +75,7 @@ export interface ProductResponse {
   name: string;
   description: string;
   price: number;
+  officialPrice?: number;
   brand: string;
   color: string;
   material: string;
@@ -153,7 +158,15 @@ function firstImage(product: UpstreamProduct): string | undefined {
 }
 
 function productPrice(product: UpstreamProduct): number {
-  return product.priceFrom ?? product.price ?? 0;
+  return product.price ?? 0;
+}
+
+function productOfficialPrice(product: UpstreamProduct): number | undefined {
+  const official = product.officialPrice;
+  if (typeof official !== "number" || !Number.isFinite(official) || official <= 0) {
+    return undefined;
+  }
+  return official;
 }
 
 function mapDisplayStatus(status?: string, tags?: string[]): string {
@@ -169,6 +182,7 @@ export function toBagResponse(product: UpstreamProduct): BagResponse {
     name: product.name,
     description: product.description,
     price: productPrice(product),
+    officialPrice: productOfficialPrice(product),
     brand: product.brand,
     color: product.color ?? "",
     material: product.material,
@@ -201,6 +215,7 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
     name: product.name,
     description: product.description,
     price: productPrice(product),
+    officialPrice: productOfficialPrice(product),
     brand: product.brand,
     color: product.color ?? "",
     material: product.material,

@@ -103,6 +103,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.men": "Men",
     "category.kids": "Kids",
     "category.unisex": "Unisex",
+    "category.all": "All",
     "category.bags": "Bags",
 
     "footer.description":
@@ -598,6 +599,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.men": "남성",
     "category.kids": "키즈",
     "category.unisex": "유니섹스",
+    "category.all": "전체",
     "category.bags": "가방",
 
     "footer.description":
@@ -1090,6 +1092,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.men": "男士",
     "category.kids": "儿童",
     "category.unisex": "中性",
+    "category.all": "全部",
     "category.bags": "包袋",
 
     "footer.description":

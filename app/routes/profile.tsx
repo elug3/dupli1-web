@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { type User, getMe, logout } from "~/lib/auth";
-import { type Bag, fetchBags, bagImage } from "~/lib/api";
+import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
 import { ProductPrice } from "~/components/product-price";
 import { useLanguage } from "~/lib/i18n";
 
@@ -191,15 +191,58 @@ export default function Profile() {
 function WishlistSection() {
   const { t, translateProductName } = useLanguage();
   const [items, setItems] = useState<Bag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function remove(id: string) {
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listWishlist()
+      .then((bags) => {
+        if (!cancelled) setItems(bags);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : t("profile.emptyWishlist")
+          );
+          setItems([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  async function remove(id: string) {
+    const previous = items;
     setItems((prev) => prev.filter((i) => i.id !== id));
+    try {
+      await removeFromWishlist(id);
+    } catch {
+      setItems(previous);
+    }
   }
 
   return (
     <section>
       <SectionHeader title={t("profile.wishlist")} count={items.length} />
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="aspect-square bg-zinc-100" />
+              <div className="mt-2 h-3 w-16 bg-zinc-100" />
+              <div className="mt-1.5 h-3.5 w-28 bg-zinc-100" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <EmptyState message={error} />
+      ) : items.length === 0 ? (
         <EmptyState message={t("profile.emptyWishlist")} />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -220,11 +263,14 @@ function WishlistSection() {
                   <p className="text-xs font-medium text-zinc-950 leading-snug">
                     {translateProductName(item.id, item.name)}
                   </p>
-                  <ProductPrice price={item.price} />
+                  <ProductPrice
+                    price={item.price}
+                    officialPrice={item.officialPrice}
+                  />
                 </div>
               </Link>
               <button
-                onClick={() => remove(item.id)}
+                onClick={() => void remove(item.id)}
                 aria-label={t("profile.removeWishlist")}
                 className="absolute right-2 top-2 flex size-7 items-center justify-center bg-white/80 text-zinc-400 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
               >

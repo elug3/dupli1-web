@@ -184,7 +184,7 @@ function Hero() {
               </h2>
               <div className="mt-4 flex items-center justify-center gap-4 lg:justify-between">
                 <div className="[&_span]:text-white/90">
-                  <ProductPrice price={heroBag.price} />
+                  <ProductPrice price={heroBag.price} officialPrice={heroBag.officialPrice} />
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/50 transition group-hover:text-white">
                   {t("home.heroViewProduct")} →
@@ -603,7 +603,7 @@ function FeaturedBags() {
                   <p className="mt-1 text-sm font-medium leading-snug text-zinc-950 transition group-hover:text-zinc-600">
                     {translateProductName(bag.id, bag.name)}
                   </p>
-                  <ProductPrice price={bag.price} />
+                  <ProductPrice price={bag.price} officialPrice={bag.officialPrice} />
                 </Link>
               ))}
         </div>
