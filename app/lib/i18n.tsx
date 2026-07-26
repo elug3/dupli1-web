@@ -481,6 +481,15 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.description":
       "The page you are looking for does not exist or has been moved.",
     "category.empty": "No products match this category yet. Browse the full collection instead.",
+    "category.landing.explore": "Explore",
+    "category.landing.product-type.blurb":
+      "Silhouettes curated for how you carry — tote to mini, day to night.",
+    "category.landing.brand.blurb":
+      "Maison by maison — enter the houses that define Dupli1.",
+    "category.landing.style.blurb":
+      "From casual ease to statement presence — find the mood that fits.",
+    "category.landing.family.blurb":
+      "Collections shaped for who you shop for.",
     "brand.shopCollection": "Shop the collection",
     "brand.collection": "Collection",
     "brand.louis-vuitton.blurb":
@@ -975,6 +984,15 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.description":
       "찾고 있는 페이지가 존재하지 않거나 이동되었습니다.",
     "category.empty": "이 카테고리에 해당하는 상품이 없습니다. 전체 컬렉션을 둘러보세요.",
+    "category.landing.explore": "살펴보기",
+    "category.landing.product-type.blurb":
+      "토트부터 미니까지, 쓰임에 맞는 실루엣을 골라보세요.",
+    "category.landing.brand.blurb":
+      "듀플리원이 선별한 메종을 브랜드별로 만나보세요.",
+    "category.landing.style.blurb":
+      "캐주얼부터 스테이트먼트까지, 분위기에 맞는 스타일.",
+    "category.landing.family.blurb":
+      "누구를 위한 쇼핑인지에 맞춰 컬렉션을 고르세요.",
     "brand.shopCollection": "컬렉션 쇼핑하기",
     "brand.collection": "컬렉션",
     "brand.louis-vuitton.blurb":
@@ -1453,6 +1471,15 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "notFound.title": "页面未找到",
     "notFound.description": "您查找的页面不存在或已被移动。",
     "category.empty": "此分类暂无商品，请浏览全部系列。",
+    "category.landing.explore": "探索",
+    "category.landing.product-type.blurb":
+      "从托特到迷你，按携带方式挑选契合的廓形。",
+    "category.landing.brand.blurb":
+      "按品牌进入 Dupli1 精选的各大 maison。",
+    "category.landing.style.blurb":
+      "从休闲到个性宣言，找到契合氛围的风格。",
+    "category.landing.family.blurb":
+      "按购物对象选择对应系列。",
     "brand.shopCollection": "选购系列",
     "brand.collection": "系列",
     "brand.louis-vuitton.blurb":
