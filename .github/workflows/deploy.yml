@@ -21,6 +21,9 @@ env:
   # Must match live Terraform (ecs_frontends.tf): bridge EC2 service
   # family dupli1-web / container "web" — not Fargate awsvpc / web-container.
   CONTAINER_NAME: web
+  # Shared with dupli1-auth (Terraform web_service_secret.tf). Do not inject
+  # DUPLI1_WEB_SERVICE_* from GitHub Actions secrets — that drifts from auth.
+  WEB_SERVICE_SECRET_ID: dupli1/production/web-service-account
 
 jobs:
   deploy:
@@ -51,25 +54,31 @@ jobs:
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Build web service account env overrides
-        id: web-env
-        env:
-          DUPLI1_WEB_SERVICE_EMAIL: ${{ secrets.DUPLI1_WEB_SERVICE_EMAIL }}
-          DUPLI1_WEB_SERVICE_PASSWORD: ${{ secrets.DUPLI1_WEB_SERVICE_PASSWORD }}
-          DUPLI1_WEB_SERVICE_TOKEN: ${{ secrets.DUPLI1_WEB_SERVICE_TOKEN }}
+      - name: Attach Secrets Manager web-service credentials
         run: |
-          {
-            echo 'vars<<EOF'
-            if [[ -n "${DUPLI1_WEB_SERVICE_EMAIL}" && -n "${DUPLI1_WEB_SERVICE_PASSWORD}" ]]; then
-              echo "DUPLI1_WEB_SERVICE_EMAIL=${DUPLI1_WEB_SERVICE_EMAIL}"
-              echo "DUPLI1_WEB_SERVICE_PASSWORD=${DUPLI1_WEB_SERVICE_PASSWORD}"
-            elif [[ -n "${DUPLI1_WEB_SERVICE_TOKEN}" ]]; then
-              echo "DUPLI1_WEB_SERVICE_TOKEN=${DUPLI1_WEB_SERVICE_TOKEN}"
-            else
-              echo "::warning::Set secrets DUPLI1_WEB_SERVICE_EMAIL + DUPLI1_WEB_SERVICE_PASSWORD (preferred) or DUPLI1_WEB_SERVICE_TOKEN so registration works"
-            fi
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          ARN="$(aws secretsmanager describe-secret \
+            --secret-id "$WEB_SERVICE_SECRET_ID" \
+            --query ARN \
+            --output text)"
+          jq \
+            --arg email_from "${ARN}:DUPLI1_WEB_SERVICE_EMAIL::" \
+            --arg password_from "${ARN}:DUPLI1_WEB_SERVICE_PASSWORD::" \
+            '
+              .containerDefinitions[0].environment |=
+                map(select(
+                  .name != "DUPLI1_WEB_SERVICE_EMAIL"
+                  and .name != "DUPLI1_WEB_SERVICE_PASSWORD"
+                  and .name != "DUPLI1_WEB_SERVICE_TOKEN"
+                ))
+              | .containerDefinitions[0].secrets = [
+                  {name: "DUPLI1_WEB_SERVICE_EMAIL", valueFrom: $email_from},
+                  {name: "DUPLI1_WEB_SERVICE_PASSWORD", valueFrom: $password_from}
+                ]
+            ' \
+            "$ECS_TASK_DEFINITION" > /tmp/task-definition.json
+          mv /tmp/task-definition.json "$ECS_TASK_DEFINITION"
+          echo "Wired ECS secrets from $WEB_SERVICE_SECRET_ID"
 
       - name: Render Amazon ECS task definition
         id: task-def
@@ -78,7 +87,6 @@ jobs:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
-          environment-variables: ${{ steps.web-env.outputs.vars }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

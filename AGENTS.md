@@ -24,6 +24,6 @@ Non-auth upstream `401` → BFF force-refreshes with auth and retries once; do n
 - Env vars the SSR/BFF reads (set before `npm run dev`):
   - `DUPLI1_API_BASE_URL=http://localhost:8080` — the gateway (use `https://localhost:443` after local TLS is wired).
   - `DUPLI1_API_CA_FILE=../dupli1/certs/server.crt` — optional; trust the Compose self-signed gateway cert when using HTTPS.
-  - `DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` — preferred for **customer registration**. The BFF logs in as the `dupli1-web` service account (`user.create`) and refreshes short-lived access tokens. Local Compose defaults: email `dupli1-web@web.dupli1.com`, password `dupli1-web-dev-secret`.
-  - `DUPLI1_WEB_SERVICE_TOKEN=<access_token>` — optional short-lived (~15 min) access-token override (skips login/refresh). Mint with: `POST /api/v1/auth/login` → take `refresh_token` → `POST /api/v1/auth/refresh` → use returned `token`. Browsing/catalog does not need either.
+  - `DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` — preferred for **customer registration** (local Compose defaults: `dupli1-web@web.dupli1.com` / `dupli1-web-dev-secret`). Production must use AWS Secrets Manager `dupli1/production/web-service-account` (wired by deploy) — not GitHub Actions secrets.
+  - `DUPLI1_WEB_SERVICE_TOKEN=<access_token>` — optional short-lived (~15 min) access-token override for local/dev only (skips login/refresh). Mint with: `POST /api/v1/auth/login` → take `refresh_token` → `POST /api/v1/auth/refresh` → use returned `token`. Browsing/catalog does not need either.
 - Local TLS for the sibling gateway: `./scripts/dupli1-local-tls/apply.sh` (see that folder’s README; implements [elug3/dupli1#48](https://github.com/elug3/dupli1/issues/48)).

@@ -268,12 +268,22 @@ Deployment uses GitHub OIDC to assume `arn:aws:iam::845061289093:role/github-act
 
 The container listens on port `3000` behind the `dupli1-web-3000-tg` load balancer target group. Backend API calls are routed through `DUPLI1_API_BASE_URL=http://proxy.dupli1.local`.
 
-Set `DUPLI1_WEB_SERVICE_EMAIL` + `DUPLI1_WEB_SERVICE_PASSWORD` (preferred) or
-`DUPLI1_WEB_SERVICE_TOKEN` on the ECS task via GitHub Actions secrets so customer
-registration can authenticate with the dupli1-auth service account. The deploy
-workflow injects whichever secrets are present; you can also run
-`scripts/configure-web-service-ecs.sh` or the "Configure web service account on ECS"
-workflow to update a live service without rebuilding the image.
+Customer registration credentials are **not** GitHub Actions secrets. Production
+injects `DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` from AWS
+Secrets Manager `dupli1/production/web-service-account` (same secret
+`dupli1-auth` uses to seed the machine user). The deploy workflow attaches that
+secret on every release. Do not put a different password in GitHub secrets —
+it will drift from auth and break signup (`login: invalid credentials`).
+
+To re-attach Secrets Manager after a bad task revision (without rebuilding):
+
+```bash
+bash scripts/configure-web-service-ecs.sh
+```
+
+or run the **Attach web service Secrets Manager credentials** workflow. After
+rotating the secret password, also force-redeploy `dupli1-auth` so it re-seeds
+the DB hash (see [elug3/dupli1 infra/terraform/README.md](https://github.com/elug3/dupli1/blob/main/infra/terraform/README.md)).
 
 ## Deployment Notes
 
