@@ -246,7 +246,8 @@ export default function CheckoutPage() {
           sku: item.sku,
           sku_id: item.skuId,
           quantity: item.quantity,
-          unit_price_cents: item.unitPriceCents,
+          // C1 (elug3/dupli1#116): order prices lines server-side — do not send
+          // client unit_price_cents.
         }))
       );
       if (coupon) {

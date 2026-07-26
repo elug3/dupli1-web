@@ -78,14 +78,17 @@ export const FAMILY_SLUGS: Record<string, string> = {
   men: "Men",
   kids: "Kids",
   unisex: "Unisex",
+  all: "All",
 };
 
-/** URL slug → upstream `target` code. `unisex` has no backend master. */
+/** URL slug → upstream `target` code (elug3/dupli1#128 + #130 `all`). */
 export const FAMILY_TO_TARGET: Record<string, string | null> = {
   women: "women",
   men: "men",
   kids: "kids",
-  unisex: null,
+  /** Storefront “Unisex” maps to merchandising target `all`. */
+  unisex: "all",
+  all: "all",
 };
 
 export type CategoryFacet = "product-type" | "brand" | "style" | "family";

@@ -33,8 +33,6 @@ export interface SessionItem {
   /** Canonical variant id when known (order stores as sku_id). */
   sku_id?: string;
   quantity: number;
-  /** Whole KRW won (zero-decimal Stripe minor units). */
-  unit_price_cents: number;
 }
 
 export interface CheckoutSession {

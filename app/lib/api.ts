@@ -6,20 +6,28 @@ export interface Bag {
   id: string;
   name: string;
   description: string;
+  /** Actual sale price (KRW won). */
   price: number;
+  /** Reference / list price (KRW won); display only when > price. */
+  officialPrice?: number;
   brand: string;
   color: string;
   material: string;
   capacity: string;
   stock: number;
   image?: string;
+  wishlistCount?: number;
+  soldCount?: number;
 }
 
 export interface ServerProduct {
   id: string;
   name: string;
   description: string;
+  /** Actual sale price (KRW won). */
   price: number;
+  /** Reference / list price (KRW won); display only when > price. */
+  officialPrice?: number;
   brand: string;
   color: string;
   material: string;
@@ -33,6 +41,8 @@ export interface ServerProduct {
   sku: string;
   /** Canonical variant ULID from product (`skuId`) when present. */
   skuId?: string;
+  wishlistCount?: number;
+  soldCount?: number;
 }
 
 /** Raw parent-style payload from `GET /api/v1/products` (dupli1-product). */
@@ -40,8 +50,10 @@ interface UpstreamProduct {
   id: string;
   name: string;
   description: string;
+  /** Actual sale price on the parent (elug3/dupli1#129–#133). */
   price?: number;
-  priceFrom?: number;
+  /** Reference / list price on the parent. */
+  officialPrice?: number;
   brand: string;
   color?: string;
   material: string;
@@ -61,11 +73,15 @@ interface UpstreamProduct {
   /** @deprecated Prefer target (dupli1#128). */
   family?: string;
   target?: string;
+  wishlistCount?: number;
+  soldCount?: number;
   variants?: Array<{
     sku: string;
     skuId?: string;
     color?: string;
-    price: number;
+    /** Echo of parent price for cart clients. */
+    price?: number;
+    officialPrice?: number;
     status: string;
     imageUrls?: string[];
   }>;
@@ -77,7 +93,15 @@ interface ProductSearchResponse {
 }
 
 function upstreamPrice(product: UpstreamProduct): number {
-  return product.priceFrom ?? product.price ?? 0;
+  return product.price ?? 0;
+}
+
+function upstreamOfficialPrice(product: UpstreamProduct): number | undefined {
+  const official = product.officialPrice;
+  if (typeof official !== "number" || !Number.isFinite(official) || official <= 0) {
+    return undefined;
+  }
+  return official;
 }
 
 function upstreamImage(product: UpstreamProduct): string | undefined {
@@ -118,12 +142,15 @@ function toBag(product: UpstreamProduct): Bag {
     name: product.name,
     description: product.description,
     price: upstreamPrice(product),
+    officialPrice: upstreamOfficialPrice(product),
     brand: product.brand,
     color: product.color ?? "",
     material: product.material,
     capacity: product.capacity ?? "",
     stock: product.stock ?? 0,
     image: upstreamImage(product),
+    wishlistCount: product.wishlistCount,
+    soldCount: product.soldCount,
   };
 }
 
@@ -134,6 +161,7 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     name: product.name,
     description: product.description,
     price: upstreamPrice(product),
+    officialPrice: upstreamOfficialPrice(product),
     brand: product.brand,
     color: product.color ?? "",
     material: product.material,
@@ -145,6 +173,8 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     image: images[0],
     images: images.length > 0 ? images : undefined,
     createdAt: product.createdAt ?? new Date(0).toISOString(),
+    wishlistCount: product.wishlistCount,
+    soldCount: product.soldCount,
   };
 }
 
@@ -190,7 +220,7 @@ export type BagSearchFilters = {
   subcategory?: string;
   /** Occasion/look code: casual | evening | business | weekend | statement */
   style?: string;
-  /** Audience code: men | women | kids */
+  /** Audience code: all | men | women | kids */
   target?: string;
   tags?: string;
   sort?: BagSort;
@@ -378,6 +408,7 @@ export interface DisplayProduct {
   id: string;
   name: string;
   price: number;
+  officialPrice?: number;
   description: string;
   category: string;
   stock?: number;
@@ -438,6 +469,10 @@ function normalizeProduct(
     id: String(raw.ID),
     name: String(raw.Name),
     price: Number(raw.Price),
+    officialPrice:
+      raw.OfficialPrice != null && Number(raw.OfficialPrice) > 0
+        ? Number(raw.OfficialPrice)
+        : undefined,
     description: String(raw.Description),
     category: String(raw.Category ?? category).toLowerCase(),
     stock: raw.Stock != null ? Number(raw.Stock) : undefined,
@@ -527,6 +562,7 @@ export async function searchProducts(
         Name: product.name,
         Description: product.description,
         Price: upstreamPrice(product),
+        OfficialPrice: upstreamOfficialPrice(product),
         Brand: product.brand,
         Color: product.color ?? "",
         Material: product.material,
@@ -624,4 +660,61 @@ export async function searchAcrossAll(
   // Storefront catalog is bags-only against dupli1-product.
   const { results } = await searchProducts("bags", query ? { query } : {});
   return results;
+}
+
+// ── Wishlist (elug3/dupli1#122–#123) ───────────────────────────────────────
+
+export interface WishlistMutation {
+  productId: string;
+  wishlisted: boolean;
+  wishlistCount: number;
+}
+
+async function readWishlistError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** GET /api/v1/products/wishlist — current owner's wishlisted parents. */
+export async function listWishlist(): Promise<Bag[]> {
+  const res = await authedFetch("/api/v1/products/wishlist");
+  if (!res.ok) {
+    throw new Error(await readWishlistError(res, "Failed to load wishlist"));
+  }
+  const body = (await res.json()) as { items?: UpstreamProduct[] | null };
+  return (body.items ?? []).map(toBag);
+}
+
+/** PUT /api/v1/products/{id}/wishlist */
+export async function addToWishlist(
+  productId: string
+): Promise<WishlistMutation> {
+  const res = await authedFetch(
+    `/api/v1/products/${encodeURIComponent(productId)}/wishlist`,
+    { method: "PUT" }
+  );
+  if (!res.ok) {
+    throw new Error(await readWishlistError(res, "Failed to add to wishlist"));
+  }
+  return (await res.json()) as WishlistMutation;
+}
+
+/** DELETE /api/v1/products/{id}/wishlist */
+export async function removeFromWishlist(
+  productId: string
+): Promise<WishlistMutation> {
+  const res = await authedFetch(
+    `/api/v1/products/${encodeURIComponent(productId)}/wishlist`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) {
+    throw new Error(
+      await readWishlistError(res, "Failed to remove from wishlist")
+    );
+  }
+  return (await res.json()) as WishlistMutation;
 }

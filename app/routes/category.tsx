@@ -197,7 +197,7 @@ function ProductGrid({ products }: { products: DisplayProduct[] }) {
           <p className="mt-0.5 text-sm font-medium leading-snug text-zinc-950">
             {translateProductName(product.id, product.name)}
           </p>
-          <ProductPrice price={product.price} />
+          <ProductPrice price={product.price} officialPrice={product.officialPrice} />
         </Link>
       ))}
     </div>
