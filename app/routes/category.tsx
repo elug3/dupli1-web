@@ -211,6 +211,23 @@ interface FacetOptionCard {
   label: string;
   count: number;
   image: string;
+  logo?: string;
+}
+
+function facetLandingBlurbKey(facet: CategoryFacet): string {
+  return `category.landing.${facet}.blurb`;
+}
+
+/** Mosaic span classes for product-type (asymmetric editorial grid). */
+function productTypeMosaicClass(index: number): string {
+  const pattern = [
+    "md:col-span-2 md:row-span-2",
+    "",
+    "",
+    "md:col-span-2",
+    "",
+  ];
+  return pattern[index % pattern.length] ?? "";
 }
 
 function FacetLanding({ facet }: { facet: CategoryFacet }) {
@@ -219,7 +236,7 @@ function FacetLanding({ facet }: { facet: CategoryFacet }) {
   const [loading, setLoading] = useState(true);
 
   const title = categoryDisplayLabel(facet, undefined, t);
-  const eyebrow = t(facetEyebrowKey(facet));
+  const blurb = t(facetLandingBlurbKey(facet));
 
   useEffect(() => {
     setLoading(true);
@@ -248,50 +265,243 @@ function FacetLanding({ facet }: { facet: CategoryFacet }) {
         label: categoryDisplayLabel(facet, value, t),
         count: matches.length,
         image,
+        logo: facet === "brand" ? BRAND_LOGOS[value] : undefined,
       };
     });
   }, [facet, products, t]);
 
+  const resolvedHero =
+    cards.find((card) => card.count > 0)?.image ??
+    (products[0]
+      ? bannerBagImage(
+          products[0].image,
+          String(products[0].details.Brand ?? "")
+        )
+      : productImage("bags", ""));
+
   return (
-    <CategoryShell eyebrow={eyebrow} title={title}>
-      {loading ? (
-        <ProductSkeletonGrid />
-      ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-5 md:gap-y-12">
-          {cards.map((card) => (
-            <Link
-              key={card.value}
-              to={`/category/${facet}/${card.value}`}
-              className="group"
-            >
-              <div
-                className="relative mb-3 overflow-hidden bg-zinc-50"
-                style={{ paddingBottom: "110%" }}
-              >
-                <img
-                  src={card.image}
-                  alt={card.label}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/55 via-transparent to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <p
-                    className="text-lg font-light text-white md:text-xl"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    {card.label}
-                  </p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-white/70">
-                    {card.count}{" "}
-                    {card.count === 1 ? t("cart.item") : t("cart.items")}
-                  </p>
-                </div>
-              </div>
+    <main className="bg-[#faf8f5]">
+      <section className="relative min-h-[min(78vh,44rem)] overflow-hidden bg-[#141210]">
+        <img
+          src={resolvedHero}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover opacity-45 animate-[facet-hero-zoom_18s_ease-out_forwards]"
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_28%,rgba(200,169,110,0.22),transparent_40%),linear-gradient(180deg,rgba(20,18,16,0.35)_0%,rgba(20,18,16,0.82)_68%,#141210_100%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-6 pt-6 md:px-10">
+          <nav className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/55">
+            <Link to="/" className="transition hover:text-white">
+              {t("product.home")}
             </Link>
-          ))}
+            <span>/</span>
+            <span className="text-white/80">{title}</span>
+          </nav>
         </div>
+
+        <div className="relative mx-auto flex min-h-[min(calc(78vh-2.5rem),42rem)] max-w-7xl flex-col justify-end px-6 pb-14 pt-20 md:px-10 md:pb-20">
+          <div className="max-w-2xl animate-[facet-fade-up_0.9s_ease-out_both]">
+            <p
+              className="text-sm font-light tracking-[0.08em] text-[#c8a96e] md:text-base"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Dupli1
+            </p>
+            <h1
+              className="mt-3 text-[clamp(2.75rem,8vw,5rem)] font-light leading-[0.95] tracking-tight text-white"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {title}
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/70 md:text-base">
+              {blurb}
+            </p>
+            <a
+              href="#facet-options"
+              className="mt-8 inline-flex h-12 items-center bg-white px-7 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-950 transition hover:bg-[#c8a96e] hover:text-white"
+            >
+              {t("category.landing.explore")}
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="facet-options"
+        className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-16"
+      >
+        {loading ? (
+          <ProductSkeletonGrid />
+        ) : facet === "product-type" ? (
+          <div className="grid auto-rows-[12rem] grid-cols-2 gap-3 md:auto-rows-[14rem] md:grid-cols-4 md:gap-4">
+            {cards.map((card, index) => (
+              <FacetOptionTile
+                key={card.value}
+                facet={facet}
+                card={card}
+                className={productTypeMosaicClass(index)}
+                index={index}
+                fill
+              />
+            ))}
+          </div>
+        ) : facet === "brand" ? (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4 md:gap-x-6 md:gap-y-12">
+            {cards.map((card, index) => (
+              <BrandOptionTile key={card.value} card={card} index={index} />
+            ))}
+          </div>
+        ) : facet === "style" ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 md:gap-5">
+            {cards.map((card, index) => (
+              <FacetOptionTile
+                key={card.value}
+                facet={facet}
+                card={card}
+                index={index}
+                tall
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 lg:grid-cols-5">
+            {cards.map((card, index) => (
+              <FacetOptionTile
+                key={card.value}
+                facet={facet}
+                card={card}
+                index={index}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <style>{`
+        @keyframes facet-fade-up {
+          from { opacity: 0; transform: translateY(1.25rem); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes facet-hero-zoom {
+          from { transform: scale(1.06); }
+          to { transform: scale(1); }
+        }
+        @keyframes facet-tile-in {
+          from { opacity: 0; transform: translateY(1rem); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .facet-tile-animate {
+            animation: none !important;
+          }
+        }
+      `}</style>
+    </main>
+  );
+}
+
+function FacetOptionTile({
+  facet,
+  card,
+  className = "",
+  index = 0,
+  tall = false,
+  fill = false,
+}: {
+  facet: CategoryFacet;
+  card: FacetOptionCard;
+  className?: string;
+  index?: number;
+  tall?: boolean;
+  fill?: boolean;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <Link
+      to={`/category/${facet}/${card.value}`}
+      className={`group relative block overflow-hidden bg-[#ece7e0] facet-tile-animate ${fill ? "h-full min-h-[12rem]" : ""} ${className}`}
+      style={{
+        animation: `facet-tile-in 0.7s ease-out ${Math.min(index, 8) * 0.06}s both`,
+      }}
+    >
+      {!fill && (
+        <div
+          className="w-full"
+          style={{ paddingBottom: tall ? "140%" : "118%" }}
+          aria-hidden
+        />
       )}
-    </CategoryShell>
+      <img
+        src={card.image}
+        alt={card.label}
+        className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#141210]/75 via-[#141210]/15 to-transparent transition duration-500 group-hover:from-[#141210]/85" />
+      <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
+        <p
+          className="text-xl font-light text-white md:text-2xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {card.label}
+        </p>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/65">
+          {card.count} {card.count === 1 ? t("cart.item") : t("cart.items")}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function BrandOptionTile({
+  card,
+  index = 0,
+}: {
+  card: FacetOptionCard;
+  index?: number;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <Link
+      to={`/category/brand/${card.value}`}
+      className="group facet-tile-animate"
+      style={{
+        animation: `facet-tile-in 0.7s ease-out ${Math.min(index, 8) * 0.06}s both`,
+      }}
+    >
+      <div
+        className="relative mb-4 overflow-hidden bg-[#ece7e0]"
+        style={{ paddingBottom: "118%" }}
+      >
+        <img
+          src={card.image}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-[#141210]/25 transition duration-500 group-hover:bg-[#141210]/35" />
+        {card.logo && (
+          <div className="absolute inset-0 flex items-center justify-center p-8">
+            <img
+              src={card.logo}
+              alt={card.label}
+              className="h-8 w-auto max-w-[70%] brightness-0 invert opacity-90 drop-shadow md:h-10"
+            />
+          </div>
+        )}
+      </div>
+      <p
+        className="text-lg font-light tracking-tight text-zinc-950 md:text-xl"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        {card.label}
+      </p>
+      <p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+        {card.count} {card.count === 1 ? t("cart.item") : t("cart.items")}
+      </p>
+    </Link>
   );
 }
 
