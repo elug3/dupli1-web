@@ -125,8 +125,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.metaDescription":
       "Authentic luxury bags from the world's most coveted brands.",
     "home.eyebrow": "New Season 2026",
-    "home.heroTitleLine1": "How icons",
-    "home.heroTitleLine2": "are chosen.",
     "home.heroDescription":
       "Authenticated pieces. Expert curation. Luxury bags from the houses that define the edit.",
     "home.shopNow": "Shop Now",
@@ -630,8 +628,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.metaDescription":
       "세계적으로 사랑받는 브랜드의 정품 럭셔리 가방.",
     "home.eyebrow": "2026 새 시즌",
-    "home.heroTitleLine1": "아이콘을",
-    "home.heroTitleLine2": "고르는 방식.",
     "home.heroDescription":
       "인증된 정품과 엄선된 큐레이션. 세계 럭셔리 하우스의 가방을 Dupli1에서 한곳에서.",
     "home.shopNow": "쇼핑하기",
@@ -1131,8 +1127,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.metaTitle": "Dupli1 — 精选奢华包袋",
     "home.metaDescription": "来自全球热门品牌的正品奢华包袋。",
     "home.eyebrow": "2026 新季",
-    "home.heroTitleLine1": "甄选经典",
-    "home.heroTitleLine2": "的方式。",
     "home.heroDescription":
       "正品认证，专业甄选。汇聚全球奢华品牌包袋于 Dupli1。",
     "home.shopNow": "立即选购",

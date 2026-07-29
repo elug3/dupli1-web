@@ -147,32 +147,24 @@ function Hero() {
             {t("home.eyebrow")}
           </p>
 
-          <p
+          <h1
             data-brand-logo
             className="animate-home-fade-up text-[clamp(3.25rem,10vw,6.5rem)] font-light leading-[0.9] tracking-[0.08em] text-white uppercase"
             style={{ fontFamily: "var(--font-display)", animationDelay: "80ms" }}
           >
             Dupli1
-          </p>
-
-          <h1
-            className="animate-home-fade-up mt-5 text-[clamp(1.65rem,4.2vw,2.75rem)] font-light leading-[1.15] tracking-tight text-white/95"
-            style={{ fontFamily: "var(--font-display)", animationDelay: "160ms" }}
-          >
-            {t("home.heroTitleLine1")}{" "}
-            <span className="text-[#c8a96e]">{t("home.heroTitleLine2")}</span>
           </h1>
 
           <p
             className="animate-home-fade-up mt-5 max-w-md text-sm leading-relaxed text-white/65 md:text-[15px]"
-            style={{ animationDelay: "240ms" }}
+            style={{ animationDelay: "160ms" }}
           >
             {t("home.heroDescription")}
           </p>
 
           <div
             className="animate-home-fade-up mt-10 flex flex-col gap-3 sm:flex-row sm:items-center"
-            style={{ animationDelay: "320ms" }}
+            style={{ animationDelay: "240ms" }}
           >
             <Link
               to={shopLink}
