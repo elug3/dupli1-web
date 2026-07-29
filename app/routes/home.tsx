@@ -481,22 +481,17 @@ function BrandTiles() {
           >
             {t("home.shopByBrand")}
           </h2>
-          <Link
-            to="/category/brand"
-            className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 transition hover:text-zinc-950"
-          >
-            {t("home.viewAll")} →
-          </Link>
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
           {tiles.map(({ brand, image }) => {
             const slug = brandToSlug(brand);
+            if (!slug) return null;
             const label = brandDisplayName(brand);
             return (
             <Link
               key={brand}
-              to={slug ? `/category/brand/${slug}` : "/category/brand"}
+              to={`/category/brand/${slug}`}
               className="group relative w-[72vw] shrink-0 overflow-hidden bg-zinc-100 md:w-auto"
             >
               <div className="relative overflow-hidden" style={{ paddingBottom: "125%" }}>

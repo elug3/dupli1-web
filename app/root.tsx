@@ -123,7 +123,7 @@ const desktopNavLinks = [
   {
     id: "style",
     labelKey: "nav.style",
-    to: "/category/style",
+    to: "/category/style/casual",
     items: [
       { labelKey: "category.casual", to: "/category/style/casual" },
       { labelKey: "category.evening", to: "/category/style/evening" },
@@ -135,7 +135,7 @@ const desktopNavLinks = [
   {
     id: "family",
     labelKey: "nav.family",
-    to: "/category/family",
+    to: "/category/family/women",
     items: [
       { labelKey: "category.women", to: "/category/family/women" },
       { labelKey: "category.men", to: "/category/family/men" },
