@@ -26,9 +26,12 @@ export function meta() {
 }
 
 /** Soft preferences when the seeded id still exists in the filtered page. */
-const HERO_BAG_ID = "bag-chanel-classic-flap-medium";
 const EDITORIAL_BAG_ID = "bag-lv-capucines-bb";
 const SUMMER_EDIT_BAG_ID = "bag-hermes-garden-party-30";
+
+const HOME_HERO_POSTER = "/heroes/home-banner.jpg";
+const HOME_HERO_VIDEO =
+  "https://video.wixstatic.com/video/e947e9_46c6e0d6219243f0bcd58882fb254882/1080p/mp4/file.mp4";
 
 const categoryTiles = [
   {
@@ -100,89 +103,35 @@ export default function Home() {
 
 function Hero() {
   const { t } = useLanguage();
-  const [heroBag, setHeroBag] = useState<Bag | null>(null);
-
-  useEffect(() => {
-    // Chanel spotlight: brand-scoped + popular, not the undifferentiated bags[0].
-    fetchCuratedBag({
-      brand: "Chanel",
-      sort: "views",
-      limit: 8,
-      preferredId: HERO_BAG_ID,
-    })
-      .then(async (bag) => {
-        if (bag) return bag;
-        return fetchCuratedBag({ sort: "views", limit: 8 });
-      })
-      .then((bag) => setHeroBag(bag))
-      .catch(() => {});
-  }, []);
-
-  const shopLink = heroBag ? `/product/${heroBag.id}` : "/category/product-type/handbags";
-  const heroImage = heroBag
-    ? (heroBag.image
-        ? heroBag.image.replace(/w_\d+,h_\d+/, "w_1920,h_1280")
-        : bannerBagImage(heroBag.image, heroBag.brand))
-    : null;
 
   return (
-    <section className="relative min-h-[calc(100vh-5.5rem)] overflow-hidden bg-[#1a1612] md:min-h-[calc(100vh-7.75rem)]">
-      {heroImage ? (
+    <section className="relative w-full overflow-hidden bg-[#cfcfcf]" aria-label={t("home.heroAlt")}>
+      <div className="relative aspect-[6/5] w-full md:aspect-[5/2]">
         <img
-          src={heroImage}
-          alt={t("home.heroAlt")}
-          className="absolute inset-0 h-full w-full object-cover object-[center_30%] opacity-50 animate-home-hero-zoom md:opacity-55 md:object-center"
+          src={HOME_HERO_POSTER}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : (
-        <div className="absolute inset-0 bg-[#1a1612]" />
-      )}
-      <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(26,22,18,0.88)_0%,rgba(26,22,18,0.55)_42%,rgba(26,22,18,0.28)_68%,rgba(26,22,18,0.72)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_40%,rgba(200,169,110,0.14),transparent_55%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#1a1612] to-transparent" />
+        <video
+          className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster={HOME_HERO_POSTER}
+        >
+          <source src={HOME_HERO_VIDEO} type="video/mp4" />
+        </video>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-7xl flex-col justify-end px-6 pb-14 pt-20 md:min-h-[calc(100vh-7.75rem)] md:justify-center md:px-10 md:pb-20 md:pt-24">
-        <div className="max-w-xl">
-          <p className="animate-home-fade-up mb-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#c8a96e]">
-            <span className="origin-left h-px w-10 bg-[#c8a96e]/70 animate-home-rule" />
-            {t("home.eyebrow")}
-          </p>
-
-          <h1
-            data-brand-logo
-            className="animate-home-fade-up text-[clamp(3.25rem,10vw,6.5rem)] font-light leading-[0.9] tracking-[0.08em] text-white uppercase"
-            style={{ fontFamily: "var(--font-display)", animationDelay: "80ms" }}
-          >
-            Dupli1
-          </h1>
-
-          <p
-            className="animate-home-fade-up mt-5 max-w-md text-sm leading-relaxed text-white/65 md:text-[15px]"
-            style={{ animationDelay: "160ms" }}
-          >
-            {t("home.heroDescription")}
-          </p>
-
-          <div
-            className="animate-home-fade-up mt-10 flex flex-col gap-3 sm:flex-row sm:items-center"
-            style={{ animationDelay: "240ms" }}
-          >
-            <Link
-              to={shopLink}
-              className="inline-flex h-12 items-center justify-center bg-[#c8a96e] px-9 text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1612] transition hover:bg-[#d4b87a]"
-            >
-              {t("home.shopNow")}
-            </Link>
-            <Link
-              to="/category/product-type/handbags"
-              className="group inline-flex h-12 items-center justify-center px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:text-white"
-            >
-              {t("home.styleConsult")}
-              <span aria-hidden className="ml-2 transition-transform group-hover:translate-x-0.5">
-                →
-              </span>
-            </Link>
-          </div>
-        </div>
+        <h1 className="absolute bottom-[11%] left-[7%] z-10 max-w-[18rem] text-[clamp(1.75rem,7.2vw,2rem)] font-semibold leading-[1.3] text-white md:bottom-[14%] md:left-auto md:right-[8%] md:max-w-[22rem] md:text-[clamp(2.5rem,3.8vw,3.375rem)]">
+          <span className="block">{t("home.heroTitleLine1")}</span>
+          <span className="block">
+            {t("home.heroTitleLine2")}{" "}
+            <span data-brand-logo>Dupli1</span>
+          </span>
+        </h1>
       </div>
     </section>
   );
