@@ -99,7 +99,7 @@ export default function Home() {
 // ── Hero ───────────────────────────────────────────────────────────────────
 
 function Hero() {
-  const { t, translateProductName } = useLanguage();
+  const { t } = useLanguage();
   const [heroBag, setHeroBag] = useState<Bag | null>(null);
 
   useEffect(() => {
@@ -119,87 +119,70 @@ function Hero() {
   }, []);
 
   const shopLink = heroBag ? `/product/${heroBag.id}` : "/category/product-type/handbags";
+  const heroImage = heroBag
+    ? (heroBag.image
+        ? heroBag.image.replace(/w_\d+,h_\d+/, "w_1920,h_1280")
+        : bannerBagImage(heroBag.image, heroBag.brand))
+    : null;
 
   return (
-    <section className="relative min-h-[calc(100vh-5.5rem)] overflow-hidden bg-[#141210] md:min-h-[calc(100vh-7.75rem)]">
-      {heroBag && (
+    <section className="relative min-h-[calc(100vh-5.5rem)] overflow-hidden bg-[#1a1612] md:min-h-[calc(100vh-7.75rem)]">
+      {heroImage ? (
         <img
-          src={bannerBagImage(heroBag.image, heroBag.brand)}
-          alt=""
-          aria-hidden
-          className="absolute inset-0 h-full w-full object-cover opacity-35 md:opacity-45"
+          src={heroImage}
+          alt={t("home.heroAlt")}
+          className="absolute inset-0 h-full w-full object-cover object-[center_30%] opacity-50 animate-home-hero-zoom md:opacity-55 md:object-center"
         />
+      ) : (
+        <div className="absolute inset-0 bg-[#1a1612]" />
       )}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(200,169,110,0.22),transparent_40%),radial-gradient(circle_at_85%_80%,rgba(200,169,110,0.12),transparent_35%),linear-gradient(180deg,rgba(20,18,16,0.35)_0%,rgba(20,18,16,0.92)_72%,#141210_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(26,22,18,0.88)_0%,rgba(26,22,18,0.55)_42%,rgba(26,22,18,0.28)_68%,rgba(26,22,18,0.72)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_40%,rgba(200,169,110,0.14),transparent_55%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#1a1612] to-transparent" />
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-7xl flex-col justify-end px-6 pb-10 pt-16 md:min-h-[calc(100vh-7.75rem)] md:justify-center md:px-10 md:pb-16 md:pt-20 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-12">
-        <div className="animate-home-fade-up text-center lg:text-left">
-          <p className="mb-5 inline-flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#c8a96e]">
-            <span className="h-px w-8 bg-[#c8a96e]/50" />
+      <div className="relative mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-7xl flex-col justify-end px-6 pb-14 pt-20 md:min-h-[calc(100vh-7.75rem)] md:justify-center md:px-10 md:pb-20 md:pt-24">
+        <div className="max-w-xl">
+          <p className="animate-home-fade-up mb-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#c8a96e]">
+            <span className="origin-left h-px w-10 bg-[#c8a96e]/70 animate-home-rule" />
             {t("home.eyebrow")}
-            <span className="hidden h-px w-8 bg-[#c8a96e]/50 sm:block" />
           </p>
+
           <h1
-            className="text-[clamp(3rem,9vw,5.75rem)] font-light leading-[0.92] tracking-tight text-white"
-            style={{ fontFamily: "var(--font-display)" }}
+            data-brand-logo
+            className="animate-home-fade-up text-[clamp(3.25rem,10vw,6.5rem)] font-light leading-[0.9] tracking-[0.08em] text-white uppercase"
+            style={{ fontFamily: "var(--font-display)", animationDelay: "80ms" }}
           >
-            {t("home.heroTitleLine1")}
-            <br />
-            <span className="text-[#c8a96e]">{t("home.heroTitleLine2")}</span>
+            Dupli1
           </h1>
-          <p className="mx-auto mt-6 max-w-md text-sm leading-relaxed text-white/60 lg:mx-0">
+
+          <p
+            className="animate-home-fade-up mt-5 max-w-md text-sm leading-relaxed text-white/65 md:text-[15px]"
+            style={{ animationDelay: "160ms" }}
+          >
             {t("home.heroDescription")}
           </p>
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
+
+          <div
+            className="animate-home-fade-up mt-10 flex flex-col gap-3 sm:flex-row sm:items-center"
+            style={{ animationDelay: "240ms" }}
+          >
             <Link
               to={shopLink}
-              className="inline-flex h-12 items-center justify-center bg-[#c8a96e] px-9 text-xs font-semibold uppercase tracking-[0.2em] text-[#141210] transition hover:bg-[#d4b87a]"
+              className="inline-flex h-12 items-center justify-center bg-[#c8a96e] px-9 text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1612] transition hover:bg-[#d4b87a]"
             >
               {t("home.shopNow")}
             </Link>
             <Link
               to="/category/product-type/handbags"
-              className="inline-flex h-12 items-center justify-center border border-white/25 px-9 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 transition hover:border-white hover:text-white"
+              className="group inline-flex h-12 items-center justify-center px-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:text-white"
             >
               {t("home.styleConsult")}
+              <span aria-hidden className="ml-2 transition-transform group-hover:translate-x-0.5">
+                →
+              </span>
             </Link>
           </div>
         </div>
-
-        {heroBag ? (
-          <Link
-            to={`/product/${heroBag.id}`}
-            className="group relative mt-12 flex w-full max-w-sm animate-home-fade-up flex-col items-center lg:mt-0 lg:items-start"
-            style={{ animationDelay: "120ms" }}
-          >
-            <div className="w-full border-t border-white/10 pt-5 text-center lg:text-left">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c8a96e]">
-                {brandDisplayName(heroBag.brand)}
-              </p>
-              <h2
-                className="mt-2 text-2xl font-light leading-tight text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {translateProductName(heroBag.id, heroBag.name)}
-              </h2>
-              <div className="mt-4 flex items-center justify-center gap-4 lg:justify-between">
-                <div className="[&_span]:text-white/90">
-                  <ProductPrice price={heroBag.price} officialPrice={heroBag.officialPrice} />
-                </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/50 transition group-hover:text-white">
-                  {t("home.heroViewProduct")} →
-                </span>
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <div className="mt-12 h-28 w-full max-w-sm animate-pulse bg-white/5 lg:mt-0" />
-        )}
-      </div>
-
-      <div className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/35 md:flex">
-        <span>{t("home.scroll")}</span>
-        <span className="block h-8 w-px bg-gradient-to-b from-white/40 to-transparent" />
       </div>
     </section>
   );
