@@ -153,8 +153,8 @@ The storefront payment step offers **credit card** for customers
 (`method: "credit_card"` → Stripe Checkout). Staff sessions with
 `payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
 Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
-(`customer` | `manager` | `service` — backend `account_type` is
-`customer` | `admin` | `service`; managers are `admin` staff).
+(`customer` | `manager` | `service` — backend `account_type` uses the same
+values; `admin` is a permission tier such as `admin.*`, not an account type).
 
 **Stock path (no standalone inventory service):** PDP stock hints and cart
 `available_qty` come from product-owned `GET /api/v1/inventory/{sku}` (or
