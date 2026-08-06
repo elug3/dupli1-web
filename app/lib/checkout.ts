@@ -152,12 +152,91 @@ export async function applySessionCoupon(sessionId: string, code: string): Promi
   return mapSession(await res.json());
 }
 
+export interface CheckoutShippingAddress {
+  postalCode: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  province: string;
+}
+
+/** Fulfillment snapshot required by order service since checkout phase B. */
+export interface CheckoutFulfillment {
+  recipientName: string;
+  recipientPhone: string;
+  shippingAddress: CheckoutShippingAddress;
+  /** Optional audit id when copied from auth profile saved address. */
+  addressId?: string;
+}
+
+function mapFulfillmentBody(fulfillment: CheckoutFulfillment): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    recipient_name: fulfillment.recipientName,
+    recipient_phone: fulfillment.recipientPhone,
+    shipping_address: {
+      postal_code: fulfillment.shippingAddress.postalCode,
+      address_line1: fulfillment.shippingAddress.addressLine1,
+      city: fulfillment.shippingAddress.city,
+      province: fulfillment.shippingAddress.province,
+    },
+  };
+  const line2 = fulfillment.shippingAddress.addressLine2?.trim();
+  if (line2) {
+    (body.shipping_address as Record<string, string>).address_line2 = line2;
+  }
+  const addressId = fulfillment.addressId?.trim();
+  if (addressId) {
+    body.address_id = addressId;
+  }
+  return body;
+}
+
+/** Strip non-digits from a Korean phone input (matches order service normalization). */
+export function normalizeKRPhoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+export function isValidKRPhone(phone: string): boolean {
+  return /^01[0-9]{8,9}$/.test(normalizeKRPhoneDigits(phone));
+}
+
+export function normalizePostalCode(zip: string): string {
+  return zip.replace(/\D/g, "");
+}
+
+export function isValidKRPostalCode(zip: string): boolean {
+  return /^\d{5}$/.test(normalizePostalCode(zip));
+}
+
+export function buildCheckoutFulfillment(input: {
+  name: string;
+  phone: string;
+  address: string;
+  apartment: string;
+  city: string;
+  zip: string;
+  country: string;
+}): CheckoutFulfillment {
+  return {
+    recipientName: input.name.trim(),
+    recipientPhone: normalizeKRPhoneDigits(input.phone),
+    shippingAddress: {
+      postalCode: normalizePostalCode(input.zip),
+      addressLine1: input.address.trim(),
+      addressLine2: input.apartment.trim() || undefined,
+      city: input.city.trim(),
+      province: input.country.trim(),
+    },
+  };
+}
+
 export async function completeCheckoutSession(
-  sessionId: string
+  sessionId: string,
+  fulfillment: CheckoutFulfillment
 ): Promise<{ session: CheckoutSession; order: Order }> {
   const res = await request(
     `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/complete`,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify(mapFulfillmentBody(fulfillment)) }
   );
   const body = (await res.json()) as { session: RawSession; order: RawOrder };
   return { session: mapSession(body.session), order: mapOrder(body.order) };

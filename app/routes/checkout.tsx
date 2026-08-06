@@ -6,9 +6,12 @@ import { canBypassPayment, getMe, type User } from "../lib/auth";
 import { clearCart, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
 import {
   applySessionCoupon,
+  buildCheckoutFulfillment,
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  isValidKRPhone,
+  isValidKRPostalCode,
   replaceSessionItems,
   simulatePaymentSuccess,
   type PaymentMethod,
@@ -188,6 +191,16 @@ export default function CheckoutPage() {
       firstInvalidField ??= "email";
     }
 
+    if (fields.includes("phone") && form.phone.trim() && !isValidKRPhone(form.phone)) {
+      next.phone = t("checkout.validPhone");
+      firstInvalidField ??= "phone";
+    }
+
+    if (fields.includes("zip") && form.zip.trim() && !isValidKRPostalCode(form.zip)) {
+      next.zip = t("checkout.validZip");
+      firstInvalidField ??= "zip";
+    }
+
     setErrors((prev) => ({
       ...prev,
       ...Object.fromEntries(fields.map((field) => [field, undefined])),
@@ -233,6 +246,14 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setCheckoutError(null);
     try {
+      const firstInvalidField = validateStep("information");
+      if (firstInvalidField) {
+        setActiveStep("information");
+        scrollToField(firstInvalidField);
+        setSubmitting(false);
+        return;
+      }
+
       const user = await getMe();
       if (!user) {
         navigate(`/login?next=${encodeURIComponent("/checkout")}`);
@@ -255,7 +276,18 @@ export default function CheckoutPage() {
       }
       // Complete → pending order + stock reserved on dupli1-product inventory.
       // Payment then marks paid (card redirect / bypass); ship commits stock.
-      const { order } = await completeCheckoutSession(session.id);
+      const { order } = await completeCheckoutSession(
+        session.id,
+        buildCheckoutFulfillment({
+          name: form.name,
+          phone: form.phone,
+          address: form.address,
+          apartment: form.apartment,
+          city: form.city,
+          zip: form.zip,
+          country: form.country,
+        })
+      );
       const payment = await createPayment(order.id, form.paymentMethod, {
         note: form.bypassNote,
       });
