@@ -132,18 +132,6 @@ const desktopNavLinks = [
       { labelKey: "category.statement", to: "/category/style/statement" },
     ],
   },
-  {
-    id: "family",
-    labelKey: "nav.family",
-    to: "/category/family/women",
-    items: [
-      { labelKey: "category.women", to: "/category/family/women" },
-      { labelKey: "category.men", to: "/category/family/men" },
-      { labelKey: "category.kids", to: "/category/family/kids" },
-      { labelKey: "category.unisex", to: "/category/family/unisex" },
-      { labelKey: "category.all", to: "/category/family/all" },
-    ],
-  },
 ];
 
 const MOBILE_MENU_ANIM_MS = 280;
