@@ -16,6 +16,13 @@ import {
   simulatePaymentSuccess,
   type PaymentMethod,
 } from "../lib/checkout";
+import {
+  type CustomerAddress,
+  type CustomerProfile,
+  createAddress,
+  formatAddressSummary,
+  getCustomerProfile,
+} from "../lib/profile";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
 import { useCartMutation } from "../lib/useCartMutation";
@@ -37,6 +44,7 @@ interface FormState {
   address: string;
   apartment: string;
   city: string;
+  province: string;
   zip: string;
   country: string;
   phone: string;
@@ -52,6 +60,7 @@ const initialForm: FormState = {
   address: "",
   apartment: "",
   city: "",
+  province: "",
   zip: "",
   country: "",
   phone: "",
@@ -70,16 +79,27 @@ const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
     "name",
     "address",
     "city",
+    "province",
     "zip",
   ],
   delivery: [],
   payment: [],
 };
 
-function focusField(id: string) {
-  requestAnimationFrame(() => {
-    document.getElementById(id)?.focus({ preventScroll: true });
-  });
+function applyAddressToForm(
+  prev: FormState,
+  address: CustomerAddress
+): FormState {
+  return {
+    ...prev,
+    name: address.recipientName,
+    phone: address.recipientPhone,
+    address: address.addressLine1,
+    apartment: address.addressLine2 ?? "",
+    city: address.city,
+    province: address.province,
+    zip: address.postalCode,
+  };
 }
 
 export default function CheckoutPage() {
@@ -101,6 +121,11 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | "new" | null>(
+    null
+  );
+  const [saveAddress, setSaveAddress] = useState(false);
   const allowBypass = canBypassPayment(sessionUser);
 
   useEffect(() => {
@@ -110,7 +135,45 @@ export default function CheckoutPage() {
   useEffect(() => {
     let cancelled = false;
     getMe().then((user) => {
-      if (!cancelled) setSessionUser(user);
+      if (cancelled) return;
+      setSessionUser(user);
+      if (!user) return;
+      setForm((prev) =>
+        prev.email ? prev : { ...prev, email: user.email }
+      );
+      getCustomerProfile()
+        .then((loaded) => {
+          if (cancelled) return;
+          setProfile(loaded);
+          const defaultAddr =
+            loaded.addresses.find((a) => a.id === loaded.defaultAddressId) ??
+            loaded.addresses.find((a) => a.isDefault) ??
+            loaded.addresses[0];
+          setForm((prev) => {
+            let next = { ...prev };
+            if (!prev.name && loaded.displayName) {
+              next.name = loaded.displayName;
+            }
+            if (!prev.phone && loaded.phone) {
+              next.phone = loaded.phone;
+            }
+            if (defaultAddr && !prev.address) {
+              next = applyAddressToForm(next, defaultAddr);
+            }
+            return next;
+          });
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr.id);
+          } else {
+            setSelectedAddressId("new");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setProfile(null);
+            setSelectedAddressId("new");
+          }
+        });
     });
     return () => {
       cancelled = true;
@@ -136,6 +199,7 @@ export default function CheckoutPage() {
   const summary = totals(coupon?.discount ?? 0);
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
+  const savedAddresses = profile?.addresses ?? [];
 
   async function applyPromo() {
     const code = promoInput.trim();
@@ -155,6 +219,41 @@ export default function CheckoutPage() {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
+    if (
+      selectedAddressId &&
+      selectedAddressId !== "new" &&
+      (key === "name" ||
+        key === "phone" ||
+        key === "address" ||
+        key === "apartment" ||
+        key === "city" ||
+        key === "province" ||
+        key === "zip")
+    ) {
+      setSelectedAddressId("new");
+      setSaveAddress(false);
+    }
+  }
+
+  function selectSavedAddress(address: CustomerAddress) {
+    setSelectedAddressId(address.id);
+    setSaveAddress(false);
+    setForm((prev) => applyAddressToForm(prev, address));
+    setErrors((prev) => ({
+      ...prev,
+      name: undefined,
+      phone: undefined,
+      address: undefined,
+      apartment: undefined,
+      city: undefined,
+      province: undefined,
+      zip: undefined,
+    }));
+  }
+
+  function selectNewAddress() {
+    setSelectedAddressId("new");
+    setSaveAddress(false);
   }
 
   const activeStepIndex = checkoutSteps.indexOf(activeStep);
@@ -260,6 +359,40 @@ export default function CheckoutPage() {
         return;
       }
 
+      let addressId =
+        selectedAddressId && selectedAddressId !== "new"
+          ? selectedAddressId
+          : undefined;
+
+      if (saveAddress && selectedAddressId === "new") {
+        try {
+          const created = await createAddress({
+            recipientName: form.name,
+            recipientPhone: form.phone,
+            postalCode: form.zip,
+            addressLine1: form.address,
+            addressLine2: form.apartment,
+            city: form.city,
+            province: form.province,
+            isDefault: savedAddresses.length === 0,
+          });
+          addressId = created.id;
+          setProfile((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  addresses: [...prev.addresses, created],
+                  defaultAddressId: created.isDefault
+                    ? created.id
+                    : prev.defaultAddressId,
+                }
+              : prev
+          );
+        } catch {
+          // Order can still complete without persisting the address book entry.
+        }
+      }
+
       const session = await createCheckoutSession(user.user_id);
       await replaceSessionItems(
         session.id,
@@ -285,7 +418,8 @@ export default function CheckoutPage() {
           apartment: form.apartment,
           city: form.city,
           zip: form.zip,
-          country: form.country,
+          province: form.province,
+          addressId,
         })
       );
       const payment = await createPayment(order.id, form.paymentMethod, {
@@ -408,6 +542,74 @@ export default function CheckoutPage() {
                 </CheckoutSection>
 
                 <CheckoutSection step="02" title={t("checkout.shipping")}>
+                  {savedAddresses.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+                        {t("checkout.savedAddresses")}
+                      </p>
+                      <div className="space-y-2" role="radiogroup" aria-label={t("checkout.savedAddresses")}>
+                        {savedAddresses.map((address) => {
+                          const selected = selectedAddressId === address.id;
+                          return (
+                            <label
+                              key={address.id}
+                              className={[
+                                "flex cursor-pointer gap-3 border px-4 py-3 transition",
+                                selected
+                                  ? "border-zinc-950 bg-zinc-50"
+                                  : "border-zinc-200 hover:border-zinc-400",
+                              ].join(" ")}
+                            >
+                              <input
+                                type="radio"
+                                name="savedAddress"
+                                className="mt-1 accent-zinc-950"
+                                checked={selected}
+                                onChange={() => selectSavedAddress(address)}
+                              />
+                              <span className="min-w-0">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-zinc-950">
+                                    {address.label?.trim() || address.recipientName}
+                                  </span>
+                                  {address.isDefault && (
+                                    <span className="bg-zinc-950 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white">
+                                      {t("profile.defaultAddress")}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="mt-0.5 block text-xs text-zinc-500">
+                                  {address.recipientName} · {address.recipientPhone}
+                                </span>
+                                <span className="mt-0.5 block text-xs text-zinc-600">
+                                  ({address.postalCode}) {formatAddressSummary(address)}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                        <label
+                          className={[
+                            "flex cursor-pointer gap-3 border px-4 py-3 transition",
+                            selectedAddressId === "new"
+                              ? "border-zinc-950 bg-zinc-50"
+                              : "border-zinc-200 hover:border-zinc-400",
+                          ].join(" ")}
+                        >
+                          <input
+                            type="radio"
+                            name="savedAddress"
+                            className="mt-1 accent-zinc-950"
+                            checked={selectedAddressId === "new"}
+                            onChange={selectNewAddress}
+                          />
+                          <span className="text-sm text-zinc-950">
+                            {t("checkout.useNewAddress")}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                   <Field
                     label={t("checkout.name")}
                     id="name"
@@ -435,6 +637,15 @@ export default function CheckoutPage() {
                   />
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field
+                      label={t("checkout.province")}
+                      id="province"
+                      value={form.province}
+                      error={errors.province}
+                      onChange={(v) => updateField("province", v)}
+                      autoComplete="address-level1"
+                      required
+                    />
+                    <Field
                       label={t("checkout.city")}
                       id="city"
                       value={form.city}
@@ -443,6 +654,8 @@ export default function CheckoutPage() {
                       autoComplete="address-level2"
                       required
                     />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
                     <Field
                       label={t("checkout.zip")}
                       id="zip"
@@ -452,15 +665,34 @@ export default function CheckoutPage() {
                       autoComplete="postal-code"
                       required
                     />
+                    <Field
+                      label={t("checkout.country")}
+                      id="country"
+                      value={form.country}
+                      onChange={() => {}}
+                      autoComplete="country-name"
+                      readOnly
+                    />
                   </div>
-                  <Field
-                    label={t("checkout.country")}
-                    id="country"
-                    value={form.country}
-                    onChange={() => {}}
-                    autoComplete="country-name"
-                    readOnly
-                  />
+                  {selectedAddressId === "new" && (
+                    <label className="flex items-center gap-2 text-xs text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={saveAddress}
+                        onChange={(e) => setSaveAddress(e.target.checked)}
+                        className="size-3.5 accent-zinc-950"
+                      />
+                      {t("checkout.saveAddressToAccount")}
+                    </label>
+                  )}
+                  <p className="text-[11px] text-zinc-400">
+                    <Link
+                      to="/profile"
+                      className="underline underline-offset-2 transition hover:text-zinc-700"
+                    >
+                      {t("checkout.manageAddresses")}
+                    </Link>
+                  </p>
                 </CheckoutSection>
               </div>
             )}

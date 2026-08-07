@@ -3,6 +3,13 @@ import { Link, useNavigate } from "react-router";
 import { type User, getMe, logout } from "~/lib/auth";
 import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
 import { ProductPrice } from "~/components/product-price";
+import { ShippingAddressBook } from "~/components/shipping-address-book";
+import {
+  type CustomerAddress,
+  getCustomerProfile,
+  updateCustomerProfile,
+} from "~/lib/profile";
+import { isValidKRPhone } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
 type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
@@ -473,7 +480,15 @@ function OrdersSection() {
 
 function SettingsSection({ user }: { user: User }) {
   const { t } = useLanguage();
+  const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState({
     orders: true,
     promotions: true,
@@ -481,35 +496,132 @@ function SettingsSection({ user }: { user: User }) {
     newArrivals: false,
   });
 
-  function handleSave(e: React.FormEvent) {
+  useEffect(() => {
+    let cancelled = false;
+    setProfileLoading(true);
+    getCustomerProfile()
+      .then((profile) => {
+        if (cancelled) return;
+        setDisplayName(profile.displayName);
+        setPhone(profile.phone);
+        setAddresses(profile.addresses);
+        setProfileError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setProfileError(
+          err instanceof Error ? err.message : t("profile.profileLoadFailed")
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setNameError(null);
+    setPhoneError(null);
+
+    const name = displayName.trim();
+    if (!name) {
+      setNameError(t("checkout.required"));
+      return;
+    }
+    if (phone.trim() && !isValidKRPhone(phone)) {
+      setPhoneError(t("checkout.validPhone"));
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileError(null);
+    try {
+      const updated = await updateCustomerProfile({
+        displayName: name,
+        phone: phone.trim() || undefined,
+      });
+      setDisplayName(updated.displayName);
+      setPhone(updated.phone);
+      setAddresses(updated.addresses);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setProfileError(
+        err instanceof Error ? err.message : t("profile.profileSaveFailed")
+      );
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   return (
     <section className="space-y-10">
       <SectionHeader title={t("profile.accountSettings")} />
 
+      {profileError && (
+        <p className="text-xs text-red-600" role="alert">
+          {profileError}
+        </p>
+      )}
+
       {/* Profile info */}
       <div>
         <p className="mb-4 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
           {t("profile.profile")}
         </p>
-        <form onSubmit={handleSave} className="space-y-3">
-          <Field label={t("profile.name")} defaultValue="" placeholder="—" />
-          <Field label={t("profile.email")} defaultValue={user.email} type="email" />
-          <Field label={t("profile.phone")} defaultValue="" placeholder="+1 (000) 000-0000" type="tel" />
-          <div className="pt-1">
-            <button
-              type="submit"
-              className="bg-zinc-950 px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
-            >
-              {saved ? t("profile.saved") : t("profile.saveChanges")}
-            </button>
+        {profileLoading ? (
+          <div className="space-y-3">
+            <div className="h-10 animate-pulse bg-zinc-100" />
+            <div className="h-10 animate-pulse bg-zinc-100" />
+            <div className="h-10 animate-pulse bg-zinc-100" />
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSave} className="space-y-3">
+            <ControlledField
+              label={t("profile.name")}
+              value={displayName}
+              onChange={setDisplayName}
+              error={nameError ?? undefined}
+              placeholder={t("profile.namePlaceholder")}
+            />
+            <ControlledField
+              label={t("profile.email")}
+              value={user.email}
+              onChange={() => {}}
+              type="email"
+              readOnly
+            />
+            <ControlledField
+              label={t("profile.phone")}
+              value={phone}
+              onChange={setPhone}
+              error={phoneError ?? undefined}
+              placeholder="01012345678"
+              type="tel"
+            />
+            <div className="pt-1">
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="bg-zinc-950 px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {saved
+                  ? t("profile.saved")
+                  : savingProfile
+                    ? t("profile.saving")
+                    : t("profile.saveChanges")}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
+
+      {!profileLoading && (
+        <ShippingAddressBook addresses={addresses} onChange={setAddresses} />
+      )}
 
       {/* Change password */}
       <div>
@@ -566,6 +678,45 @@ function SettingsSection({ user }: { user: User }) {
         </button>
       </div>
     </section>
+  );
+}
+
+function ControlledField({
+  label,
+  value,
+  onChange,
+  error,
+  placeholder,
+  type = "text",
+  readOnly,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  placeholder?: string;
+  type?: string;
+  readOnly?: boolean;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-400">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        readOnly={readOnly}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={[
+          "w-full border bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-300",
+          readOnly ? "border-zinc-100 bg-zinc-50 text-zinc-500" : "",
+          error ? "border-red-400" : "border-zinc-200 focus:border-zinc-400",
+        ].join(" ")}
+      />
+      {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+    </div>
   );
 }
 

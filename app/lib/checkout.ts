@@ -215,7 +215,8 @@ export function buildCheckoutFulfillment(input: {
   apartment: string;
   city: string;
   zip: string;
-  country: string;
+  province: string;
+  addressId?: string;
 }): CheckoutFulfillment {
   return {
     recipientName: input.name.trim(),
@@ -225,8 +226,9 @@ export function buildCheckoutFulfillment(input: {
       addressLine1: input.address.trim(),
       addressLine2: input.apartment.trim() || undefined,
       city: input.city.trim(),
-      province: input.country.trim(),
+      province: input.province.trim(),
     },
+    addressId: input.addressId?.trim() || undefined,
   };
 }
 
