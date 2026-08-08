@@ -426,15 +426,14 @@ export default function CheckoutPage() {
           state: { orderId: order.id, email: form.email },
         });
       } else if (payment.checkoutUrl.includes("/simulate-success")) {
-        // Dev mode: no Stripe key configured, complete the payment directly.
+        // Local/dev: PAYMENT_ALLOW_DEV_SIMULATE — complete without a card PG.
         await simulatePaymentSuccess(payment.id);
         await clearCart();
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
       } else {
-        // Production: hand off to Stripe's hosted checkout page.
-        window.location.href = payment.checkoutUrl;
+        throw new Error(t("checkout.paymentUnavailable"));
       }
     } catch (err) {
       setCheckoutError(
