@@ -6,7 +6,7 @@ export interface Bag {
   id: string;
   name: string;
   description: string;
-  /** Actual sale price (KRW won). */
+  /** Selling price / 판매가 (KRW won). */
   price: number;
   /** Reference / list price (KRW won); display only when > price. */
   officialPrice?: number;
@@ -24,7 +24,7 @@ export interface ServerProduct {
   id: string;
   name: string;
   description: string;
-  /** Actual sale price (KRW won). */
+  /** Selling price / 판매가 (KRW won). */
   price: number;
   /** Reference / list price (KRW won); display only when > price. */
   officialPrice?: number;
@@ -50,7 +50,7 @@ interface UpstreamProduct {
   id: string;
   name: string;
   description: string;
-  /** Actual sale price on the parent (elug3/dupli1#129–#133). */
+  /** Selling price / 판매가 on the parent (elug3/dupli1#129–#133). */
   price?: number;
   /** Reference / list price on the parent. */
   officialPrice?: number;

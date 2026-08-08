@@ -9,7 +9,7 @@ export function ProductPrice({
   size = "sm",
 }: {
   price: number;
-  /** Reference list price; shown struck when greater than sale `price`. */
+  /** Reference list price; shown struck when greater than selling `price` (판매가). */
   officialPrice?: number;
   size?: "sm" | "lg";
 }) {

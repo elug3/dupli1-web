@@ -27,7 +27,7 @@ export interface UpstreamProduct {
   id: string;
   name: string;
   description: string;
-  /** Actual sale price on the parent (elug3/dupli1#129–#133). */
+  /** Selling price / 판매가 on the parent (elug3/dupli1#129–#133). */
   price?: number;
   /** Reference / list price on the parent. */
   officialPrice?: number;
