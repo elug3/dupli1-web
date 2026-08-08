@@ -4,7 +4,7 @@
 // Cart is per-authenticated-customer only — there is no guest cart yet.
 // Line items key on variant SKU / sku_id; prices are server-sourced.
 
-/** Flat shipping fee (KRW) charged on every order, for every delivery speed. */
+/** Flat shipping fee (KRW) charged on every order. */
 export const SHIPPING_FEE = 30000;
 
 export class CartAuthRequiredError extends Error {

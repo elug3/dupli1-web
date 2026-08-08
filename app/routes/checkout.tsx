@@ -48,7 +48,6 @@ interface FormState {
   zip: string;
   country: string;
   phone: string;
-  delivery: "standard" | "express";
   /** credit_card for everyone; bypass only when canBypassPayment (elug3/dupli1#108). */
   paymentMethod: PaymentMethod;
   bypassNote: string;
@@ -64,12 +63,11 @@ const initialForm: FormState = {
   zip: "",
   country: "",
   phone: "",
-  delivery: "standard",
   paymentMethod: "credit_card",
   bypassNote: "",
 };
 
-const checkoutSteps = ["information", "delivery", "payment"] as const;
+const checkoutSteps = ["information", "payment"] as const;
 type CheckoutStep = (typeof checkoutSteps)[number];
 
 const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
@@ -82,7 +80,6 @@ const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
     "province",
     "zip",
   ],
-  delivery: [],
   payment: [],
 };
 
@@ -262,17 +259,14 @@ export default function CheckoutPage() {
   const previousStep = checkoutSteps[activeStepIndex - 1];
   const stepLabels: Record<CheckoutStep, string> = {
     information: t("checkout.stepInformation"),
-    delivery: t("checkout.stepDelivery"),
     payment: t("checkout.stepPayment"),
   };
   const primaryActionLabel =
     activeStep === "information"
-      ? t("checkout.continueToDelivery")
-      : activeStep === "delivery"
-        ? t("checkout.continueToPayment")
-        : t("checkout.placeOrderWithTotal", {
-            total: formatCurrency(checkoutTotal),
-          });
+      ? t("checkout.continueToPayment")
+      : t("checkout.placeOrderWithTotal", {
+          total: formatCurrency(checkoutTotal),
+        });
 
   function validateFields(fields: (keyof FormState)[]): keyof FormState | null {
     const next: Partial<Record<keyof FormState, string>> = {};
@@ -697,33 +691,8 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {activeStep === "delivery" && (
-              <CheckoutSection step="02" title={t("checkout.delivery")}>
-                <div className="space-y-3">
-                  <DeliveryOption
-                    name="delivery"
-                    value="standard"
-                    checked={form.delivery === "standard"}
-                    title={t("checkout.standardDelivery")}
-                    subtitle={t("checkout.standardDeliveryTime")}
-                    price={formatCurrency(summary.shipping)}
-                    onChange={() => updateField("delivery", "standard")}
-                  />
-                  <DeliveryOption
-                    name="delivery"
-                    value="express"
-                    checked={form.delivery === "express"}
-                    title={t("checkout.expressDelivery")}
-                    subtitle={t("checkout.expressDeliveryTime")}
-                    price={formatCurrency(summary.shipping)}
-                    onChange={() => updateField("delivery", "express")}
-                  />
-                </div>
-              </CheckoutSection>
-            )}
-
             {activeStep === "payment" && (
-              <CheckoutSection step="03" title={t("checkout.payment")}>
+              <CheckoutSection step="02" title={t("checkout.payment")}>
                 <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
                   <PaymentMethodOption
                     name="paymentMethod"
@@ -1050,51 +1019,6 @@ function Field({
       />
       {error && <p className="mt-1.5 text-[11px] text-red-600">{error}</p>}
     </div>
-  );
-}
-
-function DeliveryOption({
-  name,
-  value,
-  checked,
-  title,
-  subtitle,
-  price,
-  onChange,
-}: {
-  name: string;
-  value: string;
-  checked: boolean;
-  title: string;
-  subtitle: string;
-  price: string;
-  onChange: () => void;
-}) {
-  return (
-    <label
-      className={[
-        "flex cursor-pointer items-center justify-between border px-4 py-4 transition",
-        checked
-          ? "border-zinc-950 bg-zinc-50"
-          : "border-zinc-200 hover:border-zinc-400",
-      ].join(" ")}
-    >
-      <div className="flex items-center gap-3">
-        <input
-          type="radio"
-          name={name}
-          value={value}
-          checked={checked}
-          onChange={onChange}
-          className="size-4 accent-zinc-950"
-        />
-        <div>
-          <p className="text-sm font-medium text-zinc-950">{title}</p>
-          <p className="text-[11px] text-zinc-400">{subtitle}</p>
-        </div>
-      </div>
-      <span className="text-sm font-medium text-zinc-950">{price}</span>
-    </label>
   );
 }
 
