@@ -25,35 +25,39 @@ export default function CheckoutConfirmationPage() {
   const { t, formatCurrency } = useLanguage();
   const location = useLocation();
   const state = (location.state ?? {}) as ConfirmationState;
+  // NANO PG return redirects with ?order_id=…&payment_id=… (no SPA state).
+  const orderIdFromQuery =
+    new URLSearchParams(location.search).get("order_id") ?? undefined;
+  const orderId = state.orderId || orderIdFromQuery;
   const [order, setOrder] = useState<Order | null>(null);
   const [lookupFailed, setLookupFailed] = useState(false);
   const attempts = useRef(0);
 
   useEffect(() => {
-    if (!state.orderId) return;
+    if (!orderId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
-    async function poll(orderId: string) {
+    async function poll(id: string) {
       try {
-        const fetched = await getOrder(orderId);
+        const fetched = await getOrder(id);
         if (cancelled) return;
         setOrder(fetched);
         attempts.current += 1;
         if (fetched.status === "pending" && attempts.current < MAX_POLL_ATTEMPTS) {
-          timer = setTimeout(() => poll(orderId), POLL_INTERVAL_MS);
+          timer = setTimeout(() => poll(id), POLL_INTERVAL_MS);
         }
       } catch {
         if (!cancelled) setLookupFailed(true);
       }
     }
 
-    poll(state.orderId);
+    poll(orderId);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [state.orderId]);
+  }, [orderId]);
 
   // total_cents is whole KRW won (zero-decimal); do not ÷100.
   const total = order ? order.totalCents : undefined;

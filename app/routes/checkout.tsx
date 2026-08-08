@@ -433,7 +433,10 @@ export default function CheckoutPage() {
           state: { orderId: order.id, email: form.email },
         });
       } else {
-        throw new Error(t("checkout.paymentUnavailable"));
+        // NANO (or other PG): leave Dupli1 for hosted certified checkout.
+        // Confirmation polls order status after NANO redirects back.
+        await clearCart();
+        window.location.assign(payment.checkoutUrl);
       }
     } catch (err) {
       setCheckoutError(

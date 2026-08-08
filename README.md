@@ -149,9 +149,10 @@ zero-decimal currency — do not divide by 100). There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 
 Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
-The storefront payment step offers **credit card** for local/dev simulate
-(`method: "credit_card"` when `PAYMENT_ALLOW_DEV_SIMULATE` is on). There is
-**no Stripe/card PG** adapter. Staff sessions with
+The storefront payment step offers **credit card** (`method: "credit_card"`) via
+NANO certified checkout when configured, or local simulate when
+`PAYMENT_ALLOW_DEV_SIMULATE` is on. Dupli1 never collects card PAN/CVC — the
+browser redirects to the PG `checkout_url`. Staff sessions with
 `payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
 Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
 (`customer` | `manager` | `service` — backend `account_type` uses the same
