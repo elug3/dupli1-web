@@ -69,7 +69,7 @@ export interface Payment {
   amountCents: number;
   status: string;
   method: PaymentMethod | string;
-  /** Present for credit_card (Stripe or local simulate). Omitted for bypass. */
+  /** Present for credit_card local/dev simulate. Omitted for bypass. */
   checkoutUrl?: string;
 }
 
@@ -278,7 +278,7 @@ export async function createPayment(
   };
 }
 
-/** Dev-only: marks a payment as succeeded when Stripe isn't configured. */
+/** Dev-only: marks a payment as succeeded (PAYMENT_ALLOW_DEV_SIMULATE). */
 export async function simulatePaymentSuccess(paymentId: string): Promise<void> {
   await request(`/api/v1/payments/${encodeURIComponent(paymentId)}/simulate-success`);
 }

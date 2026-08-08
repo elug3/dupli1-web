@@ -8,7 +8,7 @@ Guidance for AI agents working in `dupli1-web`.
 
 English is supported (along with Korean and Chinese in `app/lib/i18n.tsx`), but **primary users are Korean**. Prefer Korean-first product naming and copy; keep English strings correct for the language switcher, and follow the Korean product-name rules in [README.md](README.md#content-guidelines).
 
-**Currency is KRW only.** Display and enter all product prices in Korean Won — do not convert to USD or other currencies by language. Cart/order/payment JSON fields named `*_cents` are **whole KRW won** (zero-decimal Stripe minor units) — never divide by 100 for display.
+**Currency is KRW only.** Display and enter all product prices in Korean Won — do not convert to USD or other currencies by language. Cart/order/payment JSON fields named `*_cents` are **whole KRW won** (zero-decimal minor units) — never divide by 100 for display.
 
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
