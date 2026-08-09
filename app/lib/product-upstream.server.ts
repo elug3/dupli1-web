@@ -87,6 +87,7 @@ export interface ProductResponse {
   createdAt: string;
   // Sellable variant for cart/checkout — the storefront doesn't yet expose
   // a color/size picker, so it always adds the product's first active variant.
+  // Empty when variants are missing — never the parent product id.
   sku: string;
   /** Canonical variant ULID when the product service returns it. */
   skuId?: string;
@@ -196,12 +197,14 @@ function defaultVariant(product: UpstreamProduct): UpstreamVariant | undefined {
   return product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
 }
 
+/** Human SKU only — never parent `product.id` (not a variant). */
 function defaultVariantSku(product: UpstreamProduct): string {
-  return defaultVariant(product)?.sku ?? product.id;
+  const sku = defaultVariant(product)?.sku?.trim();
+  return sku || "";
 }
 
 function defaultVariantSkuId(product: UpstreamProduct): string | undefined {
-  return defaultVariant(product)?.skuId || undefined;
+  return defaultVariant(product)?.skuId?.trim() || undefined;
 }
 
 export function toProductResponse(product: UpstreamProduct): ProductResponse {

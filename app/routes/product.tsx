@@ -247,16 +247,19 @@ function ProductInfo({ product }: { product: ServerProduct }) {
     translateValue,
   } = useLanguage();
   const mutation = useCartMutation();
-  const { addItem, isPending, getAction, authRequired } = mutation;
+  const { addItem, isPending, getAction, authRequired, error: cartError } = mutation;
   const navigate = useNavigate();
   const location = useLocation();
   const [added, setAdded] = useState(false);
   const [availableStock, setAvailableStock] = useState<number | null>(null);
+  // Parent product.id is not sellable — require a real variant sku / skuId.
+  const hasSellableVariant = Boolean(product.skuId || product.sku.trim());
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
   // No stock row yet for most catalog items — treat "untracked" as available;
   // order complete reserves via product-owned /api/v1/inventory (not a separate service).
-  const inStock = availableStock === null || availableStock > 0;
+  const inStock =
+    hasSellableVariant && (availableStock === null || availableStock > 0);
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
@@ -270,22 +273,28 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
   useEffect(() => {
     setAvailableStock(null);
+    if (!hasSellableVariant) return;
     fetchAvailableStock(product.sku, product.skuId)
       .then(setAvailableStock)
       .catch(() => setAvailableStock(null));
-  }, [product.sku, product.skuId]);
+  }, [hasSellableVariant, product.sku, product.skuId]);
 
-  async function handleAddToBag() {
-    if (adding) return;
-    await addItem(product.sku, 1, product.skuId);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+  async function handleAddToBag(): Promise<boolean> {
+    if (adding || !hasSellableVariant) return false;
+    const ok = await addItem(product.sku, 1, product.skuId);
+    if (ok) {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    }
+    return ok;
   }
 
   async function handleBuy() {
     if (!inStock || adding) return;
-    await handleAddToBag();
-    navigate("/checkout");
+    // Do not navigate when add failed (e.g. variant not found) — mutation
+    // used to swallow errors and Buy still opened checkout.
+    const ok = await handleAddToBag();
+    if (ok) navigate("/checkout");
   }
 
   return (
@@ -351,7 +360,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         <button
           type="button"
           disabled={!inStock || adding}
-          onClick={handleAddToBag}
+          onClick={() => void handleAddToBag()}
           aria-label={
             adding
               ? t("product.addingToBag")
@@ -383,11 +392,16 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         <button
           type="button"
           disabled={!inStock || adding}
-          onClick={handleBuy}
+          onClick={() => void handleBuy()}
           className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
         >
           {t("product.buy")}
         </button>
+        {cartError && (
+          <p className="text-center text-[11px] text-red-600" role="alert">
+            {cartError}
+          </p>
+        )}
       </div>
 
       {/* Detail links */}
@@ -424,7 +438,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         <button
           type="button"
           disabled={!inStock || adding}
-          onClick={handleAddToBag}
+          onClick={() => void handleAddToBag()}
           className={[
             "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
             inStock && !adding

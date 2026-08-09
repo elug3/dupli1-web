@@ -388,16 +388,23 @@ export default function CheckoutPage() {
       }
 
       const session = await createCheckoutSession(user.user_id);
-      await replaceSessionItems(
-        session.id,
-        items.map((item) => ({
-          sku: item.sku,
-          sku_id: item.skuId,
+      // Prefer canonical sku_id; uppercase human sku for product's exact-match
+      // GetVariant SQL (cart normalizes on write; order resolveVariant does not).
+      const sessionItems = items.map((item) => {
+        const sku = item.sku.trim().toUpperCase();
+        const skuId = item.skuId?.trim();
+        return {
+          sku,
+          sku_id: skuId,
           quantity: item.quantity,
           // C1 (elug3/dupli1#116): order prices lines server-side — do not send
           // client unit_price_cents.
-        }))
-      );
+        };
+      });
+      if (sessionItems.some((item) => !item.sku && !item.sku_id)) {
+        throw new Error("variant not found");
+      }
+      await replaceSessionItems(session.id, sessionItems);
       if (coupon) {
         await applySessionCoupon(session.id, coupon.code);
       }

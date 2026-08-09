@@ -115,8 +115,12 @@ function findLine(ref: CartItemRef): CartLine | undefined {
 
 function mutationBody(ref: CartItemRef, quantity: number): string {
   const body: { sku?: string; sku_id?: string; quantity: number } = { quantity };
-  if (ref.skuId) body.sku_id = ref.skuId;
-  if (ref.sku) body.sku = ref.sku;
+  const skuId = ref.skuId?.trim();
+  // Cart + product GetVariant use exact-match SQL; cart uppercases on write,
+  // but send uppercase from the client so lookups stay consistent.
+  const sku = ref.sku?.trim().toUpperCase();
+  if (skuId) body.sku_id = skuId;
+  if (sku) body.sku = sku;
   return JSON.stringify(body);
 }
 
