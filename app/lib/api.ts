@@ -37,7 +37,11 @@ export interface ServerProduct {
   image?: string;
   images?: string[];
   createdAt: string;
-  /** Sellable variant SKU — what cart/checkout key line items on. */
+  /**
+   * Sellable variant human SKU (cart/checkout line key).
+   * Empty when the parent has no variants — never the parent product id
+   * (parent id is not a variant; order resolves via by-sku / by-sku-id).
+   */
   sku: string;
   /** Canonical variant ULID from product (`skuId`) when present. */
   skuId?: string;
@@ -128,12 +132,20 @@ function upstreamVariant(product: UpstreamProduct) {
   return product.variants?.find((v) => v.status === "active") ?? product.variants?.[0];
 }
 
+/**
+ * Human SKU for the default sellable variant.
+ * Do not fall back to `product.id`: the parent style id is not a variant row,
+ * and order/cart look up `GET .../variants/by-sku/{sku}` with exact-match SQL.
+ * Legacy backfill sometimes used `sku === product.id`, but multi-SKU parents
+ * and ULID parent ids must not be sent as the cart/checkout SKU.
+ */
 function upstreamSku(product: UpstreamProduct): string {
-  return upstreamVariant(product)?.sku ?? product.id;
+  const sku = upstreamVariant(product)?.sku?.trim();
+  return sku || "";
 }
 
 function upstreamSkuId(product: UpstreamProduct): string | undefined {
-  return upstreamVariant(product)?.skuId || undefined;
+  return upstreamVariant(product)?.skuId?.trim() || undefined;
 }
 
 function toBag(product: UpstreamProduct): Bag {

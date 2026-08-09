@@ -30,19 +30,25 @@ export function useCartMutation() {
   );
 
   const run = useCallback(
-    async (ref: CartItemRef, action: CartMutationAction, fn: () => Promise<void>) => {
-      if (pendingKey) return;
+    async (
+      ref: CartItemRef,
+      action: CartMutationAction,
+      fn: () => Promise<void>
+    ): Promise<boolean> => {
+      if (pendingKey) return false;
       setPendingKey(pendingKeyFor(ref));
       setPendingAction(action);
       setError(null);
       try {
         await fn();
+        return true;
       } catch (err) {
         if (err instanceof CartAuthRequiredError) {
           setAuthRequired(true);
         } else {
           setError(err instanceof Error ? err.message : "Something went wrong");
         }
+        return false;
       } finally {
         setPendingKey(null);
         setPendingAction(null);
@@ -74,7 +80,7 @@ export function useCartMutation() {
   );
 
   const addItem = useCallback(
-    (sku: string, quantity = 1, skuId?: string) =>
+    (sku: string, quantity = 1, skuId?: string): Promise<boolean> =>
       run({ sku, skuId }, "add", () => addToCart({ sku, skuId }, quantity)),
     [run]
   );
