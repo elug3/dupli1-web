@@ -7,6 +7,7 @@ import { clearCart, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
 import {
   applySessionCoupon,
   buildCheckoutFulfillment,
+  buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
   completeCheckoutSession,
   createCheckoutSession,
@@ -402,20 +403,16 @@ export default function CheckoutPage() {
       }
 
       const session = await createCheckoutSession(user.user_id);
-      // Prefer canonical sku_id; uppercase human sku for product's exact-match
-      // GetVariant SQL (cart normalizes on write; order resolveVariant does not).
-      const sessionItems = items.map((item) => {
-        const sku = item.sku.trim().toUpperCase();
-        const skuId = item.skuId?.trim();
-        return {
-          sku,
-          sku_id: skuId,
+      // Prefer canonical sku_id; never send parent product.id as the human sku.
+      const sessionItems = items.map((item) =>
+        buildCheckoutSessionItem({
+          sku: item.sku,
+          skuId: item.skuId,
+          productId: item.productId,
           quantity: item.quantity,
-          // C1 (elug3/dupli1#116): order prices lines server-side — do not send
-          // client unit_price_cents.
-        };
-      });
-      if (sessionItems.some((item) => !item.sku && !item.sku_id)) {
+        })
+      );
+      if (cartHasUnpurchasableItems(items)) {
         setProductUnavailableOpen(true);
         setSubmitting(false);
         return;

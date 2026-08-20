@@ -33,14 +33,63 @@ export function isUnpurchasableVariantError(message: string): boolean {
   return /variant\s+not\s+found/i.test(message.trim());
 }
 
-export function cartHasUnpurchasableItems(
-  items: Array<{ sku?: string; skuId?: string }>
+/** Legacy carts stored parent `product_id` as `sku` — not a sellable variant. */
+export function isLegacyProductIdSku(
+  sku: string | undefined,
+  productId?: string
 ): boolean {
-  return items.some((item) => !item.sku?.trim() && !item.skuId?.trim());
+  const trimmedSku = sku?.trim();
+  const trimmedProductId = productId?.trim();
+  if (!trimmedSku || !trimmedProductId) return false;
+  return trimmedSku.toUpperCase() === trimmedProductId.toUpperCase();
+}
+
+export interface CheckoutLineInput {
+  sku?: string;
+  skuId?: string;
+  productId?: string;
+  quantity: number;
+}
+
+/** Resolve sellable variant refs for checkout — prefer canonical sku_id over human sku. */
+export function resolveCheckoutVariantRef(item: {
+  sku?: string;
+  skuId?: string;
+  productId?: string;
+}): { sku?: string; sku_id?: string } {
+  const skuId = item.skuId?.trim();
+  if (skuId) {
+    const sku = item.sku?.trim().toUpperCase();
+    return {
+      sku_id: skuId,
+      ...(sku && !isLegacyProductIdSku(sku, item.productId) ? { sku } : {}),
+    };
+  }
+
+  const sku = item.sku?.trim().toUpperCase();
+  if (!sku || isLegacyProductIdSku(sku, item.productId)) return {};
+  return { sku };
+}
+
+export function cartHasUnpurchasableItems(
+  items: Array<{ sku?: string; skuId?: string; productId?: string }>
+): boolean {
+  return items.some((item) => {
+    const ref = resolveCheckoutVariantRef(item);
+    return !ref.sku && !ref.sku_id;
+  });
+}
+
+export function buildCheckoutSessionItem(item: CheckoutLineInput): SessionItem {
+  return {
+    ...resolveCheckoutVariantRef(item),
+    quantity: item.quantity,
+  };
 }
 
 export interface SessionItem {
-  sku: string;
+  /** Human variant SKU when known; omit when only sku_id is available. */
+  sku?: string;
   /** Canonical variant id when known (order stores as sku_id). */
   sku_id?: string;
   quantity: number;
