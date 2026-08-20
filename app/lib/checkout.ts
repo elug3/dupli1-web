@@ -71,13 +71,25 @@ export function resolveCheckoutVariantRef(item: {
   return { sku };
 }
 
+export function isCheckoutLineUnpurchasable(item: {
+  sku?: string;
+  skuId?: string;
+  productId?: string;
+}): boolean {
+  const ref = resolveCheckoutVariantRef(item);
+  return !ref.sku && !ref.sku_id;
+}
+
 export function cartHasUnpurchasableItems(
   items: Array<{ sku?: string; skuId?: string; productId?: string }>
 ): boolean {
-  return items.some((item) => {
-    const ref = resolveCheckoutVariantRef(item);
-    return !ref.sku && !ref.sku_id;
-  });
+  return items.some(isCheckoutLineUnpurchasable);
+}
+
+export function getUnpurchasableCartItems<
+  T extends { sku?: string; skuId?: string; productId?: string },
+>(items: T[]): T[] {
+  return items.filter(isCheckoutLineUnpurchasable);
 }
 
 export function buildCheckoutSessionItem(item: CheckoutLineInput): SessionItem {

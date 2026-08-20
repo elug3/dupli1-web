@@ -328,7 +328,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.previousStep": "Previous Step",
     "checkout.productUnavailableTitle": "Product unavailable",
     "checkout.productUnavailableMessage":
-      "One or more items in your bag can no longer be purchased. They may have been removed or are no longer available.",
+      "The following items can no longer be purchased. They may have been removed or are no longer available.",
+    "checkout.productUnavailableList": "Unavailable items",
+    "checkout.productUnavailableQuantity": "Qty {count}",
     "checkout.productUnavailableAction": "Back to bag",
 
     "confirmation.metaTitle": "Order Confirmed — Dupli1",
@@ -853,7 +855,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.previousStep": "이전 단계",
     "checkout.productUnavailableTitle": "구매할 수 없는 상품",
     "checkout.productUnavailableMessage":
-      "장바구니에 담긴 상품 중 구매할 수 없는 상품이 있습니다. 판매가 종료되었거나 더 이상 구매할 수 없는 상품입니다.",
+      "아래 상품은 더 이상 구매할 수 없습니다. 판매가 종료되었거나 더 이상 구매할 수 없는 상품입니다.",
+    "checkout.productUnavailableList": "구매할 수 없는 상품",
+    "checkout.productUnavailableQuantity": "수량 {count}",
     "checkout.productUnavailableAction": "장바구니로 돌아가기",
 
     "confirmation.metaTitle": "주문 확인 — Dupli1",
@@ -1367,7 +1371,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.previousStep": "上一步",
     "checkout.productUnavailableTitle": "商品无法购买",
     "checkout.productUnavailableMessage":
-      "购物袋中有商品已无法购买，可能已下架或不再销售。",
+      "以下商品已无法购买，可能已下架或不再销售。",
+    "checkout.productUnavailableList": "无法购买的商品",
+    "checkout.productUnavailableQuantity": "数量 {count}",
     "checkout.productUnavailableAction": "返回购物袋",
 
     "confirmation.metaTitle": "订单已确认 — Dupli1",

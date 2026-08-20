@@ -12,6 +12,7 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  getUnpurchasableCartItems,
   isUnpurchasableVariantError,
   isValidKRPhone,
   isValidKRPostalCode,
@@ -28,6 +29,7 @@ import {
 } from "../lib/profile";
 import { useLanguage } from "../lib/i18n";
 import { useCart } from "../lib/useCart";
+import type { CartItem } from "../lib/cart";
 import { useCartMutation } from "../lib/useCartMutation";
 import { OrderSummary } from "./cart";
 
@@ -119,6 +121,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [productUnavailableOpen, setProductUnavailableOpen] = useState(false);
+  const [unavailableProducts, setUnavailableProducts] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
@@ -199,10 +202,21 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!mounted || status !== "ready" || items.length === 0) return;
-    if (cartHasUnpurchasableItems(items)) {
-      setProductUnavailableOpen(true);
+    const unpurchasable = getUnpurchasableCartItems(items);
+    if (unpurchasable.length > 0) {
+      openProductUnavailable(unpurchasable);
     }
   }, [mounted, status, items]);
+
+  function openProductUnavailable(
+    lines: CartItem[],
+    options: { fallbackToAll?: boolean } = {}
+  ) {
+    const source =
+      lines.length > 0 ? lines : options.fallbackToAll ? items : [];
+    setUnavailableProducts(source);
+    setProductUnavailableOpen(source.length > 0);
+  }
 
   function dismissProductUnavailable() {
     navigate("/cart");
@@ -413,7 +427,7 @@ export default function CheckoutPage() {
         })
       );
       if (cartHasUnpurchasableItems(items)) {
-        setProductUnavailableOpen(true);
+        openProductUnavailable(getUnpurchasableCartItems(items));
         setSubmitting(false);
         return;
       }
@@ -462,7 +476,8 @@ export default function CheckoutPage() {
       const message =
         err instanceof Error ? err.message : t("login.somethingWentWrong");
       if (isUnpurchasableVariantError(message)) {
-        setProductUnavailableOpen(true);
+        const unpurchasable = getUnpurchasableCartItems(items);
+        openProductUnavailable(unpurchasable, { fallbackToAll: true });
       } else {
         setCheckoutError(message);
       }
@@ -506,6 +521,7 @@ export default function CheckoutPage() {
     <main className="bg-white">
       <ProductUnavailableDialog
         open={productUnavailableOpen}
+        items={unavailableProducts}
         onConfirm={dismissProductUnavailable}
       />
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-10 md:py-14">
@@ -902,12 +918,14 @@ export default function CheckoutPage() {
 
 function ProductUnavailableDialog({
   open,
+  items,
   onConfirm,
 }: {
   open: boolean;
+  items: CartItem[];
   onConfirm: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, translateProductName } = useLanguage();
 
   useEffect(() => {
     if (!open) return;
@@ -937,7 +955,7 @@ function ProductUnavailableDialog({
       aria-labelledby="product-unavailable-title"
       aria-describedby="product-unavailable-description"
     >
-      <div className="w-full max-w-md border border-zinc-200 bg-white p-8 shadow-xl">
+      <div className="w-full max-w-lg border border-zinc-200 bg-white p-8 shadow-xl">
         <h2
           id="product-unavailable-title"
           className="text-2xl font-light text-zinc-950"
@@ -951,6 +969,37 @@ function ProductUnavailableDialog({
         >
           {t("checkout.productUnavailableMessage")}
         </p>
+        {items.length > 0 && (
+          <ul className="mt-6 max-h-60 space-y-3 overflow-y-auto" aria-label={t("checkout.productUnavailableList")}>
+            {items.map((item) => (
+              <li
+                key={item.skuId ?? item.sku}
+                className="flex gap-3 border border-zinc-100 bg-zinc-50/50 p-3"
+              >
+                <div className="h-16 w-12 shrink-0 overflow-hidden bg-zinc-50">
+                  <img
+                    src={item.image}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-400">
+                    {item.brand}
+                  </p>
+                  <p className="truncate text-sm font-medium text-zinc-950">
+                    {translateProductName(item.productId, item.name)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-zinc-400">
+                    {t("checkout.productUnavailableQuantity", {
+                      count: item.quantity,
+                    })}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         <button
           type="button"
           onClick={onConfirm}
