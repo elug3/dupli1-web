@@ -1000,6 +1000,7 @@ function ProductUnavailableDialog({
             ))}
           </ul>
         )}
+
         <button
           type="button"
           onClick={onConfirm}
