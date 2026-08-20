@@ -28,6 +28,17 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
+/** True when order/checkout cannot resolve a sellable variant (hidden or removed). */
+export function isUnpurchasableVariantError(message: string): boolean {
+  return /variant\s+not\s+found/i.test(message.trim());
+}
+
+export function cartHasUnpurchasableItems(
+  items: Array<{ sku?: string; skuId?: string }>
+): boolean {
+  return items.some((item) => !item.sku?.trim() && !item.skuId?.trim());
+}
+
 export interface SessionItem {
   sku: string;
   /** Canonical variant id when known (order stores as sku_id). */

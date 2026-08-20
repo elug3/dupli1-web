@@ -7,9 +7,11 @@ import { clearCart, redeemCoupon, type RedeemedCoupon } from "../lib/cart";
 import {
   applySessionCoupon,
   buildCheckoutFulfillment,
+  cartHasUnpurchasableItems,
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  isUnpurchasableVariantError,
   isValidKRPhone,
   isValidKRPostalCode,
   replaceSessionItems,
@@ -115,6 +117,7 @@ export default function CheckoutPage() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [productUnavailableOpen, setProductUnavailableOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
@@ -192,6 +195,17 @@ export default function CheckoutPage() {
       navigate(`/login?next=${encodeURIComponent("/checkout")}`);
     }
   }, [mounted, status, navigate]);
+
+  useEffect(() => {
+    if (!mounted || status !== "ready" || items.length === 0) return;
+    if (cartHasUnpurchasableItems(items)) {
+      setProductUnavailableOpen(true);
+    }
+  }, [mounted, status, items]);
+
+  function dismissProductUnavailable() {
+    navigate("/cart");
+  }
 
   const summary = totals(coupon?.discount ?? 0);
   const checkoutTotal = summary.total;
@@ -402,7 +416,9 @@ export default function CheckoutPage() {
         };
       });
       if (sessionItems.some((item) => !item.sku && !item.sku_id)) {
-        throw new Error("variant not found");
+        setProductUnavailableOpen(true);
+        setSubmitting(false);
+        return;
       }
       await replaceSessionItems(session.id, sessionItems);
       if (coupon) {
@@ -446,9 +462,13 @@ export default function CheckoutPage() {
         window.location.assign(payment.checkoutUrl);
       }
     } catch (err) {
-      setCheckoutError(
-        err instanceof Error ? err.message : t("login.somethingWentWrong")
-      );
+      const message =
+        err instanceof Error ? err.message : t("login.somethingWentWrong");
+      if (isUnpurchasableVariantError(message)) {
+        setProductUnavailableOpen(true);
+      } else {
+        setCheckoutError(message);
+      }
       setSubmitting(false);
     }
   }
@@ -487,6 +507,10 @@ export default function CheckoutPage() {
 
   return (
     <main className="bg-white">
+      <ProductUnavailableDialog
+        open={productUnavailableOpen}
+        onConfirm={dismissProductUnavailable}
+      />
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-10 md:py-14">
         <Link
           to="/cart"
@@ -876,6 +900,69 @@ export default function CheckoutPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+function ProductUnavailableDialog({
+  open,
+  onConfirm,
+}: {
+  open: boolean;
+  onConfirm: () => void;
+}) {
+  const { t } = useLanguage();
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onConfirm();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onConfirm]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[1px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-unavailable-title"
+      aria-describedby="product-unavailable-description"
+    >
+      <div className="w-full max-w-md border border-zinc-200 bg-white p-8 shadow-xl">
+        <h2
+          id="product-unavailable-title"
+          className="text-2xl font-light text-zinc-950"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {t("checkout.productUnavailableTitle")}
+        </h2>
+        <p
+          id="product-unavailable-description"
+          className="mt-4 text-sm leading-relaxed text-zinc-500"
+        >
+          {t("checkout.productUnavailableMessage")}
+        </p>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="mt-8 flex h-12 w-full items-center justify-center bg-zinc-950 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
+        >
+          {t("checkout.productUnavailableAction")}
+        </button>
+      </div>
+    </div>
   );
 }
 
