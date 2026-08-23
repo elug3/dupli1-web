@@ -12,6 +12,7 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  getPaymentSettings,
   getUnpurchasableCartItems,
   isUnpurchasableVariantError,
   isValidKRPhone,
@@ -19,6 +20,7 @@ import {
   replaceSessionItems,
   simulatePaymentSuccess,
   type PaymentMethod,
+  type PaymentSettings,
 } from "../lib/checkout";
 import {
   type CustomerAddress,
@@ -125,6 +127,7 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | "new" | null>(
     null
@@ -134,6 +137,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+    getPaymentSettings().then(setPaymentSettings);
   }, []);
 
   useEffect(() => {
@@ -459,7 +463,10 @@ export default function CheckoutPage() {
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
-      } else if (payment.checkoutUrl.includes("/simulate-success")) {
+      } else if (
+        form.paymentMethod === "dev_simulate" ||
+        payment.checkoutUrl.includes("/simulate-success")
+      ) {
         // Local/dev: PAYMENT_ALLOW_DEV_SIMULATE — complete without a card PG.
         await simulatePaymentSuccess(payment.id);
         await clearCart();
@@ -740,16 +747,29 @@ export default function CheckoutPage() {
             {activeStep === "payment" && (
               <CheckoutSection step="02" title={t("checkout.payment")}>
                 <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
-                  <PaymentMethodOption
-                    name="paymentMethod"
-                    value="credit_card"
-                    checked={form.paymentMethod === "credit_card"}
-                    title={t("checkout.methodCreditCard")}
-                    subtitle={t("checkout.methodCreditCardHint")}
-                    badge={t("checkout.methodSecureRedirect")}
-                    onChange={() => updateField("paymentMethod", "credit_card")}
-                  />
-                  {allowBypass && (
+                  {paymentSettings?.methodCreditCard !== false && (
+                    <PaymentMethodOption
+                      name="paymentMethod"
+                      value="credit_card"
+                      checked={form.paymentMethod === "credit_card"}
+                      title={t("checkout.methodCreditCard")}
+                      subtitle={t("checkout.methodCreditCardHint")}
+                      badge={t("checkout.methodSecureRedirect")}
+                      onChange={() => updateField("paymentMethod", "credit_card")}
+                    />
+                  )}
+                  {paymentSettings?.devSimulate && (
+                    <PaymentMethodOption
+                      name="paymentMethod"
+                      value="dev_simulate"
+                      checked={form.paymentMethod === "dev_simulate"}
+                      title="Dev Simulate"
+                      subtitle="Instantly mark payment as succeeded (dev only)"
+                      badge="DEV"
+                      onChange={() => updateField("paymentMethod", "dev_simulate")}
+                    />
+                  )}
+                  {allowBypass && paymentSettings?.methodBypass && (
                     <PaymentMethodOption
                       name="paymentMethod"
                       value="bypass"

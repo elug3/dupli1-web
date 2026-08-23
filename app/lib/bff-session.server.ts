@@ -341,6 +341,10 @@ async function sanitizedAuthResponse(
   return json(payload, { status: upstream.status }, setCookie);
 }
 
+// Per WHATWG Fetch spec, these statuses must have a null body.
+// Node.js (undici) throws if you pass any body — even an empty ArrayBuffer.
+const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
+
 async function proxyResponse(
   upstream: Response,
   options: { noStore?: boolean; setCookie?: string } = {}
@@ -351,7 +355,11 @@ async function proxyResponse(
   if (options.noStore) headers.set("Cache-Control", "no-store");
   if (options.setCookie) headers.append("Set-Cookie", options.setCookie);
 
-  return new Response(await upstream.arrayBuffer(), {
+  const body = NULL_BODY_STATUSES.has(upstream.status)
+    ? null
+    : await upstream.arrayBuffer();
+
+  return new Response(body, {
     status: upstream.status,
     statusText: upstream.statusText,
     headers,

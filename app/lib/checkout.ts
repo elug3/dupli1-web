@@ -133,7 +133,26 @@ export interface Order {
   items: OrderItem[];
 }
 
-export type PaymentMethod = "credit_card" | "bypass";
+export type PaymentMethod = "credit_card" | "bypass" | "dev_simulate";
+
+export interface PaymentSettings {
+  devSimulate: boolean;
+  methodBypass: boolean;
+  methodCreditCard: boolean;
+}
+
+export async function getPaymentSettings(): Promise<PaymentSettings> {
+  const res = await fetch("/api/v1/payments/settings");
+  if (!res.ok) return { devSimulate: false, methodBypass: false, methodCreditCard: true };
+  const body = (await res.json()) as {
+    features?: { dev_simulate_success?: boolean; method_bypass?: boolean; method_credit_card?: boolean };
+  };
+  return {
+    devSimulate: body.features?.dev_simulate_success ?? false,
+    methodBypass: body.features?.method_bypass ?? false,
+    methodCreditCard: body.features?.method_credit_card ?? true,
+  };
+}
 
 export interface Payment {
   id: string;
@@ -321,9 +340,12 @@ export async function createPayment(
   method: PaymentMethod = "credit_card",
   options: { note?: string } = {}
 ): Promise<Payment> {
-  const body: { order_id: string; method: PaymentMethod; note?: string } = {
+  // dev_simulate is a frontend-only concept; send credit_card to the backend.
+  const wireMethod: "credit_card" | "bypass" =
+    method === "dev_simulate" ? "credit_card" : method;
+  const body: { order_id: string; method: "credit_card" | "bypass"; note?: string } = {
     order_id: orderId,
-    method,
+    method: wireMethod,
   };
   if (method === "bypass" && options.note?.trim()) {
     body.note = options.note.trim();
