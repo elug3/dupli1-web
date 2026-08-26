@@ -2,7 +2,9 @@ import { authedFetch } from "~/lib/auth";
 import {
   isValidKRPhone,
   isValidKRPostalCode,
+  isValidPCCC,
   normalizeKRPhoneDigits,
+  normalizePCCC,
   normalizePostalCode,
 } from "~/lib/checkout";
 
@@ -19,6 +21,12 @@ export interface CustomerAddress {
   addressLine2?: string;
   city: string;
   province: string;
+  /**
+   * Korea Personal Customs Clearance Code ("P" + 12 digits). Required by
+   * `validateAddressInput`; kept optional in this wire type since older
+   * saved addresses may predate the requirement.
+   */
+  pccc?: string;
   isDefault: boolean;
 }
 
@@ -39,6 +47,7 @@ export interface AddressInput {
   addressLine2?: string;
   city: string;
   province: string;
+  pccc?: string;
   isDefault?: boolean;
 }
 
@@ -52,6 +61,7 @@ interface RawAddress {
   address_line2?: string;
   city: string;
   province: string;
+  pccc?: string;
   is_default: boolean;
 }
 
@@ -74,6 +84,7 @@ function mapAddress(raw: RawAddress): CustomerAddress {
     addressLine2: raw.address_line2 || undefined,
     city: raw.city,
     province: raw.province,
+    pccc: raw.pccc || undefined,
     isDefault: Boolean(raw.is_default),
   };
 }
@@ -110,6 +121,8 @@ function toWireAddress(input: AddressInput): Record<string, unknown> {
   if (label) body.label = label;
   const line2 = input.addressLine2?.trim();
   if (line2) body.address_line2 = line2;
+  const pccc = input.pccc?.trim();
+  if (pccc) body.pccc = normalizePCCC(pccc);
   if (typeof input.isDefault === "boolean") body.is_default = input.isDefault;
   return body;
 }
@@ -125,6 +138,7 @@ export function validateAddressInput(input: AddressInput): string | null {
   if (!input.addressLine1.trim()) return "addressLine1";
   if (!input.city.trim()) return "city";
   if (!input.province.trim()) return "province";
+  if (!input.pccc?.trim() || !isValidPCCC(input.pccc)) return "pccc";
   return null;
 }
 
