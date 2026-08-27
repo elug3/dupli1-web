@@ -177,35 +177,10 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl px-0 pb-24 md:px-8 md:py-10 md:pb-10">
-      <div className="flex flex-col md:flex-row md:gap-12 lg:gap-20">
-
-        {/* ── Left: image gallery ──────────────────────────────────────── */}
-        <div className="flex-1 md:flex md:gap-4">
-
-          {/* Thumbnail strip — desktop only */}
-          <div className="hidden flex-col gap-2 md:flex">
-            {images.map((img, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setActiveImg(i)}
-                className={[
-                  "h-20 w-16 overflow-hidden bg-zinc-50 transition",
-                  activeImg === i
-                    ? "ring-1 ring-zinc-950"
-                    : "opacity-50 hover:opacity-80",
-                ].join(" ")}
-              >
-                <img
-                  src={img.src}
-                  alt=""
-                  className={`h-full w-full object-cover ${img.position}`}
-                />
-              </button>
-            ))}
-          </div>
-
+    <div className="mx-auto max-w-7xl px-0 pb-24 md:px-6 md:pb-10 lg:px-8">
+      <div className="flex flex-col md:flex-row md:items-start md:gap-10 lg:gap-16">
+        {/* Left: full-bleed vertical gallery (desktop) / swipe carousel (mobile) */}
+        <div className="min-w-0 flex-1">
           <ProductImageGallery
             images={images}
             activeIndex={activeImg}
@@ -226,9 +201,8 @@ function ProductLayout({ product }: { product: ServerProduct }) {
           />
         </div>
 
-        {/* ── Right: product info — pinned in place while the gallery scrolls,
-             matching the flagship PDP pattern of keeping price/CTA always in view */}
-        <div className="w-full px-4 py-8 md:w-[420px] md:shrink-0 md:self-start md:sticky md:top-28 md:px-0 md:py-0">
+        {/* Right: sticky buy panel — stays in view while the vertical gallery scrolls */}
+        <div className="w-full px-4 py-8 md:w-[400px] md:shrink-0 md:self-start md:sticky md:top-28 md:px-0 md:py-10 lg:w-[420px]">
           <ProductInfo product={product} />
         </div>
       </div>

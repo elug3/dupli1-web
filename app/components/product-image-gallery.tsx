@@ -23,11 +23,17 @@ export function ProductImageGallery({
   badge,
   actions,
 }: ProductImageGalleryProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const desktopItemRefs = useRef<(HTMLElement | null)[]>([]);
+  const scrollingToIndex = useRef<number | null>(null);
+  const activeIndexRef = useRef(activeIndex);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
 
+  activeIndexRef.current = activeIndex;
+
+  // Keep the mobile horizontal carousel in sync with activeIndex.
   useEffect(() => {
-    const container = scrollRef.current;
+    const container = mobileScrollRef.current;
     if (!container) return;
 
     const targetLeft = container.offsetWidth * activeIndex;
@@ -36,8 +42,44 @@ export function ProductImageGallery({
     }
   }, [activeIndex]);
 
-  function handleScroll() {
-    const container = scrollRef.current;
+  // Desktop: track which full-bleed frame is in view while the page scrolls.
+  useEffect(() => {
+    const elements = desktopItemRefs.current.filter(Boolean) as HTMLElement[];
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (scrollingToIndex.current !== null) return;
+
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+        const top = visible[0]?.target;
+        if (!(top instanceof HTMLElement)) return;
+
+        const index = Number(top.dataset.index);
+        if (
+          Number.isInteger(index) &&
+          index >= 0 &&
+          index < images.length &&
+          index !== activeIndexRef.current
+        ) {
+          onActiveIndexChange(index);
+        }
+      },
+      {
+        threshold: [0.25, 0.45, 0.65],
+        rootMargin: "-12% 0px -28% 0px",
+      }
+    );
+
+    for (const el of elements) observer.observe(el);
+    return () => observer.disconnect();
+  }, [images.length, onActiveIndexChange]);
+
+  function handleMobileScroll() {
+    const container = mobileScrollRef.current;
     if (!container) return;
 
     const slideWidth = container.offsetWidth;
@@ -49,68 +91,133 @@ export function ProductImageGallery({
     }
   }
 
-  const activeImage = images[activeIndex];
+  function openZoomAt(index: number) {
+    onActiveIndexChange(index);
+    setIsZoomOpen(true);
+  }
+
+  function scrollDesktopTo(index: number) {
+    const el = desktopItemRefs.current[index];
+    if (!el) return;
+
+    scrollingToIndex.current = index;
+    onActiveIndexChange(index);
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      if (scrollingToIndex.current === index) {
+        scrollingToIndex.current = null;
+      }
+    }, 700);
+  }
 
   return (
-    <div className="relative flex-1 overflow-hidden bg-zinc-50">
-      {/* Mobile: swipeable carousel */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        {images.map((img, i) => (
-          <div
-            key={i}
-            className="relative w-full shrink-0 snap-center snap-always"
-            style={{ paddingBottom: "120%" }}
-          >
-            <img
-              src={img.src}
-              alt={i === activeIndex ? alt : ""}
-              draggable={false}
-              onClick={() => setIsZoomOpen(true)}
-              className={`absolute inset-0 h-full w-full object-cover ${img.position}`}
-            />
+    <div className="relative flex-1">
+      {/* Mobile: swipeable carousel (first viewport stays compact) */}
+      <div className="relative overflow-hidden bg-zinc-50 md:hidden">
+        <div
+          ref={mobileScrollRef}
+          onScroll={handleMobileScroll}
+          className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          {images.map((img, i) => (
+            <div
+              key={i}
+              className="relative w-full shrink-0 snap-center snap-always"
+              style={{ paddingBottom: "120%" }}
+            >
+              <img
+                src={img.src}
+                alt={i === activeIndex ? alt : ""}
+                draggable={false}
+                onClick={() => openZoomAt(i)}
+                className={`absolute inset-0 h-full w-full object-cover ${img.position}`}
+              />
+            </div>
+          ))}
+        </div>
+
+        {badge && (
+          <div className="pointer-events-none absolute left-4 top-4 z-10">{badge}</div>
+        )}
+
+        {actions && (
+          <div className="absolute right-4 top-4 z-10">{actions}</div>
+        )}
+
+        {images.length > 1 && (
+          <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Image ${i + 1} of ${images.length}`}
+                onClick={() => onActiveIndexChange(i)}
+                className={[
+                  "h-1.5 rounded-full transition-all",
+                  activeIndex === i ? "w-5 bg-zinc-950" : "w-1.5 bg-zinc-400",
+                ].join(" ")}
+              />
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Desktop: single image */}
-      <div className="relative hidden md:block" style={{ paddingBottom: "120%" }}>
-        <img
-          src={activeImage.src}
-          alt={alt}
-          onClick={() => setIsZoomOpen(true)}
-          className={`absolute inset-0 h-full w-full cursor-zoom-in object-cover transition duration-500 ${activeImage.position}`}
-        />
-      </div>
+      {/* Desktop: full-bleed vertical stack — page scroll drives the gallery */}
+      <div className="relative hidden md:block">
+        {(badge || actions) && (
+          <div className="pointer-events-none sticky top-28 z-10 -mb-14 flex items-start justify-between px-4 pt-4">
+            <div>{badge}</div>
+            <div className="pointer-events-auto">{actions}</div>
+          </div>
+        )}
 
-      {badge && (
-        <div className="pointer-events-none absolute left-4 top-4 z-10">{badge}</div>
-      )}
-
-      {actions && (
-        <div className="absolute right-4 top-4 z-10">{actions}</div>
-      )}
-
-      {images.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5 md:hidden">
-          {images.map((_, i) => (
+        <div className="flex flex-col">
+          {images.map((img, i) => (
             <button
               key={i}
               type="button"
-              aria-label={`Image ${i + 1} of ${images.length}`}
-              onClick={() => onActiveIndexChange(i)}
-              className={[
-                "h-1.5 rounded-full transition-all",
-                activeIndex === i ? "w-5 bg-zinc-950" : "w-1.5 bg-zinc-400",
-              ].join(" ")}
-            />
+              data-index={i}
+              ref={(el) => {
+                desktopItemRefs.current[i] = el;
+              }}
+              onClick={() => openZoomAt(i)}
+              aria-label={`${alt} — image ${i + 1} of ${images.length}`}
+              className="relative block w-full cursor-zoom-in bg-zinc-50"
+              style={{ paddingBottom: "120%" }}
+            >
+              <img
+                src={img.src}
+                alt={i === activeIndex ? alt : ""}
+                draggable={false}
+                className={`absolute inset-0 h-full w-full object-cover ${img.position}`}
+              />
+            </button>
           ))}
         </div>
-      )}
+
+        {images.length > 1 && (
+          <div className="pointer-events-none absolute inset-y-0 left-3 z-10 w-4">
+            <div className="sticky top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Go to image ${i + 1}`}
+                  aria-current={activeIndex === i ? "true" : undefined}
+                  onClick={() => scrollDesktopTo(i)}
+                  className={[
+                    "pointer-events-auto size-2 rounded-full transition",
+                    activeIndex === i
+                      ? "bg-zinc-950"
+                      : "bg-zinc-400/80 hover:bg-zinc-700",
+                  ].join(" ")}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {isZoomOpen && (
         <ImageZoomModal
