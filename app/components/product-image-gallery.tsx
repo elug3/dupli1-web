@@ -197,22 +197,30 @@ export function ProductImageGallery({
         </div>
 
         {images.length > 1 && (
-          <div className="pointer-events-none absolute inset-y-0 left-3 z-10 w-4">
-            <div className="sticky top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-10">
+            <div className="sticky top-1/2 flex -translate-y-1/2 flex-col items-center gap-1">
               {images.map((_, i) => (
                 <button
                   key={i}
                   type="button"
                   aria-label={`Go to image ${i + 1}`}
                   aria-current={activeIndex === i ? "true" : undefined}
-                  onClick={() => scrollDesktopTo(i)}
-                  className={[
-                    "pointer-events-auto size-2 rounded-full transition",
-                    activeIndex === i
-                      ? "bg-zinc-950"
-                      : "bg-zinc-400/80 hover:bg-zinc-700",
-                  ].join(" ")}
-                />
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    scrollDesktopTo(i);
+                  }}
+                  className="pointer-events-auto flex size-8 items-center justify-center"
+                >
+                  <span
+                    className={[
+                      "block size-2 rounded-full transition",
+                      activeIndex === i
+                        ? "bg-zinc-950"
+                        : "bg-zinc-400/80 hover:bg-zinc-700",
+                    ].join(" ")}
+                  />
+                </button>
               ))}
             </div>
           </div>
