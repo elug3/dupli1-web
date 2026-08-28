@@ -7,7 +7,4 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  test: {
-    include: ["app/**/*.test.ts"],
-  },
 });

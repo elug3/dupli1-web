@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  isValidKRPhone,
+  isValidKRPostalCode,
+  normalizeKRPhoneDigits,
+  normalizePostalCode,
   resolveCheckoutVariantRef,
 } from "./checkout";
 
@@ -105,5 +110,72 @@ describe("buildCheckoutSessionItem", () => {
         quantity: 2,
       })
     ).toEqual({ sku_id: "01VARIANT", sku: "BAG-1", quantity: 2 });
+  });
+});
+
+describe("KR phone and postal validation", () => {
+  it("strips non-digits from phone input", () => {
+    expect(normalizeKRPhoneDigits("010-4112-5167")).toBe("01041125167");
+    expect(normalizeKRPhoneDigits("010 4112 5167")).toBe("01041125167");
+  });
+
+  it("accepts valid KR mobile numbers", () => {
+    expect(isValidKRPhone("010-4112-5167")).toBe(true);
+    expect(isValidKRPhone("01012345678")).toBe(true);
+  });
+
+  it("rejects invalid KR phone numbers", () => {
+    expect(isValidKRPhone("12345")).toBe(false);
+    expect(isValidKRPhone("0212345678")).toBe(false);
+    expect(isValidKRPhone("0101234567890")).toBe(false);
+  });
+
+  it("normalizes and validates 5-digit postal codes", () => {
+    expect(normalizePostalCode("061-94")).toBe("06194");
+    expect(isValidKRPostalCode("06194")).toBe(true);
+    expect(isValidKRPostalCode("0619")).toBe(false);
+    expect(isValidKRPostalCode("061945")).toBe(false);
+  });
+});
+
+describe("buildCheckoutFulfillment", () => {
+  it("trims fields and normalizes phone/postal for order service", () => {
+    expect(
+      buildCheckoutFulfillment({
+        name: "  윤라희  ",
+        phone: "010-4112-5167",
+        address: "테헤란로 78길 14-12",
+        apartment: " 9층 ",
+        city: "강남구",
+        zip: "061-94",
+        province: "서울특별시",
+        addressId: " addr_000001 ",
+      })
+    ).toEqual({
+      recipientName: "윤라희",
+      recipientPhone: "01041125167",
+      shippingAddress: {
+        postalCode: "06194",
+        addressLine1: "테헤란로 78길 14-12",
+        addressLine2: "9층",
+        city: "강남구",
+        province: "서울특별시",
+      },
+      addressId: "addr_000001",
+    });
+  });
+
+  it("omits optional apartment and addressId when blank", () => {
+    const fulfillment = buildCheckoutFulfillment({
+      name: "윤라희",
+      phone: "01041125167",
+      address: "테헤란로 78길 14-12",
+      apartment: "   ",
+      city: "강남구",
+      zip: "06194",
+      province: "서울특별시",
+    });
+    expect(fulfillment.shippingAddress.addressLine2).toBeUndefined();
+    expect(fulfillment.addressId).toBeUndefined();
   });
 });
