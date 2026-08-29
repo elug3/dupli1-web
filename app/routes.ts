@@ -73,6 +73,7 @@ export default [
   route("checkout", "routes/checkout.tsx"),
   route("checkout/confirmation", "routes/checkout.confirmation.tsx"),
   route("history", "routes/history.tsx"),
+  route("orders", "routes/orders.tsx"),
   route("profile", "routes/profile.tsx"),
   route("login", "routes/login.tsx"),
   route("products/new", "routes/product-new.tsx"),

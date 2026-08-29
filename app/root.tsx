@@ -452,7 +452,7 @@ function Footer() {
             </p>
             <ul className="space-y-2 text-xs text-zinc-400">
               <li><Link to="/category/product-type/handbags" className="hover:text-zinc-950 transition">{t("footer.styleConsultation")}</Link></li>
-              <li><NavLink to="/history" className="hover:text-zinc-950 transition">{t("footer.orderHistory")}</NavLink></li>
+              <li><NavLink to="/orders" className="hover:text-zinc-950 transition">{t("footer.orderHistory")}</NavLink></li>
               <li><NavLink to="/profile" className="hover:text-zinc-950 transition">{t("footer.myAccount")}</NavLink></li>
             </ul>
           </div>

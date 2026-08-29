@@ -123,14 +123,34 @@ export interface OrderItem {
   quantity: number;
   /** Whole KRW won (JSON `unit_price_cents`). */
   unitPriceCents: number;
+  productName?: string;
+  imageUrl?: string;
 }
+
+export type OrderStatus =
+  | "pending"
+  | "paid"
+  | "in_transit"
+  | "fulfilled"
+  | "canceled"
+  | string;
 
 export interface Order {
   id: string;
   customerId: string;
-  status: string;
+  status: OrderStatus;
   totalCents: number;
   items: OrderItem[];
+  subtotalCents?: number;
+  discountCents?: number;
+  couponCode?: string;
+  paidAt?: string;
+  shippedAt?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  carrierNote?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type PaymentMethod = "credit_card" | "bypass";
@@ -160,6 +180,8 @@ interface RawOrderItem {
   sku_id?: string;
   quantity: number;
   unit_price_cents: number;
+  product_name?: string;
+  image_url?: string;
 }
 
 interface RawOrder {
@@ -167,7 +189,17 @@ interface RawOrder {
   customer_id: string;
   status: string;
   total_cents?: number;
+  subtotal_cents?: number;
+  discount_cents?: number;
+  coupon_code?: string;
   items?: RawOrderItem[] | null;
+  paid_at?: string;
+  shipped_at?: string;
+  carrier?: string;
+  tracking_number?: string;
+  carrier_note?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 function mapSession(raw: RawSession): CheckoutSession {
@@ -188,11 +220,23 @@ function mapOrder(raw: RawOrder): Order {
     customerId: raw.customer_id,
     status: raw.status,
     totalCents: raw.total_cents ?? 0,
+    subtotalCents: raw.subtotal_cents,
+    discountCents: raw.discount_cents,
+    couponCode: raw.coupon_code || undefined,
+    paidAt: raw.paid_at || undefined,
+    shippedAt: raw.shipped_at || undefined,
+    carrier: raw.carrier || undefined,
+    trackingNumber: raw.tracking_number || undefined,
+    carrierNote: raw.carrier_note || undefined,
+    createdAt: raw.created_at || undefined,
+    updatedAt: raw.updated_at || undefined,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
       quantity: item.quantity,
       unitPriceCents: item.unit_price_cents,
+      productName: item.product_name || undefined,
+      imageUrl: item.image_url || undefined,
     })),
   };
 }
@@ -358,4 +402,38 @@ export async function simulatePaymentSuccess(paymentId: string): Promise<void> {
 export async function getOrder(orderId: string): Promise<Order> {
   const res = await request(`/api/v1/orders/${encodeURIComponent(orderId)}`);
   return mapOrder(await res.json());
+}
+
+/** List orders for the authenticated customer (ABAC on customer_id). */
+export async function listOrders(customerId: string): Promise<Order[]> {
+  const res = await request(
+    `/api/v1/orders?customer_id=${encodeURIComponent(customerId)}`
+  );
+  const body = (await res.json()) as { orders?: RawOrder[] | null };
+  return (body.orders ?? []).map(mapOrder);
+}
+
+/** Public courier tracking page URL when we know a template; otherwise null. */
+export function carrierTrackingUrl(
+  carrier: string | undefined,
+  trackingNumber: string | undefined
+): string | null {
+  const code = carrier?.trim().toLowerCase();
+  const num = trackingNumber?.trim();
+  if (!code || !num) return null;
+  const encoded = encodeURIComponent(num);
+  switch (code) {
+    case "cj":
+      return `https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=${encoded}`;
+    case "hanjin":
+      return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillSch.do?mCode=MN038&wbl_num=${encoded}`;
+    case "logen":
+      return `https://www.ilogen.com/web/personal/trace/${encoded}`;
+    case "epost":
+      return `https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=${encoded}`;
+    case "lotte":
+      return `https://www.lotteglogis.com/home/reservation/tracking/index`;
+    default:
+      return null;
+  }
 }
