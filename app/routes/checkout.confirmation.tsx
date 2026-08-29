@@ -129,7 +129,7 @@ export default function CheckoutConfirmationPage() {
             {t("cart.continueShopping")}
           </Link>
           <Link
-            to="/orders"
+            to="/history"
             className="inline-flex h-12 min-w-[200px] items-center justify-center border border-zinc-200 px-8 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
           >
             {t("confirmation.viewOrders")}

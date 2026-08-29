@@ -470,14 +470,8 @@ function OrdersSection() {
 
   return (
     <section>
-      <SectionHeader title={t("profile.orders")} />
-      <p className="mb-6 text-sm text-zinc-400">{t("profile.ordersHint")}</p>
-      <Link
-        to="/orders"
-        className="inline-flex h-11 items-center border border-zinc-950 px-6 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white"
-      >
-        {t("profile.viewOrders")}
-      </Link>
+      <SectionHeader title={t("profile.orders")} count={0} />
+      <EmptyState message={t("profile.noOrders")} />
     </section>
   );
 }
