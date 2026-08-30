@@ -18,22 +18,10 @@ export default [
   route("api/products/:id", "routes/api.products.id.ts"),
   route("api/categories", "routes/api.categories.ts"),
   route("api/filters", "routes/api.filters.ts"),
+  route("api/coupons/redeem", "routes/api.coupons.redeem.ts"),
   // Public catalog: browser hits `/api/v1/products*` so production ALB can
   // forward to the gateway. These BFF handlers cover local `npm run dev` only.
   // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.
-  // More-specific product subpaths must be registered before `products/:id`.
-  route(
-    "api/v1/products/inventory/items/by-sku-id/:skuId",
-    "routes/api.v1.products.inventory.items.by-sku-id.$skuId.ts"
-  ),
-  route(
-    "api/v1/products/inventory/items/:sku",
-    "routes/api.v1.products.inventory.items.$sku.ts"
-  ),
-  route(
-    "api/v1/products/coupons/redeem",
-    "routes/api.v1.products.coupons.redeem.ts"
-  ),
   route("api/v1/products", "routes/api.v1.products.ts"),
   route("api/v1/products/:id/images", "routes/api.v1.products.$id.images.ts"),
   route("api/v1/products/:id", "routes/api.v1.products.$id.ts"),
@@ -47,29 +35,23 @@ export default [
     "routes/api.v1.cart.items.by-sku-id.$skuId.ts"
   ),
   route("api/v1/cart/items/:sku", "routes/api.v1.cart.items.$sku.ts"),
+  route("api/v1/checkout/sessions", "routes/api.v1.checkout.sessions.ts"),
+  route("api/v1/checkout/sessions/:id", "routes/api.v1.checkout.sessions.$id.ts"),
   route(
-    "api/v1/orders/checkout/sessions",
-    "routes/api.v1.orders.checkout.sessions.ts"
+    "api/v1/checkout/sessions/:id/items",
+    "routes/api.v1.checkout.sessions.$id.items.ts"
   ),
   route(
-    "api/v1/orders/checkout/sessions/:id",
-    "routes/api.v1.orders.checkout.sessions.$id.ts"
+    "api/v1/checkout/sessions/:id/items/:sku",
+    "routes/api.v1.checkout.sessions.$id.items.$sku.ts"
   ),
   route(
-    "api/v1/orders/checkout/sessions/:id/items",
-    "routes/api.v1.orders.checkout.sessions.$id.items.ts"
+    "api/v1/checkout/sessions/:id/coupon",
+    "routes/api.v1.checkout.sessions.$id.coupon.ts"
   ),
   route(
-    "api/v1/orders/checkout/sessions/:id/items/:sku",
-    "routes/api.v1.orders.checkout.sessions.$id.items.$sku.ts"
-  ),
-  route(
-    "api/v1/orders/checkout/sessions/:id/coupon",
-    "routes/api.v1.orders.checkout.sessions.$id.coupon.ts"
-  ),
-  route(
-    "api/v1/orders/checkout/sessions/:id/complete",
-    "routes/api.v1.orders.checkout.sessions.$id.complete.ts"
+    "api/v1/checkout/sessions/:id/complete",
+    "routes/api.v1.checkout.sessions.$id.complete.ts"
   ),
   route("api/v1/payments", "routes/api.v1.payments.ts"),
   route("api/v1/payments/:id", "routes/api.v1.payments.$id.ts"),
@@ -79,6 +61,12 @@ export default [
   ),
   route("api/v1/orders", "routes/api.v1.orders.ts"),
   route("api/v1/orders/:id", "routes/api.v1.orders.$id.ts"),
+  // Stock is owned by dupli1-product (standalone inventory service removed).
+  route(
+    "api/v1/inventory/by-sku-id/:skuId",
+    "routes/api.v1.inventory.by-sku-id.$skuId.ts"
+  ),
+  route("api/v1/inventory/:sku", "routes/api.v1.inventory.$sku.ts"),
   index("routes/home.tsx"),
   route("product/:id", "routes/product.tsx"),
   route("cart", "routes/cart.tsx"),

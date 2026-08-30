@@ -159,8 +159,8 @@ Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
 values; `admin` is a permission tier such as `admin.*`, not an account type).
 
 **Stock path (no standalone inventory service):** PDP stock hints and cart
-`available_qty` come from product-owned `GET /api/v1/products/inventory/items/{sku}` (or
-`…/items/by-sku-id/{skuId}`). Checkout `complete` reserves stock there; payment
+`available_qty` come from product-owned `GET /api/v1/inventory/{sku}` (or
+`…/by-sku-id/{skuId}`). Checkout `complete` reserves stock there; payment
 only collects money; order ship commits the reservation.
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access

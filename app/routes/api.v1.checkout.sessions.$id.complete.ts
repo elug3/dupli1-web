@@ -4,10 +4,7 @@ import { proxyBackendApi } from "../lib/bff-session.server";
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const id = encodeURIComponent(params.id ?? "");
-  return proxyBackendApi(
-    "orders",
-    request,
-    `/api/v1/orders/checkout/sessions/${id}/complete`,
-    { requireAuth: true }
-  );
+  return proxyBackendApi("checkout", request, `/api/v1/checkout/sessions/${id}/complete`, {
+    requireAuth: true,
+  });
 }

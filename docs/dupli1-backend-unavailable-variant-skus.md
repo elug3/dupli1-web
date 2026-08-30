@@ -20,7 +20,7 @@ Today, when a cart or checkout line references a variant that is no longer sella
 
 2. **Cart read** (`GET /api/v1/cart`) keeps stale lines but **silently drops enrichment** when `resolveVariant` fails (`cart/pkg/service/service.go` → `enrichCart`). The client sees `sku` / `sku_id` + `quantity` but empty `product_id`, `unit_price_cents`, etc. There is no explicit `unavailable` flag or `missing` list.
 
-3. **Checkout session** (`PUT /api/v1/orders/checkout/sessions/{id}/items`, `POST .../complete`) fails with the same plain `"variant not found"` string from order pricing (`order/pkg/ports/product.go` → `ErrVariantNotFound`). No per-line breakdown.
+3. **Checkout session** (`PUT /api/v1/checkout/sessions/{id}/items`, `POST .../complete`) fails with the same plain `"variant not found"` string from order pricing (`order/pkg/ports/product.go` → `ErrVariantNotFound`). No per-line breakdown.
 
 4. The **product service already knows** which `sku_id`s are missing via batch lookup:
    ```

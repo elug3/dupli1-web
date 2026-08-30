@@ -247,7 +247,7 @@ export interface RedeemedCoupon {
 
 /** Validates a coupon against the public product-service redeem endpoint. */
 export async function redeemCoupon(code: string): Promise<RedeemedCoupon | null> {
-  const res = await fetch("/api/v1/products/coupons/redeem", {
+  const res = await fetch("/api/coupons/redeem", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: code.trim().toUpperCase() }),
