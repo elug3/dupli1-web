@@ -17,6 +17,11 @@ import {
 import { getMe } from "../lib/auth";
 import { SHIPPING_FEE } from "../lib/cart";
 import { useLanguage } from "../lib/i18n";
+import {
+  hasSellableVariant,
+  isProductInStock,
+  resolveEmbeddedStock,
+} from "../lib/product-stock";
 import { useCart } from "../lib/useCart";
 import { useCartMutation } from "../lib/useCartMutation";
 
@@ -252,21 +257,12 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const location = useLocation();
   const [added, setAdded] = useState(false);
   // Prefer PDP-embedded availability; poll only when fields were omitted.
-  const embeddedStock =
-    typeof product.availableQty === "number"
-      ? product.availableQty
-      : product.inStock === true
-        ? 1
-        : product.inStock === false
-          ? 0
-          : null;
+  const embeddedStock = resolveEmbeddedStock(product);
   const [availableStock, setAvailableStock] = useState<number | null>(embeddedStock);
-  // Parent product.id is not sellable — require a real variant sku / skuId.
-  const hasSellableVariant = Boolean(product.skuId || product.sku.trim());
+  const sellable = hasSellableVariant(product);
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
-  // Always-tracked SKUs: missing/zero available ⇒ out of stock (not "assume available").
-  const inStock = hasSellableVariant && availableStock !== null && availableStock > 0;
+  const inStock = isProductInStock(product, availableStock);
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
@@ -288,14 +284,14 @@ function ProductInfo({ product }: { product: ServerProduct }) {
       return;
     }
     setAvailableStock(null);
-    if (!hasSellableVariant) return;
+    if (!sellable) return;
     fetchAvailableStock(product.sku, product.skuId)
       .then((qty) => setAvailableStock(qty ?? 0))
       .catch(() => setAvailableStock(0));
-  }, [hasSellableVariant, product.sku, product.skuId, product.availableQty, product.inStock]);
+  }, [sellable, product.sku, product.skuId, product.availableQty, product.inStock]);
 
   async function handleAddToBag(): Promise<boolean> {
-    if (adding || !hasSellableVariant) return false;
+    if (adding || !sellable) return false;
     const ok = await addItem(product.sku, 1, product.skuId);
     if (ok) {
       setAdded(true);
