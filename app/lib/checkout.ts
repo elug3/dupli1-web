@@ -423,3 +423,9 @@ export async function getOrder(orderId: string): Promise<Order> {
   const res = await request(`/api/v1/orders/${encodeURIComponent(orderId)}`);
   return mapOrder(await res.json());
 }
+
+export async function listMyOrders(customerId: string): Promise<Order[]> {
+  const res = await request(`/api/v1/orders?customer_id=${encodeURIComponent(customerId)}`);
+  const body = (await res.json()) as { orders?: RawOrder[] | null };
+  return (body.orders ?? []).map(mapOrder);
+}

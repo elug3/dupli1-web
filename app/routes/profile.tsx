@@ -9,7 +9,7 @@ import {
   getCustomerProfile,
   updateCustomerProfile,
 } from "~/lib/profile";
-import { isValidKRPhone } from "~/lib/checkout";
+import { type Order, isValidKRPhone, listMyOrders } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
 type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
@@ -184,7 +184,7 @@ export default function Profile() {
         <div className="min-w-0 flex-1">
           {section === "wishlist" && <WishlistSection />}
           {section === "coupons" && <CouponsSection />}
-          {section === "orders" && <OrdersSection />}
+          {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
           {section === "support" && <SupportSection />}
         </div>
@@ -465,13 +465,120 @@ function CouponCard({
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
-function OrdersSection() {
+const STATUS_STYLES: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-700",
+  paid: "bg-blue-50 text-blue-700",
+  in_transit: "bg-indigo-50 text-indigo-700",
+  fulfilled: "bg-emerald-50 text-emerald-700",
+  canceled: "bg-zinc-100 text-zinc-500",
+};
+
+function OrdersSection({ user }: { user: User }) {
   const { t } = useLanguage();
+  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listMyOrders(user.user_id)
+      .then((data) => {
+        if (!cancelled) setOrders(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("profile.ordersLoadFailed"));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [t]);
+
+  function statusLabel(status: string): string {
+    const key = `profile.status${status.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^[a-z]/, (c) => c.toUpperCase())}`;
+    return t(key as Parameters<typeof t>[0]) || status;
+  }
 
   return (
     <section>
-      <SectionHeader title={t("profile.orders")} count={0} />
-      <EmptyState message={t("profile.noOrders")} />
+      <SectionHeader title={t("profile.orders")} count={loading ? undefined : (orders?.length ?? 0)} />
+
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse border border-zinc-100 p-5">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1.5">
+                  <div className="h-3 w-24 bg-zinc-100" />
+                  <div className="h-3 w-32 bg-zinc-100" />
+                </div>
+                <div className="h-5 w-16 bg-zinc-100" />
+              </div>
+              <div className="mt-4 h-3 w-40 bg-zinc-100" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <EmptyState message={error} />
+      ) : !orders || orders.length === 0 ? (
+        <EmptyState message={t("profile.noOrders")} />
+      ) : (
+        <div className="space-y-3">
+          {orders.map((order) => {
+            const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
+            const date = new Date(order.id.startsWith("ord_") ? 0 : 0);
+            return (
+              <div key={order.id} className="border border-zinc-100 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-xs font-medium tracking-wide text-zinc-950">
+                      {order.id}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-zinc-400">
+                      {itemCount === 1
+                        ? t("profile.orderItems", { count: String(itemCount) })
+                        : t("profile.orderItemsPlural", { count: String(itemCount) })}
+                    </p>
+                  </div>
+                  <span
+                    className={[
+                      "shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-[0.1em]",
+                      STATUS_STYLES[order.status] ?? "bg-zinc-100 text-zinc-500",
+                    ].join(" ")}
+                  >
+                    {statusLabel(order.status)}
+                  </span>
+                </div>
+
+                {order.items.length > 0 && (
+                  <ul className="mt-4 space-y-1.5 border-t border-zinc-50 pt-4">
+                    {order.items.map((item, idx) => (
+                      <li key={idx} className="flex items-center justify-between text-xs text-zinc-600">
+                        <span className="truncate font-mono text-[11px] tracking-wide text-zinc-400 mr-2">
+                          {item.sku}
+                        </span>
+                        <span className="shrink-0">
+                          ×{item.quantity}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="mt-4 flex items-center justify-between border-t border-zinc-50 pt-4">
+                  <span className="text-[10px] uppercase tracking-[0.1em] text-zinc-400">
+                    Total
+                  </span>
+                  <span className="text-sm font-medium text-zinc-950">
+                    ₩{order.totalCents.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
