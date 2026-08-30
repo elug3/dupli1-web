@@ -2,8 +2,8 @@
 // dupli1-order, payments on dupli1-payment (both proxied through our BFF).
 // See docs/checkout-session.md and docs/payment-service.md.
 //
-// Stock: on `complete`, order reserves via product-owned
-// `/api/v1/products/inventory` (canonical). Payment does not touch stock;
+// Stock: on `complete`, order reserves via product-owned `/api/v1/inventory`
+// (standalone inventory service removed). Payment does not touch stock;
 // ship commits the reservation.
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -198,7 +198,7 @@ function mapOrder(raw: RawOrder): Order {
 }
 
 export async function createCheckoutSession(customerId: string): Promise<CheckoutSession> {
-  const res = await request("/api/v1/orders/checkout/sessions", {
+  const res = await request("/api/v1/checkout/sessions", {
     method: "POST",
     body: JSON.stringify({ customer_id: customerId }),
   });
@@ -210,7 +210,7 @@ export async function replaceSessionItems(
   items: SessionItem[]
 ): Promise<CheckoutSession> {
   const res = await request(
-    `/api/v1/orders/checkout/sessions/${encodeURIComponent(sessionId)}/items`,
+    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/items`,
     { method: "PUT", body: JSON.stringify({ items }) }
   );
   return mapSession(await res.json());
@@ -218,7 +218,7 @@ export async function replaceSessionItems(
 
 export async function applySessionCoupon(sessionId: string, code: string): Promise<CheckoutSession> {
   const res = await request(
-    `/api/v1/orders/checkout/sessions/${encodeURIComponent(sessionId)}/coupon`,
+    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/coupon`,
     { method: "POST", body: JSON.stringify({ code }) }
   );
   return mapSession(await res.json());
@@ -309,7 +309,7 @@ export async function completeCheckoutSession(
   fulfillment: CheckoutFulfillment
 ): Promise<{ session: CheckoutSession; order: Order }> {
   const res = await request(
-    `/api/v1/orders/checkout/sessions/${encodeURIComponent(sessionId)}/complete`,
+    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/complete`,
     { method: "POST", body: JSON.stringify(mapFulfillmentBody(fulfillment)) }
   );
   const body = (await res.json()) as { session: RawSession; order: RawOrder };

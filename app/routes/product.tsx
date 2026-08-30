@@ -257,7 +257,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
   // No stock row yet for most catalog items — treat "untracked" as available;
-  // order complete reserves via product-owned /api/v1/products/inventory.
+  // order complete reserves via product-owned /api/v1/inventory (not a separate service).
   const inStock =
     hasSellableVariant && (availableStock === null || availableStock > 0);
   const brandSlug = brandToSlug(product.brand);
