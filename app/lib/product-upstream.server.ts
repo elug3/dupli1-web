@@ -21,6 +21,8 @@ export interface UpstreamVariant {
   price?: number;
   officialPrice?: number;
   status: string;
+  availableQty?: number;
+  inStock?: boolean;
 }
 
 export interface UpstreamProduct {
@@ -91,6 +93,8 @@ export interface ProductResponse {
   sku: string;
   /** Canonical variant ULID when the product service returns it. */
   skuId?: string;
+  availableQty?: number;
+  inStock?: boolean;
 }
 
 export interface SearchResult {
@@ -212,6 +216,7 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
   if (images.length === 0 && product.defaultImageUrl?.trim()) {
     images.push(product.defaultImageUrl.trim());
   }
+  const variant = defaultVariant(product);
 
   return {
     id: product.id,
@@ -225,6 +230,8 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
     stock: product.stock ?? 0,
     sku: defaultVariantSku(product),
     skuId: defaultVariantSkuId(product),
+    availableQty: variant?.availableQty,
+    inStock: variant?.inStock,
     category: product.category || "bags",
     status: mapDisplayStatus(product.status, product.tags),
     image: images[0],

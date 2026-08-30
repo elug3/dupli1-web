@@ -251,15 +251,22 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [added, setAdded] = useState(false);
-  const [availableStock, setAvailableStock] = useState<number | null>(null);
+  // Prefer PDP-embedded availability; poll only when fields were omitted.
+  const embeddedStock =
+    typeof product.availableQty === "number"
+      ? product.availableQty
+      : product.inStock === true
+        ? 1
+        : product.inStock === false
+          ? 0
+          : null;
+  const [availableStock, setAvailableStock] = useState<number | null>(embeddedStock);
   // Parent product.id is not sellable — require a real variant sku / skuId.
   const hasSellableVariant = Boolean(product.skuId || product.sku.trim());
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
-  // No stock row yet for most catalog items — treat "untracked" as available;
-  // order complete reserves via product-owned /api/v1/inventory (not a separate service).
-  const inStock =
-    hasSellableVariant && (availableStock === null || availableStock > 0);
+  // Always-tracked SKUs: missing/zero available ⇒ out of stock (not "assume available").
+  const inStock = hasSellableVariant && availableStock !== null && availableStock > 0;
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
@@ -272,12 +279,20 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   }, [authRequired, navigate, location.pathname]);
 
   useEffect(() => {
+    if (typeof product.availableQty === "number") {
+      setAvailableStock(product.availableQty);
+      return;
+    }
+    if (typeof product.inStock === "boolean") {
+      setAvailableStock(product.inStock ? 1 : 0);
+      return;
+    }
     setAvailableStock(null);
     if (!hasSellableVariant) return;
     fetchAvailableStock(product.sku, product.skuId)
-      .then(setAvailableStock)
-      .catch(() => setAvailableStock(null));
-  }, [hasSellableVariant, product.sku, product.skuId]);
+      .then((qty) => setAvailableStock(qty ?? 0))
+      .catch(() => setAvailableStock(0));
+  }, [hasSellableVariant, product.sku, product.skuId, product.availableQty, product.inStock]);
 
   async function handleAddToBag(): Promise<boolean> {
     if (adding || !hasSellableVariant) return false;
