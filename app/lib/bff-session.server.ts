@@ -14,7 +14,6 @@ type ApiService =
   | "auth"
   | "products"
   | "cart"
-  | "checkout"
   | "orders"
   | "payments";
 
@@ -105,7 +104,6 @@ function apiBaseUrl(service: ApiService): string {
       return productApiBaseUrl();
     case "cart":
       return cartApiBaseUrl();
-    case "checkout":
     case "orders":
       return ordersApiBaseUrl();
     case "payments":
@@ -624,20 +622,9 @@ export async function proxyBackendApi(
  */
 function serviceForApiPath(path: string): ApiService | null {
   if (path.startsWith("/api/v1/auth")) return "auth";
-  if (
-    path.startsWith("/api/v1/products") ||
-    path.startsWith("/api/v1/coupons") ||
-    path.startsWith("/api/v1/catalog") ||
-    path.startsWith("/api/v1/variants") ||
-    // Stock/reservations live on dupli1-product (standalone inventory service removed).
-    path.startsWith("/api/v1/inventory")
-  ) {
-    return "products";
-  }
+  if (path.startsWith("/api/v1/products")) return "products";
   if (path.startsWith("/api/v1/cart")) return "cart";
-  if (path.startsWith("/api/v1/checkout") || path.startsWith("/api/v1/orders")) {
-    return "orders";
-  }
+  if (path.startsWith("/api/v1/orders")) return "orders";
   if (path.startsWith("/api/v1/payments")) return "payments";
   return null;
 }
