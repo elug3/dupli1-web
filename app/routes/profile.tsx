@@ -527,7 +527,6 @@ function OrdersSection({ user }: { user: User }) {
         <div className="space-y-3">
           {orders.map((order) => {
             const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
-            const date = new Date(order.id.startsWith("ord_") ? 0 : 0);
             return (
               <div key={order.id} className="border border-zinc-100 p-5">
                 <div className="flex items-start justify-between gap-4">
