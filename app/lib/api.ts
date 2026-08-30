@@ -31,6 +31,7 @@ export interface ServerProduct {
   brand: string;
   color: string;
   material: string;
+  /** @deprecated Prefer availableQty / inStock from the sellable variant. */
   stock: number;
   category: string;
   status: string;
@@ -45,6 +46,10 @@ export interface ServerProduct {
   sku: string;
   /** Canonical variant ULID from product (`skuId`) when present. */
   skuId?: string;
+  /** Available units for the default sellable variant (quantity − reserved). */
+  availableQty?: number;
+  /** True when availableQty > 0 for the default sellable variant. */
+  inStock?: boolean;
   wishlistCount?: number;
   soldCount?: number;
 }
@@ -88,6 +93,8 @@ interface UpstreamProduct {
     officialPrice?: number;
     status: string;
     imageUrls?: string[];
+    availableQty?: number;
+    inStock?: boolean;
   }>;
 }
 
@@ -168,6 +175,7 @@ function toBag(product: UpstreamProduct): Bag {
 
 function toServerProduct(product: UpstreamProduct): ServerProduct {
   const images = upstreamImages(product);
+  const variant = upstreamVariant(product);
   return {
     id: product.id,
     name: product.name,
@@ -180,6 +188,8 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     stock: product.stock ?? 0,
     sku: upstreamSku(product),
     skuId: upstreamSkuId(product),
+    availableQty: variant?.availableQty,
+    inStock: variant?.inStock,
     category: product.category || "bags",
     status: upstreamStatus(product),
     image: images[0],
@@ -345,8 +355,8 @@ export async function fetchProduct(id: string): Promise<ServerProduct> {
  * Real-time stock for a sellable variant.
  * Served by dupli1-product at `/api/v1/inventory/*` (standalone inventory
  * service removed). Prefer canonical `skuId` when known.
- * Returns `null` when there is no stock row yet (untracked, not necessarily
- * zero — reservation on checkout complete is the enforcement point).
+ * Prefer PDP-embedded `availableQty` / `inStock` when present; this poll is
+ * a fallback. Missing stock row ⇒ 0 (always-tracked SKUs).
  */
 export async function fetchAvailableStock(
   sku: string,
@@ -356,6 +366,7 @@ export async function fetchAvailableStock(
     ? `/api/v1/inventory/by-sku-id/${encodeURIComponent(skuId)}`
     : `/api/v1/inventory/${encodeURIComponent(sku)}`;
   const res = await fetch(path);
+  if (res.status === 404) return 0;
   if (!res.ok) return null;
   const body = (await res.json()) as {
     quantity: number;
