@@ -11,6 +11,8 @@ import {
   validateAddressInput,
 } from "~/lib/profile";
 import { useLanguage } from "~/lib/i18n";
+import { formatKRPhoneInput, normalizePCCC, normalizePostalCode } from "~/lib/checkout";
+import { KR_PROVINCES, districtsForProvince } from "~/lib/kr-regions";
 
 const emptyForm: AddressInput = {
   label: "",
@@ -21,6 +23,7 @@ const emptyForm: AddressInput = {
   addressLine2: "",
   city: "",
   province: "",
+  pccc: "",
   isDefault: false,
 };
 
@@ -28,12 +31,13 @@ function addressToForm(address: CustomerAddress): AddressInput {
   return {
     label: address.label ?? "",
     recipientName: address.recipientName,
-    recipientPhone: address.recipientPhone,
+    recipientPhone: formatKRPhoneInput(address.recipientPhone),
     postalCode: address.postalCode,
     addressLine1: address.addressLine1,
     addressLine2: address.addressLine2 ?? "",
     city: address.city,
     province: address.province,
+    pccc: address.pccc ?? "",
     isDefault: address.isDefault,
   };
 }
@@ -211,6 +215,11 @@ export function ShippingAddressBook({
                 <p className="mt-1 text-xs leading-relaxed text-zinc-600">
                   ({address.postalCode}) {formatAddressSummary(address)}
                 </p>
+                {address.pccc && (
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    {t("checkout.pccc")}: {address.pccc}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {!address.isDefault && (
@@ -312,6 +321,11 @@ export function AddressFormFields({
       : t("checkout.required");
   }
 
+  function pcccErr() {
+    if (fieldError !== "pccc") return undefined;
+    return form.pccc?.trim() ? t("checkout.validPccc") : t("checkout.required");
+  }
+
   return (
     <div className="space-y-3">
       <LabeledInput
@@ -334,40 +348,50 @@ export function AddressFormFields({
         id={`${idPrefix}-phone`}
         label={t("checkout.phone")}
         value={form.recipientPhone}
-        onChange={(v) => onChange("recipientPhone", v)}
+        onChange={(v) => onChange("recipientPhone", formatKRPhoneInput(v))}
         error={phoneErr()}
         autoComplete="tel"
-        placeholder="01012345678"
+        inputMode="numeric"
+        maxLength={13}
+        placeholder="010-1234-5678"
         required
       />
       <LabeledInput
         id={`${idPrefix}-zip`}
         label={t("checkout.zip")}
         value={form.postalCode}
-        onChange={(v) => onChange("postalCode", v)}
+        onChange={(v) => onChange("postalCode", normalizePostalCode(v))}
         error={zipErr()}
         autoComplete="postal-code"
+        inputMode="numeric"
+        maxLength={5}
         placeholder="06194"
         required
       />
-      <LabeledInput
+      <LabeledSelect
         id={`${idPrefix}-province`}
         label={t("checkout.province")}
         value={form.province}
-        onChange={(v) => onChange("province", v)}
+        onChange={(v) => {
+          onChange("province", v);
+          onChange("city", "");
+        }}
+        options={KR_PROVINCES}
         error={err("province")}
-        autoComplete="address-level1"
-        placeholder={t("checkout.provincePlaceholder")}
+        placeholder={t("checkout.selectProvince")}
         required
       />
-      <LabeledInput
+      <LabeledSelect
         id={`${idPrefix}-city`}
         label={t("checkout.city")}
         value={form.city}
         onChange={(v) => onChange("city", v)}
+        options={districtsForProvince(form.province)}
         error={err("city")}
-        autoComplete="address-level2"
-        placeholder={t("checkout.cityPlaceholder")}
+        placeholder={
+          form.province ? t("checkout.selectDistrict") : t("checkout.selectProvinceFirst")
+        }
+        disabled={!form.province}
         required
       />
       <LabeledInput
@@ -386,6 +410,17 @@ export function AddressFormFields({
         onChange={(v) => onChange("addressLine2", v)}
         autoComplete="address-line2"
       />
+      <LabeledInput
+        id={`${idPrefix}-pccc`}
+        label={t("checkout.pccc")}
+        value={form.pccc ?? ""}
+        onChange={(v) => onChange("pccc", normalizePCCC(v))}
+        error={pcccErr()}
+        placeholder={t("checkout.pcccPlaceholder")}
+        maxLength={13}
+        required
+      />
+      <p className="-mt-2 text-[11px] text-zinc-400">{t("checkout.pcccHint")}</p>
       <label className="flex items-center gap-2 pt-1 text-xs text-zinc-700">
         <input
           type="checkbox"
@@ -407,6 +442,8 @@ function LabeledInput({
   error,
   placeholder,
   autoComplete,
+  inputMode,
+  maxLength,
   required,
 }: {
   id: string;
@@ -416,6 +453,8 @@ function LabeledInput({
   error?: string;
   placeholder?: string;
   autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
   required?: boolean;
 }) {
   return (
@@ -433,11 +472,66 @@ function LabeledInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        inputMode={inputMode}
+        maxLength={maxLength}
         className={[
           "w-full border bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-300",
           error ? "border-red-400" : "border-zinc-200 focus:border-zinc-400",
         ].join(" ")}
       />
+      {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function LabeledSelect({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  error,
+  placeholder,
+  required,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  error?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-400"
+      >
+        {label}
+        {required ? " *" : ""}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={[
+          "w-full border bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition",
+          disabled ? "cursor-not-allowed bg-zinc-50 text-zinc-400" : "",
+          error ? "border-red-400" : "border-zinc-200 focus:border-zinc-400",
+        ].join(" ")}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
     </div>
   );

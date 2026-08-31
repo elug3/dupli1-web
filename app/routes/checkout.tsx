@@ -12,13 +12,19 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  getPaymentSettings,
   getUnpurchasableCartItems,
+  formatKRPhoneInput,
   isUnpurchasableVariantError,
   isValidKRPhone,
   isValidKRPostalCode,
+  isValidPCCC,
+  normalizePCCC,
+  normalizePostalCode,
   replaceSessionItems,
   simulatePaymentSuccess,
   type PaymentMethod,
+  type PaymentSettings,
 } from "../lib/checkout";
 import {
   type CustomerAddress,
@@ -28,6 +34,7 @@ import {
   getCustomerProfile,
 } from "../lib/profile";
 import { useLanguage } from "../lib/i18n";
+import { KR_PROVINCES, districtsForProvince } from "../lib/kr-regions";
 import { useCart } from "../lib/useCart";
 import type { CartItem } from "../lib/cart";
 import { useCartMutation } from "../lib/useCartMutation";
@@ -53,6 +60,8 @@ interface FormState {
   zip: string;
   country: string;
   phone: string;
+  /** Korea Personal Customs Clearance Code; required by checkout to clear shipments through customs. */
+  pccc: string;
   /** credit_card for everyone; bypass only when canBypassPayment (elug3/dupli1#108). */
   paymentMethod: PaymentMethod;
   bypassNote: string;
@@ -68,6 +77,7 @@ const initialForm: FormState = {
   zip: "",
   country: "",
   phone: "",
+  pccc: "",
   paymentMethod: "credit_card",
   bypassNote: "",
 };
@@ -84,6 +94,7 @@ const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
     "city",
     "province",
     "zip",
+    "pccc",
   ],
   payment: [],
 };
@@ -95,12 +106,13 @@ function applyAddressToForm(
   return {
     ...prev,
     name: address.recipientName,
-    phone: address.recipientPhone,
+    phone: formatKRPhoneInput(address.recipientPhone),
     address: address.addressLine1,
     apartment: address.addressLine2 ?? "",
     city: address.city,
     province: address.province,
     zip: address.postalCode,
+    pccc: address.pccc ?? "",
   };
 }
 
@@ -125,6 +137,7 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | "new" | null>(
     null
@@ -134,6 +147,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+    getPaymentSettings().then(setPaymentSettings);
   }, []);
 
   useEffect(() => {
@@ -254,11 +268,17 @@ export default function CheckoutPage() {
         key === "apartment" ||
         key === "city" ||
         key === "province" ||
-        key === "zip")
+        key === "zip" ||
+        key === "pccc")
     ) {
       setSelectedAddressId("new");
       setSaveAddress(false);
     }
+  }
+
+  function updateProvince(value: string) {
+    updateField("province", value);
+    updateField("city", "");
   }
 
   function selectSavedAddress(address: CustomerAddress) {
@@ -274,6 +294,7 @@ export default function CheckoutPage() {
       city: undefined,
       province: undefined,
       zip: undefined,
+      pccc: undefined,
     }));
   }
 
@@ -321,6 +342,11 @@ export default function CheckoutPage() {
     if (fields.includes("zip") && form.zip.trim() && !isValidKRPostalCode(form.zip)) {
       next.zip = t("checkout.validZip");
       firstInvalidField ??= "zip";
+    }
+
+    if (fields.includes("pccc") && form.pccc.trim() && !isValidPCCC(form.pccc)) {
+      next.pccc = t("checkout.validPccc");
+      firstInvalidField ??= "pccc";
     }
 
     setErrors((prev) => ({
@@ -397,6 +423,7 @@ export default function CheckoutPage() {
             addressLine2: form.apartment,
             city: form.city,
             province: form.province,
+            pccc: form.pccc,
             isDefault: savedAddresses.length === 0,
           });
           addressId = created.id;
@@ -447,6 +474,7 @@ export default function CheckoutPage() {
           city: form.city,
           zip: form.zip,
           province: form.province,
+          pccc: form.pccc,
           addressId,
         })
       );
@@ -459,7 +487,10 @@ export default function CheckoutPage() {
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
-      } else if (payment.checkoutUrl.includes("/simulate-success")) {
+      } else if (
+        form.paymentMethod === "dev_simulate" ||
+        payment.checkoutUrl.includes("/simulate-success")
+      ) {
         // Local/dev: PAYMENT_ALLOW_DEV_SIMULATE — complete without a card PG.
         await simulatePaymentSuccess(payment.id);
         await clearCart();
@@ -575,8 +606,11 @@ export default function CheckoutPage() {
                     type="tel"
                     value={form.phone}
                     error={errors.phone}
-                    onChange={(v) => updateField("phone", v)}
+                    onChange={(v) => updateField("phone", formatKRPhoneInput(v))}
                     autoComplete="tel"
+                    inputMode="numeric"
+                    maxLength={13}
+                    placeholder="010-1234-5678"
                     required
                   />
                 </CheckoutSection>
@@ -624,6 +658,11 @@ export default function CheckoutPage() {
                                 <span className="mt-0.5 block text-xs text-zinc-600">
                                   ({address.postalCode}) {formatAddressSummary(address)}
                                 </span>
+                                {address.pccc && (
+                                  <span className="mt-0.5 block text-[11px] text-zinc-400">
+                                    {t("checkout.pccc")}: {address.pccc}
+                                  </span>
+                                )}
                               </span>
                             </label>
                           );
@@ -676,22 +715,29 @@ export default function CheckoutPage() {
                     autoComplete="address-line2"
                   />
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Field
+                    <SelectField
                       label={t("checkout.province")}
                       id="province"
                       value={form.province}
                       error={errors.province}
-                      onChange={(v) => updateField("province", v)}
-                      autoComplete="address-level1"
+                      onChange={updateProvince}
+                      options={KR_PROVINCES}
+                      placeholder={t("checkout.selectProvince")}
                       required
                     />
-                    <Field
+                    <SelectField
                       label={t("checkout.city")}
                       id="city"
                       value={form.city}
                       error={errors.city}
                       onChange={(v) => updateField("city", v)}
-                      autoComplete="address-level2"
+                      options={districtsForProvince(form.province)}
+                      placeholder={
+                        form.province
+                          ? t("checkout.selectDistrict")
+                          : t("checkout.selectProvinceFirst")
+                      }
+                      disabled={!form.province}
                       required
                     />
                   </div>
@@ -701,8 +747,10 @@ export default function CheckoutPage() {
                       id="zip"
                       value={form.zip}
                       error={errors.zip}
-                      onChange={(v) => updateField("zip", v)}
+                      onChange={(v) => updateField("zip", normalizePostalCode(v))}
                       autoComplete="postal-code"
+                      inputMode="numeric"
+                      maxLength={5}
                       required
                     />
                     <Field
@@ -713,6 +761,21 @@ export default function CheckoutPage() {
                       autoComplete="country-name"
                       readOnly
                     />
+                  </div>
+                  <div>
+                    <Field
+                      label={t("checkout.pccc")}
+                      id="pccc"
+                      value={form.pccc}
+                      error={errors.pccc}
+                      onChange={(v) => updateField("pccc", normalizePCCC(v))}
+                      placeholder={t("checkout.pcccPlaceholder")}
+                      maxLength={13}
+                      required
+                    />
+                    <p className="mt-1.5 text-[11px] text-zinc-400">
+                      {t("checkout.pcccHint")}
+                    </p>
                   </div>
                   {selectedAddressId === "new" && (
                     <label className="flex items-center gap-2 text-xs text-zinc-700">
@@ -740,16 +803,29 @@ export default function CheckoutPage() {
             {activeStep === "payment" && (
               <CheckoutSection step="02" title={t("checkout.payment")}>
                 <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
-                  <PaymentMethodOption
-                    name="paymentMethod"
-                    value="credit_card"
-                    checked={form.paymentMethod === "credit_card"}
-                    title={t("checkout.methodCreditCard")}
-                    subtitle={t("checkout.methodCreditCardHint")}
-                    badge={t("checkout.methodSecureRedirect")}
-                    onChange={() => updateField("paymentMethod", "credit_card")}
-                  />
-                  {allowBypass && (
+                  {paymentSettings?.methodCreditCard !== false && (
+                    <PaymentMethodOption
+                      name="paymentMethod"
+                      value="credit_card"
+                      checked={form.paymentMethod === "credit_card"}
+                      title={t("checkout.methodCreditCard")}
+                      subtitle={t("checkout.methodCreditCardHint")}
+                      badge={t("checkout.methodSecureRedirect")}
+                      onChange={() => updateField("paymentMethod", "credit_card")}
+                    />
+                  )}
+                  {paymentSettings?.devSimulate && (
+                    <PaymentMethodOption
+                      name="paymentMethod"
+                      value="dev_simulate"
+                      checked={form.paymentMethod === "dev_simulate"}
+                      title="Dev Simulate"
+                      subtitle="Instantly mark payment as succeeded (dev only)"
+                      badge="DEV"
+                      onChange={() => updateField("paymentMethod", "dev_simulate")}
+                    />
+                  )}
+                  {allowBypass && paymentSettings?.methodBypass && (
                     <PaymentMethodOption
                       name="paymentMethod"
                       value="bypass"
@@ -1160,6 +1236,68 @@ function Field({
               : "border-zinc-200 focus:border-zinc-950",
         ].join(" ")}
       />
+      {error && <p className="mt-1.5 text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  id,
+  value,
+  error,
+  onChange,
+  options,
+  placeholder,
+  required = false,
+  disabled = false,
+}: {
+  label: string;
+  id: string;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-600"
+      >
+        {label}
+        {required && (
+          <span className="ml-0.5 text-red-500" aria-hidden="true">
+            *
+          </span>
+        )}
+      </label>
+      <select
+        id={id}
+        value={value}
+        required={required}
+        disabled={disabled}
+        aria-required={required}
+        onChange={(e) => onChange(e.target.value)}
+        className={[
+          "h-12 w-full scroll-mt-32 border bg-white px-4 text-sm text-zinc-950 outline-none transition",
+          disabled
+            ? "cursor-not-allowed border-zinc-100 bg-zinc-50 text-zinc-400"
+            : error
+              ? "border-red-400 focus:border-red-500"
+              : "border-zinc-200 focus:border-zinc-950",
+        ].join(" ")}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
       {error && <p className="mt-1.5 text-[11px] text-red-600">{error}</p>}
     </div>
   );
