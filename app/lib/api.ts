@@ -1,4 +1,5 @@
 import { authedFetch } from "./auth";
+import { inventoryAvailableFromBody } from "./product-stock";
 
 // ── Bag types (mirrors server domain.Bag) ─────────────────────────────────
 
@@ -373,7 +374,7 @@ export async function fetchAvailableStock(
     reserved: number;
     skuId?: string;
   };
-  return Math.max(0, body.quantity - body.reserved);
+  return inventoryAvailableFromBody(body);
 }
 
 // ── Brand fallback images (server has no image column) ────────────────────
