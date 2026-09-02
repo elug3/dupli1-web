@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  isValidPCCC,
+  normalizePCCC,
   resolveCheckoutVariantRef,
 } from "./checkout";
 
@@ -93,5 +96,61 @@ describe("cart unpurchasable helpers", () => {
     expect(
       buildCheckoutSessionItem({ skuId: "A", sku: "BOT-001-GRN", quantity: 2 })
     ).toEqual({ sku_id: "A", sku: "BOT-001-GRN", quantity: 2 });
+  });
+});
+
+describe("normalizePCCC", () => {
+  it("trims and uppercases (matches auth/order normalization)", () => {
+    expect(normalizePCCC("  p123456789012  ")).toBe("P123456789012");
+  });
+
+  it("passes through already-normalized codes", () => {
+    expect(normalizePCCC("P123456789012")).toBe("P123456789012");
+  });
+});
+
+describe("isValidPCCC", () => {
+  it("accepts P + 12 digits after normalization", () => {
+    expect(isValidPCCC("p123456789012")).toBe(true);
+    expect(isValidPCCC("P123456789012")).toBe(true);
+  });
+
+  it("rejects malformed codes", () => {
+    expect(isValidPCCC("")).toBe(false);
+    expect(isValidPCCC("P12345")).toBe(false);
+    expect(isValidPCCC("Q123456789012")).toBe(false);
+    expect(isValidPCCC("1234567890123")).toBe(false);
+  });
+});
+
+describe("buildCheckoutFulfillment", () => {
+  it("includes optional pccc on shipping address", () => {
+    const fulfillment = buildCheckoutFulfillment({
+      name: " Kim ",
+      phone: "010-1234-5678",
+      address: "123 Main",
+      apartment: "",
+      city: "강남구",
+      zip: "06236",
+      province: "서울",
+      pccc: "  p123456789012  ",
+    });
+    expect(fulfillment.recipientName).toBe("Kim");
+    expect(fulfillment.recipientPhone).toBe("01012345678");
+    expect(fulfillment.shippingAddress.pccc).toBe("p123456789012");
+  });
+
+  it("omits blank pccc", () => {
+    const fulfillment = buildCheckoutFulfillment({
+      name: "Lee",
+      phone: "01011112222",
+      address: "1",
+      apartment: "",
+      city: "강남구",
+      zip: "06236",
+      province: "서울",
+      pccc: "   ",
+    });
+    expect(fulfillment.shippingAddress.pccc).toBeUndefined();
   });
 });
