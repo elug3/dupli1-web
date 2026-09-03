@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  isValidPCCC,
+  normalizePCCC,
   resolveCheckoutVariantRef,
 } from "./checkout";
 
@@ -93,5 +96,66 @@ describe("cart unpurchasable helpers", () => {
     expect(
       buildCheckoutSessionItem({ skuId: "A", sku: "BOT-001-GRN", quantity: 2 })
     ).toEqual({ sku_id: "A", sku: "BOT-001-GRN", quantity: 2 });
+  });
+});
+
+describe("normalizePCCC", () => {
+  it("trims and uppercases", () => {
+    expect(normalizePCCC("  p123456789012  ")).toBe("P123456789012");
+  });
+});
+
+describe("isValidPCCC", () => {
+  it("accepts P plus 12 digits", () => {
+    expect(isValidPCCC("p123456789012")).toBe(true);
+    expect(isValidPCCC("P123456789012")).toBe(true);
+  });
+
+  it("rejects malformed codes", () => {
+    expect(isValidPCCC("")).toBe(false);
+    expect(isValidPCCC("123456789012")).toBe(false);
+    expect(isValidPCCC("P12345")).toBe(false);
+    expect(isValidPCCC("P1234567890123")).toBe(false);
+  });
+});
+
+describe("buildCheckoutFulfillment", () => {
+  it("includes optional pccc on shipping address", () => {
+    expect(
+      buildCheckoutFulfillment({
+        name: " Kim ",
+        phone: "010-1234-5678",
+        address: "123 Main",
+        apartment: "",
+        city: "Seoul",
+        zip: "12345",
+        province: "Seoul",
+        pccc: " p123456789012 ",
+      })
+    ).toEqual({
+      recipientName: "Kim",
+      recipientPhone: "01012345678",
+      shippingAddress: {
+        postalCode: "12345",
+        addressLine1: "123 Main",
+        city: "Seoul",
+        province: "Seoul",
+        pccc: "p123456789012",
+      },
+    });
+  });
+
+  it("omits blank pccc", () => {
+    const fulfillment = buildCheckoutFulfillment({
+      name: "Kim",
+      phone: "01012345678",
+      address: "123 Main",
+      apartment: "",
+      city: "Seoul",
+      zip: "12345",
+      province: "Seoul",
+      pccc: "   ",
+    });
+    expect(fulfillment.shippingAddress.pccc).toBeUndefined();
   });
 });
