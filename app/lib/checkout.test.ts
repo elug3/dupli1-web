@@ -3,12 +3,17 @@ import {
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
+  formatKRPhoneInput,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  isValidKRPhone,
+  isValidKRPostalCode,
   isValidPCCC,
+  normalizeKRPhoneDigits,
   normalizePCCC,
+  normalizePostalCode,
   resolveCheckoutVariantRef,
 } from "./checkout";
 
@@ -99,6 +104,33 @@ describe("cart unpurchasable helpers", () => {
   });
 });
 
+describe("Korean shipping field normalization", () => {
+  it("normalizeKRPhoneDigits strips non-digits", () => {
+    expect(normalizeKRPhoneDigits("010-4112-5167")).toBe("01041125167");
+  });
+
+  it("isValidKRPhone accepts 10- and 11-digit mobile numbers", () => {
+    expect(isValidKRPhone("010-4112-5167")).toBe(true);
+    expect(isValidKRPhone("01012345678")).toBe(true);
+    expect(isValidKRPhone("12345")).toBe(false);
+  });
+
+  it("formatKRPhoneInput hyphenates as the user types", () => {
+    expect(formatKRPhoneInput("01041125167")).toBe("010-4112-5167");
+    expect(formatKRPhoneInput("010411")).toBe("010-411");
+  });
+
+  it("normalizePostalCode keeps five digits", () => {
+    expect(normalizePostalCode("06194")).toBe("06194");
+    expect(normalizePostalCode("06194-000")).toBe("06194");
+  });
+
+  it("isValidKRPostalCode requires exactly five digits", () => {
+    expect(isValidKRPostalCode("06194")).toBe(true);
+    expect(isValidKRPostalCode("0619")).toBe(false);
+  });
+});
+
 describe("normalizePCCC", () => {
   it("trims and uppercases (matches auth/order normalization)", () => {
     expect(normalizePCCC("  p123456789012  ")).toBe("P123456789012");
@@ -140,17 +172,46 @@ describe("buildCheckoutFulfillment", () => {
     expect(fulfillment.shippingAddress.pccc).toBe("p123456789012");
   });
 
-  it("omits blank pccc", () => {
+  // Whole-snapshot assertion: the only coverage of addressLine2 trimming.
+  it("trims recipient fields and normalizes phone/postal", () => {
+    expect(
+      buildCheckoutFulfillment({
+        name: "  윤라희  ",
+        phone: "010-4112-5167",
+        address: "테헤란로 78길 14-12",
+        apartment: " 9층 ",
+        city: "강남구",
+        zip: "06194",
+        province: "서울특별시",
+        pccc: " p123456789012 ",
+      })
+    ).toEqual({
+      recipientName: "윤라희",
+      recipientPhone: "01041125167",
+      shippingAddress: {
+        postalCode: "06194",
+        addressLine1: "테헤란로 78길 14-12",
+        addressLine2: "9층",
+        city: "강남구",
+        province: "서울특별시",
+        pccc: "p123456789012",
+      },
+      addressId: undefined,
+    });
+  });
+
+  it("omits blank apartment and pccc", () => {
     const fulfillment = buildCheckoutFulfillment({
       name: "Lee",
       phone: "01011112222",
       address: "1",
-      apartment: "",
+      apartment: "   ",
       city: "강남구",
       zip: "06236",
       province: "서울",
       pccc: "   ",
     });
+    expect(fulfillment.shippingAddress.addressLine2).toBeUndefined();
     expect(fulfillment.shippingAddress.pccc).toBeUndefined();
   });
 });
