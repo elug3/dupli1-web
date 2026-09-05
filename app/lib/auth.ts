@@ -1,4 +1,5 @@
 import { resetCart } from "./cart";
+import { clearCheckoutDraft } from "./checkout-draft";
 
 export type AccountType = "customer" | "manager" | "service" | "admin";
 
@@ -121,6 +122,7 @@ export async function login(email: string, password: string): Promise<void> {
   // The cart store outlives client-side navigation: without this the `guest`
   // status cached while signed out survives, and /checkout redirects back here.
   resetCart();
+  clearCheckoutDraft();
 }
 
 export async function register(
@@ -131,6 +133,7 @@ export async function register(
   if (!res.ok) throw new Error(await errorMessage(res, "Registration failed"));
   // Register also establishes the session cookie, so it changes sessions too.
   resetCart();
+  clearCheckoutDraft();
 }
 
 /** Authenticated API calls go through the cookie session gateway, which
@@ -158,4 +161,5 @@ export async function logout(): Promise<void> {
   await post(SESSION_LOGOUT, {}).catch(() => {});
   // Never leave the previous customer's lines on screen for the next session.
   resetCart();
+  clearCheckoutDraft();
 }

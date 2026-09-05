@@ -130,6 +130,8 @@ export interface OrderItem {
   quantity: number;
   /** Whole KRW won (JSON `unit_price_cents`). */
   unitPriceCents: number;
+  productName?: string;
+  imageUrl?: string;
 }
 
 export interface Order {
@@ -138,6 +140,9 @@ export interface Order {
   status: string;
   totalCents: number;
   items: OrderItem[];
+  /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
+  paymentDueAtMs?: number;
+  paymentId?: string;
 }
 
 /** Dev simulate was removed upstream and merged into bypass (payment-service.md). */
@@ -211,6 +216,8 @@ interface RawOrderItem {
   sku_id?: string;
   quantity: number;
   unit_price_cents: number;
+  product_name?: string;
+  image_url?: string;
 }
 
 interface RawOrder {
@@ -219,6 +226,8 @@ interface RawOrder {
   status: string;
   total_cents?: number;
   items?: RawOrderItem[] | null;
+  payment_due_at?: string;
+  payment_id?: string;
 }
 
 function mapSession(raw: RawSession): CheckoutSession {
@@ -236,6 +245,7 @@ function mapSession(raw: RawSession): CheckoutSession {
 }
 
 function mapOrder(raw: RawOrder): Order {
+  const dueAt = raw.payment_due_at ? Date.parse(raw.payment_due_at) : NaN;
   return {
     id: raw.id,
     customerId: raw.customer_id,
@@ -246,7 +256,11 @@ function mapOrder(raw: RawOrder): Order {
       skuId: item.sku_id || undefined,
       quantity: item.quantity,
       unitPriceCents: item.unit_price_cents,
+      productName: item.product_name || undefined,
+      imageUrl: item.image_url || undefined,
     })),
+    paymentDueAtMs: Number.isNaN(dueAt) ? undefined : dueAt,
+    paymentId: raw.payment_id || undefined,
   };
 }
 
@@ -454,4 +468,34 @@ export async function listMyOrders(customerId: string): Promise<Order[]> {
   const res = await request(`/api/v1/orders?customer_id=${encodeURIComponent(customerId)}`);
   const body = (await res.json()) as { orders?: RawOrder[] | null };
   return (body.orders ?? []).map(mapOrder);
+}
+
+/** True while an order can still be paid: pending and inside its unpaid window. */
+export function isResumableOrder(order: Order, nowMs: number = Date.now()): boolean {
+  if (order.status !== "pending") return false;
+  // No payment_due_at means the server did not scope the window; treat the
+  // pending status as authoritative rather than hiding a payable order.
+  if (order.paymentDueAtMs === undefined) return true;
+  return order.paymentDueAtMs > nowMs;
+}
+
+/**
+ * The order a returning shopper should be offered a chance to pay.
+ *
+ * Server-side truth, so it survives a refresh, a closed tab, cleared storage,
+ * and even a different device — unlike anything cached in the browser. The
+ * unpaid window is 5 minutes (dupli1 order DefaultPaymentTTL); past it the
+ * order is canceled and stock released, so nothing is resumable.
+ */
+export async function findResumableOrder(
+  customerId: string,
+  nowMs: number = Date.now()
+): Promise<Order | null> {
+  const orders = await listMyOrders(customerId);
+  const resumable = orders.filter((order) => isResumableOrder(order, nowMs));
+  if (resumable.length === 0) return null;
+  // Latest deadline == most recently created, without needing created_at.
+  return resumable.reduce((newest, order) =>
+    (order.paymentDueAtMs ?? 0) > (newest.paymentDueAtMs ?? 0) ? order : newest
+  );
 }

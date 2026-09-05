@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
+import { clearCart } from "~/lib/cart";
 import { getOrder, type Order } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
@@ -32,6 +33,10 @@ export default function CheckoutConfirmationPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [lookupFailed, setLookupFailed] = useState(false);
   const attempts = useRef(0);
+  // Checkout keeps the bag through the NANO hand-off so an abandoned payment
+  // does not strand the shopper. Clearing is this page's job, once the order
+  // leaves `pending` — guarded so repeated polls only clear once.
+  const cartCleared = useRef(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -43,6 +48,12 @@ export default function CheckoutConfirmationPage() {
         const fetched = await getOrder(id);
         if (cancelled) return;
         setOrder(fetched);
+        if (fetched.status !== "pending" && !cartCleared.current) {
+          cartCleared.current = true;
+          clearCart().catch(() => {
+            // A stale bag is recoverable; a broken confirmation is not.
+          });
+        }
         attempts.current += 1;
         if (fetched.status === "pending" && attempts.current < MAX_POLL_ATTEMPTS) {
           timer = setTimeout(() => poll(id), POLL_INTERVAL_MS);

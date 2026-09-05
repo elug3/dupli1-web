@@ -303,6 +303,18 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.useNewAddress": "Use a new address",
     "checkout.saveAddressToAccount": "Save this address to my account",
     "checkout.manageAddresses": "Manage addresses in account settings",
+    "checkout.resumeTitle": "Order awaiting payment",
+    "checkout.resumeBody":
+      "Your order {order} is reserved for {total} but has not been paid yet. Finish paying before the hold expires.",
+    "checkout.resumeFailedBody":
+      "Payment for order {order} ({total}) did not go through. You can try again before the hold expires.",
+    "checkout.resumeExpiresIn": "Expires in {time}",
+    "checkout.resumeAction": "Resume payment",
+    "checkout.resumeResuming": "Reopening payment…",
+    "checkout.resumeDismiss": "Not now",
+    "checkout.resumeExpired":
+      "That order's payment window closed and the items were released. Your bag is unchanged, so you can order again.",
+    "checkout.resumeLookupFailed": "Could not reopen that payment. Please try again.",
     "checkout.payment": "Payment",
     "checkout.paymentMethod": "Payment method",
     "checkout.methodCreditCard": "Credit card",
@@ -852,6 +864,18 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.useNewAddress": "새 주소 입력",
     "checkout.saveAddressToAccount": "이 주소를 계정에 저장",
     "checkout.manageAddresses": "계정 설정에서 배송지 관리",
+    "checkout.resumeTitle": "결제 대기 중인 주문",
+    "checkout.resumeBody":
+      "주문 {order}이(가) {total}으로 확보되어 있으나 아직 결제되지 않았습니다. 예약이 만료되기 전에 결제를 완료하세요.",
+    "checkout.resumeFailedBody":
+      "주문 {order}({total})의 결제가 완료되지 않았습니다. 예약이 만료되기 전에 다시 시도할 수 있습니다.",
+    "checkout.resumeExpiresIn": "{time} 후 만료",
+    "checkout.resumeAction": "결제 이어서 하기",
+    "checkout.resumeResuming": "결제 창을 다시 여는 중…",
+    "checkout.resumeDismiss": "나중에",
+    "checkout.resumeExpired":
+      "해당 주문의 결제 시간이 만료되어 상품 예약이 해제되었습니다. 장바구니는 그대로이니 다시 주문하실 수 있습니다.",
+    "checkout.resumeLookupFailed": "결제를 다시 열 수 없습니다. 잠시 후 다시 시도해 주세요.",
     "checkout.payment": "결제",
     "checkout.paymentMethod": "결제 수단",
     "checkout.methodCreditCard": "신용카드",
@@ -1389,6 +1413,18 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.useNewAddress": "使用新地址",
     "checkout.saveAddressToAccount": "将此地址保存到我的账户",
     "checkout.manageAddresses": "在账户设置中管理地址",
+    "checkout.resumeTitle": "待付款订单",
+    "checkout.resumeBody":
+      "订单 {order} 已按 {total} 为您保留，但尚未付款。请在保留到期前完成付款。",
+    "checkout.resumeFailedBody":
+      "订单 {order}（{total}）的付款未完成。您可以在保留到期前重试。",
+    "checkout.resumeExpiresIn": "{time} 后到期",
+    "checkout.resumeAction": "继续付款",
+    "checkout.resumeResuming": "正在重新打开付款…",
+    "checkout.resumeDismiss": "暂不",
+    "checkout.resumeExpired":
+      "该订单的付款时间已过期，商品预留已释放。您的购物袋未受影响，可以重新下单。",
+    "checkout.resumeLookupFailed": "无法重新打开付款，请稍后再试。",
     "checkout.payment": "付款",
     "checkout.paymentMethod": "付款方式",
     "checkout.methodCreditCard": "信用卡",
