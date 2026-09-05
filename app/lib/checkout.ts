@@ -112,6 +112,13 @@ export interface CheckoutSession {
   status: "open" | "completed" | "expired";
   subtotalCents: number;
   discountCents: number;
+  /**
+   * Delivery charge the order service quoted for this session, in whole KRW.
+   * Authoritative: it is what the backend will actually charge, and it is fixed
+   * when the session opens. Prefer it over the SHIPPING_FEE constant, which is
+   * only a pre-session display fallback.
+   */
+  shippingFeeCents: number;
   totalCents: number;
   couponCode?: string;
   orderId?: string;
@@ -156,6 +163,28 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
   };
 }
 
+/**
+ * Fetches the delivery charge the order service will actually apply, in whole
+ * KRW. Same public, unauthenticated settings route as getPaymentSettings.
+ *
+ * Returns null when the service cannot be reached or does not publish the
+ * field, so callers fall back to the SHIPPING_FEE display constant rather than
+ * silently quoting 0.
+ */
+export async function getShippingFeeCents(): Promise<number | null> {
+  try {
+    const res = await fetch("/api/v1/orders/settings");
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      limits?: { shipping_fee_cents?: number };
+    };
+    const fee = body.limits?.shipping_fee_cents;
+    return typeof fee === "number" && fee >= 0 ? fee : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Payment {
   id: string;
   orderId: string;
@@ -171,6 +200,7 @@ interface RawSession {
   status: "open" | "completed" | "expired";
   subtotal_cents?: number;
   discount_cents?: number;
+  shipping_fee_cents?: number;
   total_cents?: number;
   coupon_code?: string;
   order_id?: string;
@@ -197,6 +227,8 @@ function mapSession(raw: RawSession): CheckoutSession {
     status: raw.status,
     subtotalCents: raw.subtotal_cents ?? 0,
     discountCents: raw.discount_cents ?? 0,
+    // Older order services omit the field; 0 (free delivery) is the safe read.
+    shippingFeeCents: raw.shipping_fee_cents ?? 0,
     totalCents: raw.total_cents ?? 0,
     couponCode: raw.coupon_code,
     orderId: raw.order_id,
