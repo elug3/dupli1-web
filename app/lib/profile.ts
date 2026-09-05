@@ -150,7 +150,7 @@ export function formatAddressSummary(address: CustomerAddress): string {
 }
 
 export async function getCustomerProfile(): Promise<CustomerProfile> {
-  const res = await authedFetch("/api/v1/auth/me/profile");
+  const res = await authedFetch("/api/v1/profile/me/profile");
   if (!res.ok) {
     throw new Error(await readError(res, "Failed to load profile"));
   }
@@ -168,7 +168,7 @@ export async function updateCustomerProfile(patch: {
   if (patch.phone !== undefined) {
     body.phone = normalizeKRPhoneDigits(patch.phone);
   }
-  const res = await authedFetch("/api/v1/auth/me/profile", {
+  const res = await authedFetch("/api/v1/profile/me/profile", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -180,7 +180,7 @@ export async function updateCustomerProfile(patch: {
 }
 
 export async function listAddresses(): Promise<CustomerAddress[]> {
-  const res = await authedFetch("/api/v1/auth/me/addresses");
+  const res = await authedFetch("/api/v1/profile/me/addresses");
   if (!res.ok) {
     throw new Error(await readError(res, "Failed to load addresses"));
   }
@@ -191,7 +191,7 @@ export async function listAddresses(): Promise<CustomerAddress[]> {
 export async function createAddress(
   input: AddressInput
 ): Promise<CustomerAddress> {
-  const res = await authedFetch("/api/v1/auth/me/addresses", {
+  const res = await authedFetch("/api/v1/profile/me/addresses", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(toWireAddress(input)),
@@ -207,7 +207,7 @@ export async function updateAddress(
   input: AddressInput
 ): Promise<CustomerAddress> {
   const res = await authedFetch(
-    `/api/v1/auth/me/addresses/${encodeURIComponent(id)}`,
+    `/api/v1/profile/me/addresses/${encodeURIComponent(id)}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -222,7 +222,7 @@ export async function updateAddress(
 
 export async function deleteAddress(id: string): Promise<void> {
   const res = await authedFetch(
-    `/api/v1/auth/me/addresses/${encodeURIComponent(id)}`,
+    `/api/v1/profile/me/addresses/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
   if (!res.ok && res.status !== 204) {
@@ -232,7 +232,7 @@ export async function deleteAddress(id: string): Promise<void> {
 
 export async function setDefaultAddress(id: string): Promise<CustomerAddress> {
   const res = await authedFetch(
-    `/api/v1/auth/me/addresses/${encodeURIComponent(id)}/default`,
+    `/api/v1/profile/me/addresses/${encodeURIComponent(id)}/default`,
     { method: "POST" }
   );
   if (!res.ok) {
