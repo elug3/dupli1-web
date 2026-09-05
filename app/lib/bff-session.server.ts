@@ -16,7 +16,8 @@ type ApiService =
   | "cart"
   | "checkout"
   | "orders"
-  | "payments";
+  | "payments"
+  | "profile";
 
 interface TokenResponse {
   access_token?: unknown;
@@ -97,6 +98,14 @@ function paymentsApiBaseUrl(): string {
   );
 }
 
+function profileApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_PROFILE_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
 function apiBaseUrl(service: ApiService): string {
   switch (service) {
     case "auth":
@@ -110,6 +119,8 @@ function apiBaseUrl(service: ApiService): string {
       return ordersApiBaseUrl();
     case "payments":
       return paymentsApiBaseUrl();
+    case "profile":
+      return profileApiBaseUrl();
   }
 }
 
@@ -631,6 +642,13 @@ export async function proxyBackendApi(
  * the ALB `/api/*` rule that forwards to dupli1-proxy (see elug3/dupli1).
  */
 function serviceForApiPath(path: string): ApiService | null {
+  if (
+    path.startsWith("/api/v1/profile") ||
+    path.startsWith("/api/v1/auth/me/profile") ||
+    path.startsWith("/api/v1/auth/me/addresses")
+  ) {
+    return "profile";
+  }
   if (path.startsWith("/api/v1/auth")) return "auth";
   if (
     path.startsWith("/api/v1/products") ||
