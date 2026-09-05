@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { fetchProduct, productImage } from "./api";
+import { getShippingFeeCents } from "./checkout";
 import {
   computeTotals,
   getCartSnapshot,
@@ -89,9 +90,33 @@ export function useCart() {
 
   const count = raw.items.reduce((sum, item) => sum + item.quantity, 0);
 
+  // The order service owns the delivery charge; fetch it once so the cart and
+  // checkout quote what will actually be charged rather than a hardcoded copy
+  // that can drift from it. Until it resolves (or if it fails), computeTotals
+  // falls back to the SHIPPING_FEE display constant.
+  const [serviceShippingFee, setServiceShippingFee] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getShippingFeeCents().then((fee) => {
+      if (!cancelled && fee !== null) setServiceShippingFee(fee);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // An explicit shippingFeeCents wins — pass the checkout session's
+  // `shipping_fee_cents` once a session exists, since that quote is frozen for
+  // the session and is what the resulting order will carry.
   const totals = useCallback(
-    (discountFraction = 0): CartTotals => computeTotals(raw.items, raw.subtotalCents, discountFraction),
-    [raw.items, raw.subtotalCents]
+    (discountFraction = 0, shippingFeeCents?: number): CartTotals =>
+      computeTotals(
+        raw.items,
+        raw.subtotalCents,
+        discountFraction,
+        shippingFeeCents ?? serviceShippingFee ?? undefined
+      ),
+    [raw.items, raw.subtotalCents, serviceShippingFee]
   );
 
   const refresh = useCallback(() => refreshCart(), []);

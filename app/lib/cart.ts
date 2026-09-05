@@ -4,7 +4,15 @@
 // Cart is per-authenticated-customer only — there is no guest cart yet.
 // Line items key on variant SKU / sku_id; prices are server-sourced.
 
-/** Flat shipping fee (KRW) charged on every order. */
+/**
+ * Flat shipping fee (KRW) used for display before a checkout session exists —
+ * marketing copy and the cart page, which has nothing authoritative to read yet.
+ *
+ * It is NOT the charged amount. The order service owns that
+ * (DUPLI1_ORDER_SHIPPING_FEE_CENTS) and publishes it as `shipping_fee_cents` on
+ * GET /api/v1/orders/settings, and on the checkout session and order. Prefer
+ * those; leaving this constant to stand in is how the two silently drift apart.
+ */
 export const SHIPPING_FEE = 30000;
 
 export class CartAuthRequiredError extends Error {
@@ -236,7 +244,13 @@ export function computeTotals(
   items: CartLine[],
   /** Subtotal in whole KRW won (`subtotal_cents` from the cart service). */
   subtotalCents: number,
-  discountFraction: number
+  discountFraction: number,
+  /**
+   * Delivery charge in whole KRW, from the order service — either the checkout
+   * session's `shipping_fee_cents` or the settings endpoint. Defaults to
+   * SHIPPING_FEE when the service has not answered yet.
+   */
+  shippingFeeCents: number = SHIPPING_FEE
 ): CartTotals {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   // KRW is zero-decimal: *_cents fields are already whole won.
@@ -244,7 +258,9 @@ export function computeTotals(
   const promoApplied = discountFraction > 0 && subtotal > 0;
   const discount = promoApplied ? subtotal * discountFraction : 0;
   const afterDiscount = subtotal - discount;
-  const shipping = itemCount === 0 ? 0 : SHIPPING_FEE;
+  // An empty bag owes nothing to ship — matches the order service, which quotes
+  // a total of 0 for a session with no items rather than a bare delivery charge.
+  const shipping = itemCount === 0 ? 0 : shippingFeeCents;
   const total = afterDiscount + shipping;
 
   return { itemCount, subtotal, shipping, discount, total, promoApplied };
