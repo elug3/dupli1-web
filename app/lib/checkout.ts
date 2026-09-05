@@ -459,6 +459,67 @@ export async function createPayment(
   };
 }
 
+/**
+ * Reads a payment's current state. Used after a PG return to tell a decline
+ * (`failed`) apart from an approval the backend could not verify, which leaves
+ * the payment `requires_payment` even though the card may already be charged.
+ */
+export async function getPayment(paymentId: string): Promise<Payment> {
+  const res = await request(`/api/v1/payments/${encodeURIComponent(paymentId)}`);
+  const raw = (await res.json()) as {
+    id: string;
+    order_id: string;
+    amount_cents: number;
+    status: string;
+    method?: string;
+    checkout_url?: string;
+  };
+  return {
+    id: raw.id,
+    orderId: raw.order_id,
+    amountCents: raw.amount_cents,
+    status: raw.status,
+    method: raw.method ?? "credit_card",
+    checkoutUrl: raw.checkout_url || undefined,
+  };
+}
+
+/**
+ * How a PG return should be treated.
+ *
+ * `declined` — the shopper can safely try again.
+ * `unconfirmed` — the PG approved but the backend rejected the callback, so
+ *   money may already be gone. Never invite a retry here (elug3/dupli1#232).
+ */
+export type PaymentReturnKind = "declined" | "unconfirmed";
+
+/** Reasons dupli1 attaches to the failure redirect for an unverifiable approval. */
+const UNCONFIRMED_REASONS = new Set([
+  "verify_failed",
+  "verification_failed",
+  "invalid_payment",
+  "amount_mismatch",
+]);
+
+/**
+ * Classifies a `?error=` reason on the PG failure redirect. Absent or
+ * unrecognised reasons mean an ordinary decline, which is today's behaviour
+ * while dupli1#232 is unfixed and no reason is sent at all.
+ */
+export function classifyPaymentReturn(reason: string | null | undefined): PaymentReturnKind {
+  const value = reason?.trim().toLowerCase();
+  if (!value) return "declined";
+  return UNCONFIRMED_REASONS.has(value) ? "unconfirmed" : "declined";
+}
+
+/**
+ * A payment the PG sent back as failed but that never reached a terminal state
+ * is the dangerous case: approved upstream, unverified here.
+ */
+export function isUnconfirmedPayment(payment: Payment): boolean {
+  return payment.status === "requires_payment";
+}
+
 export async function getOrder(orderId: string): Promise<Order> {
   const res = await request(`/api/v1/orders/${encodeURIComponent(orderId)}`);
   return mapOrder(await res.json());
