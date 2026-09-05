@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
@@ -8,6 +8,8 @@ import {
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  findResumableOrder,
+  isResumableOrder,
   isValidKRPhone,
   isValidKRPostalCode,
   isValidPCCC,
@@ -213,5 +215,94 @@ describe("buildCheckoutFulfillment", () => {
     });
     expect(fulfillment.shippingAddress.addressLine2).toBeUndefined();
     expect(fulfillment.shippingAddress.pccc).toBeUndefined();
+  });
+});
+
+
+const NOW = 1_700_000_000_000;
+
+function order(overrides: Partial<Parameters<typeof isResumableOrder>[0]> = {}) {
+  return {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "pending",
+    totalCents: 70000,
+    items: [],
+    paymentDueAtMs: NOW + 60_000,
+    ...overrides,
+  };
+}
+
+describe("isResumableOrder", () => {
+  it("accepts a pending order inside its unpaid window", () => {
+    expect(isResumableOrder(order(), NOW)).toBe(true);
+  });
+
+  it("rejects a pending order past its deadline", () => {
+    expect(isResumableOrder(order({ paymentDueAtMs: NOW - 1 }), NOW)).toBe(false);
+  });
+
+  it("rejects orders that are no longer pending", () => {
+    for (const status of ["paid", "canceled", "in_transit", "fulfilled"]) {
+      expect(isResumableOrder(order({ status }), NOW)).toBe(false);
+    }
+  });
+
+  it("trusts pending status when the server sent no deadline", () => {
+    expect(isResumableOrder(order({ paymentDueAtMs: undefined }), NOW)).toBe(true);
+  });
+});
+
+describe("findResumableOrder", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubOrders(orders: unknown[]) {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ orders }),
+    }));
+  }
+
+  it("returns null when nothing is payable", async () => {
+    stubOrders([
+      { id: "a", customer_id: "cust-1", status: "paid", payment_due_at: new Date(NOW + 60_000).toISOString() },
+      { id: "b", customer_id: "cust-1", status: "canceled", payment_due_at: new Date(NOW + 60_000).toISOString() },
+    ]);
+    expect(await findResumableOrder("cust-1", NOW)).toBeNull();
+  });
+
+  it("ignores a pending order whose window already closed", async () => {
+    stubOrders([
+      { id: "stale", customer_id: "cust-1", status: "pending", payment_due_at: new Date(NOW - 1000).toISOString() },
+    ]);
+    expect(await findResumableOrder("cust-1", NOW)).toBeNull();
+  });
+
+  it("picks the order with the latest deadline when several are open", async () => {
+    stubOrders([
+      { id: "older", customer_id: "cust-1", status: "pending", payment_due_at: new Date(NOW + 30_000).toISOString() },
+      { id: "newest", customer_id: "cust-1", status: "pending", payment_due_at: new Date(NOW + 90_000).toISOString() },
+    ]);
+    const found = await findResumableOrder("cust-1", NOW);
+    expect(found?.id).toBe("newest");
+  });
+
+  it("maps payment_due_at and payment_id onto the order", async () => {
+    stubOrders([
+      {
+        id: "ord_9",
+        customer_id: "cust-1",
+        status: "pending",
+        total_cents: 70000,
+        payment_id: "pay_9",
+        payment_due_at: new Date(NOW + 60_000).toISOString(),
+      },
+    ]);
+    const found = await findResumableOrder("cust-1", NOW);
+    expect(found?.paymentDueAtMs).toBe(NOW + 60_000);
+    expect(found?.paymentId).toBe("pay_9");
   });
 });

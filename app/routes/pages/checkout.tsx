@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { LoadingBadge } from "~/components/loading-badge";
 import { canBypassPayment, getMe, type User } from "~/lib/auth";
@@ -12,6 +12,8 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  findResumableOrder,
+  getOrder,
   getPaymentSettings,
   getUnpurchasableCartItems,
   formatKRPhoneInput,
@@ -21,10 +23,17 @@ import {
   isValidPCCC,
   normalizePCCC,
   normalizePostalCode,
+  isResumableOrder,
   replaceSessionItems,
+  type Order,
   type PaymentMethod,
   type PaymentSettings,
 } from "~/lib/checkout";
+import {
+  clearCheckoutDraft,
+  loadCheckoutDraft,
+  saveCheckoutDraft,
+} from "~/lib/checkout-draft";
 import {
   type CustomerAddress,
   type CustomerProfile,
@@ -157,6 +166,19 @@ export default function CheckoutPage() {
     null
   );
   const [saveAddress, setSaveAddress] = useState(false);
+  const [resumeOrder, setResumeOrder] = useState<Order | null>(null);
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [resuming, setResuming] = useState(false);
+  // NANO sends both success and failure back with ?order_id=&payment_id=
+  // (payment handler appendOrderPaymentQuery); failure lands here.
+  const [searchParams] = useSearchParams();
+  const returnedOrderId = searchParams.get("order_id") ?? undefined;
+  const cameBackFromFailedPayment = Boolean(returnedOrderId);
+  const [draftRestored, setDraftRestored] = useState(false);
+  // A ref, not state: the profile fetch resolves inside a closure and must see
+  // the current value without re-running its effect.
+  const draftAppliedRef = useRef(false);
 
   const allowBypass = canBypassPayment(sessionUser);
   // Settings still loading (null) keeps card visible so the step never renders empty.
@@ -204,6 +226,7 @@ export default function CheckoutPage() {
               }
               return next;
             });
+            if (draftAppliedRef.current) return;
             if (defaultAddr) {
               setSelectedAddressId(defaultAddr.id);
             } else {
@@ -213,7 +236,7 @@ export default function CheckoutPage() {
           .catch(() => {
             if (!cancelled) {
               setProfile(null);
-              setSelectedAddressId("new");
+              if (!draftAppliedRef.current) setSelectedAddressId("new");
             }
           });
       })
@@ -234,6 +257,79 @@ export default function CheckoutPage() {
       bypassNote: fallback === "bypass" ? prev.bypassNote : "",
     }));
   }, [paymentSettings, allowBypass, form.paymentMethod]);
+
+  // Look for an order the shopper can still pay. The ?order_id= from a failed
+  // NANO return is only a fast path; the order list is the durable source and
+  // is what makes this survive a closed tab or cleared storage.
+  useEffect(() => {
+    const userId = sessionUser?.user_id;
+    if (!mounted || !userId) return;
+    let cancelled = false;
+
+    async function lookup(customerId: string) {
+      try {
+        const found = returnedOrderId
+          ? await getOrder(returnedOrderId)
+          : await findResumableOrder(customerId);
+        if (cancelled || !found) return;
+        // A returned order belonging to someone else, or already paid, is not
+        // ours to offer — fall through to showing nothing.
+        if (found.customerId !== customerId || !isResumableOrder(found)) return;
+        setResumeOrder(found);
+      } catch {
+        // A failed lookup must never block checkout; the banner just stays off.
+      }
+    }
+
+    lookup(userId);
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, sessionUser, returnedOrderId]);
+
+  // Restore the saved form once, after the session is known so the draft can
+  // be matched to its owner. Runs before any auto-fill from the profile wins.
+  useEffect(() => {
+    const userId = sessionUser?.user_id;
+    if (!mounted || !userId || draftRestored) return;
+    setDraftRestored(true);
+    const draft = loadCheckoutDraft<FormState>(userId);
+    if (!draft) return;
+    draftAppliedRef.current = true;
+    setForm(draft.form);
+    setActiveStep(draft.activeStep as CheckoutStep);
+    setSelectedAddressId(draft.selectedAddressId);
+    setSaveAddress(draft.saveAddress);
+    setPromoInput(draft.promoInput);
+  }, [mounted, sessionUser, draftRestored]);
+
+  // Persist after the restore has run, so an empty initial form never clobbers
+  // a stored draft on the first render.
+  useEffect(() => {
+    const userId = sessionUser?.user_id;
+    if (!mounted || !userId || !draftRestored || submitting) return;
+    const timer = setTimeout(() => {
+      saveCheckoutDraft<FormState>({
+        userId,
+        activeStep,
+        form,
+        selectedAddressId,
+        saveAddress,
+        promoInput,
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [
+    mounted,
+    sessionUser,
+    draftRestored,
+    submitting,
+    activeStep,
+    form,
+    selectedAddressId,
+    saveAddress,
+    promoInput,
+  ]);
 
   useEffect(() => {
     setForm((prev) => ({ ...prev, country: lockedCountry }));
@@ -340,6 +436,43 @@ export default function CheckoutPage() {
   function selectNewAddress() {
     setSelectedAddressId("new");
     setSaveAddress(false);
+  }
+
+  async function handleResumePayment() {
+    if (!resumeOrder) return;
+    setResuming(true);
+    setResumeNotice(null);
+    try {
+      // Always credit_card: bypass settles instantly, so a bypass order is
+      // never left pending long enough to resume. The payment service reuses
+      // the order's open payment, so this returns the same NANO session when
+      // one is live and mints a fresh one after a failure — never a double
+      // charge (verified: two calls both return the same payment id).
+      const payment = await createPayment(resumeOrder.id, "credit_card");
+      if (payment.checkoutUrl && payment.status !== "succeeded") {
+        window.location.assign(payment.checkoutUrl);
+        return;
+      }
+      // Already settled while we were away.
+      navigate("/checkout/confirmation", {
+        state: { orderId: resumeOrder.id, email: form.email },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      // loadPendingOrder rejects a non-pending order; the window has closed.
+      setResumeNotice(
+        /not pending|not found/i.test(message)
+          ? t("checkout.resumeExpired")
+          : t("checkout.resumeLookupFailed")
+      );
+      setResumeOrder(null);
+      setResuming(false);
+    }
+  }
+
+  function handleResumeExpired() {
+    setResumeOrder(null);
+    setResumeNotice(t("checkout.resumeExpired"));
   }
 
   function validateFields(fields: (keyof FormState)[]): keyof FormState | null {
@@ -527,15 +660,21 @@ export default function CheckoutPage() {
         note: form.bypassNote,
       });
 
+      // The order now owns the form contents; a stale draft would only
+      // re-populate a checkout the shopper already finished.
+      clearCheckoutDraft();
+
       if (!payment.checkoutUrl || payment.status === "succeeded") {
+        // Money already taken (bypass), so the bag has served its purpose.
         await clearCart();
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
       } else {
         // NANO: leave Dupli1 for the hosted certified checkout window.
-        // Confirmation polls order status after NANO redirects back.
-        await clearCart();
+        // Deliberately keep the bag until payment is confirmed — abandoning
+        // here must not strand the shopper with an empty bag and an order
+        // that expires in 5 minutes. Confirmation clears it once paid.
         window.location.assign(payment.checkoutUrl);
       }
     } catch (err) {
@@ -561,24 +700,48 @@ export default function CheckoutPage() {
     );
   }
 
+  const resumeBanner =
+    resumeOrder && !resumeDismissed ? (
+      <ResumePaymentBanner
+        order={resumeOrder}
+        failed={cameBackFromFailedPayment}
+        resuming={resuming}
+        onResume={handleResumePayment}
+        onDismiss={() => setResumeDismissed(true)}
+        onExpired={handleResumeExpired}
+      />
+    ) : null;
+
+  const resumeNoticeBanner = resumeNotice ? (
+    <p className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      {resumeNotice}
+    </p>
+  ) : null;
+
   if (items.length === 0) {
     return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4">
-        <p
-          className="text-3xl font-light text-zinc-950"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {t("checkout.nothingToCheckout")}
-        </p>
-        <p className="text-sm text-zinc-400">
-          {t("checkout.emptyBag")}
-        </p>
-        <Link
-          to="/"
-          className="mt-2 inline-flex h-12 items-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
-        >
-          {t("cart.continueShopping")}
-        </Link>
+      <main className="bg-white">
+        <div className="mx-auto max-w-3xl space-y-4 px-4 pt-8 md:px-10">
+          {resumeBanner}
+          {resumeNoticeBanner}
+        </div>
+        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4">
+          <p
+            className="text-3xl font-light text-zinc-950"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {t("checkout.nothingToCheckout")}
+          </p>
+          <p className="text-sm text-zinc-400">
+            {t("checkout.emptyBag")}
+          </p>
+          <Link
+            to="/"
+            className="mt-2 inline-flex h-12 items-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
+          >
+            {t("cart.continueShopping")}
+          </Link>
+        </div>
       </main>
     );
   }
@@ -610,6 +773,13 @@ export default function CheckoutPage() {
             {t("checkout.completeOrder")}
           </h1>
         </div>
+
+        {(resumeBanner || resumeNoticeBanner) && (
+          <div className="mb-8 space-y-4">
+            {resumeBanner}
+            {resumeNoticeBanner}
+          </div>
+        )}
 
         <CheckoutStepper
           activeStep={activeStep}
@@ -1127,6 +1297,101 @@ export default function CheckoutPage() {
       </div>
     </main>
   );
+}
+
+/**
+ * Offers a second run at an order that is `pending` and still inside its
+ * 5-minute unpaid window. Counts down to that deadline and retires itself when
+ * it passes, since the order is canceled and its stock released server-side.
+ */
+function ResumePaymentBanner({
+  order,
+  failed,
+  resuming,
+  onResume,
+  onDismiss,
+  onExpired,
+}: {
+  order: Order;
+  failed: boolean;
+  resuming: boolean;
+  onResume: () => void;
+  onDismiss: () => void;
+  onExpired: () => void;
+}) {
+  const { t, formatCurrency } = useLanguage();
+  const dueAt = order.paymentDueAtMs;
+  const [remainingMs, setRemainingMs] = useState(() =>
+    dueAt === undefined ? null : dueAt - Date.now()
+  );
+
+  useEffect(() => {
+    if (dueAt === undefined) return;
+    // Recompute from the deadline rather than decrementing, so a backgrounded
+    // tab (throttled timers) does not drift.
+    function tick() {
+      const left = dueAt! - Date.now();
+      setRemainingMs(left);
+      if (left <= 0) onExpired();
+    }
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [dueAt, onExpired]);
+
+  if (remainingMs !== null && remainingMs <= 0) return null;
+
+  return (
+    <div
+      role="status"
+      className="border border-[#c8a96e] bg-[#fdfaf4] px-4 py-4 md:px-6"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8a6d33]">
+            {t("checkout.resumeTitle")}
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+            {t(failed ? "checkout.resumeFailedBody" : "checkout.resumeBody", {
+              order: order.id,
+              total: formatCurrency(order.totalCents),
+            })}
+          </p>
+          {remainingMs !== null && (
+            <p className="mt-1 text-[11px] font-medium tabular-nums text-[#8a6d33]">
+              {t("checkout.resumeExpiresIn", { time: formatCountdown(remainingMs) })}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onResume}
+            disabled={resuming}
+            className="flex h-11 items-center justify-center bg-zinc-950 px-6 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
+          >
+            {resuming ? t("checkout.resumeResuming") : t("checkout.resumeAction")}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={resuming}
+            className="flex h-11 items-center justify-center px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 transition hover:text-zinc-950 disabled:opacity-50"
+          >
+            {t("checkout.resumeDismiss")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** mm:ss, floored at zero. */
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function ProductUnavailableDialog({
