@@ -315,6 +315,12 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.resumeExpired":
       "That order's payment window closed and the items were released. Your bag is unchanged, so you can order again.",
     "checkout.resumeLookupFailed": "Could not reopen that payment. Please try again.",
+    "checkout.unconfirmedTitle": "We are confirming your payment",
+    "checkout.unconfirmedBody":
+      "Your card may already have been charged for order {order}, but we could not confirm it automatically. Please do not pay again — we will email you as soon as it is confirmed.",
+    "checkout.unconfirmedContact":
+      "If you do not hear from us shortly, contact support and quote order {order}.",
+    "checkout.unconfirmedViewOrders": "View my orders",
     "checkout.payment": "Payment",
     "checkout.paymentMethod": "Payment method",
     "checkout.methodCreditCard": "Credit card",
@@ -876,6 +882,12 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.resumeExpired":
       "해당 주문의 결제 시간이 만료되어 상품 예약이 해제되었습니다. 장바구니는 그대로이니 다시 주문하실 수 있습니다.",
     "checkout.resumeLookupFailed": "결제를 다시 열 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    "checkout.unconfirmedTitle": "결제를 확인하고 있습니다",
+    "checkout.unconfirmedBody":
+      "주문 {order}에 대해 카드 결제가 이미 완료되었을 수 있으나 자동으로 확인하지 못했습니다. 다시 결제하지 마세요. 확인되는 대로 이메일로 안내드리겠습니다.",
+    "checkout.unconfirmedContact":
+      "잠시 후에도 안내를 받지 못하셨다면 주문번호 {order}와 함께 고객센터로 문의해 주세요.",
+    "checkout.unconfirmedViewOrders": "내 주문 보기",
     "checkout.payment": "결제",
     "checkout.paymentMethod": "결제 수단",
     "checkout.methodCreditCard": "신용카드",
@@ -1425,6 +1437,12 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.resumeExpired":
       "该订单的付款时间已过期，商品预留已释放。您的购物袋未受影响，可以重新下单。",
     "checkout.resumeLookupFailed": "无法重新打开付款，请稍后再试。",
+    "checkout.unconfirmedTitle": "正在确认您的付款",
+    "checkout.unconfirmedBody":
+      "订单 {order} 的银行卡可能已完成扣款，但我们无法自动确认。请勿重复付款，确认后我们会立即通过邮件通知您。",
+    "checkout.unconfirmedContact":
+      "如果稍后仍未收到通知，请联系客服并提供订单号 {order}。",
+    "checkout.unconfirmedViewOrders": "查看我的订单",
     "checkout.payment": "付款",
     "checkout.paymentMethod": "付款方式",
     "checkout.methodCreditCard": "信用卡",

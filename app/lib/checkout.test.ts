@@ -8,7 +8,9 @@ import {
   isCheckoutLineUnpurchasable,
   isLegacyProductIdSku,
   isUnpurchasableVariantError,
+  classifyPaymentReturn,
   findResumableOrder,
+  isUnconfirmedPayment,
   isResumableOrder,
   isValidKRPhone,
   isValidKRPostalCode,
@@ -304,5 +306,51 @@ describe("findResumableOrder", () => {
     const found = await findResumableOrder("cust-1", NOW);
     expect(found?.paymentDueAtMs).toBe(NOW + 60_000);
     expect(found?.paymentId).toBe("pay_9");
+  });
+});
+
+describe("classifyPaymentReturn", () => {
+  it("treats a missing reason as an ordinary decline", () => {
+    // Today's behaviour: dupli1 sends no reason yet (elug3/dupli1#232).
+    for (const value of [null, undefined, "", "   "]) {
+      expect(classifyPaymentReturn(value)).toBe("declined");
+    }
+  });
+
+  it("flags reasons that mean the approval could not be verified", () => {
+    for (const value of [
+      "verify_failed",
+      "verification_failed",
+      "invalid_payment",
+      "amount_mismatch",
+      "  VERIFY_FAILED  ",
+    ]) {
+      expect(classifyPaymentReturn(value)).toBe("unconfirmed");
+    }
+  });
+
+  it("treats an unrecognised reason as a decline rather than alarming the shopper", () => {
+    expect(classifyPaymentReturn("user_cancelled")).toBe("declined");
+    expect(classifyPaymentReturn("something_new")).toBe("declined");
+  });
+});
+
+describe("isUnconfirmedPayment", () => {
+  const payment = (status: string) => ({
+    id: "pay_1",
+    orderId: "ord_1",
+    amountCents: 250000,
+    status,
+    method: "credit_card",
+  });
+
+  it("flags a payment the PG returned on but that never settled", () => {
+    expect(isUnconfirmedPayment(payment("requires_payment"))).toBe(true);
+  });
+
+  it("does not flag a genuine decline or a success", () => {
+    for (const status of ["failed", "succeeded", "canceled", "expired"]) {
+      expect(isUnconfirmedPayment(payment(status))).toBe(false);
+    }
   });
 });

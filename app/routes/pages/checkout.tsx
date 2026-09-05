@@ -12,8 +12,10 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  classifyPaymentReturn,
   findResumableOrder,
   getOrder,
+  getPayment,
   getPaymentSettings,
   getUnpurchasableCartItems,
   formatKRPhoneInput,
@@ -24,6 +26,7 @@ import {
   normalizePCCC,
   normalizePostalCode,
   isResumableOrder,
+  isUnconfirmedPayment,
   replaceSessionItems,
   type Order,
   type PaymentMethod,
@@ -174,7 +177,13 @@ export default function CheckoutPage() {
   // (payment handler appendOrderPaymentQuery); failure lands here.
   const [searchParams] = useSearchParams();
   const returnedOrderId = searchParams.get("order_id") ?? undefined;
+  const returnedPaymentId = searchParams.get("payment_id") ?? undefined;
   const cameBackFromFailedPayment = Boolean(returnedOrderId);
+  // An approval the backend could not verify must never invite a retry: the
+  // card may already be charged (elug3/dupli1#232).
+  const [paymentUnconfirmed, setPaymentUnconfirmed] = useState(
+    () => classifyPaymentReturn(searchParams.get("error")) === "unconfirmed"
+  );
   const [draftRestored, setDraftRestored] = useState(false);
   // A ref, not state: the profile fetch resolves inside a closure and must see
   // the current value without re-running its effect.
@@ -286,6 +295,22 @@ export default function CheckoutPage() {
       cancelled = true;
     };
   }, [mounted, sessionUser, returnedOrderId]);
+
+  useEffect(() => {
+    if (!mounted || !returnedPaymentId || paymentUnconfirmed) return;
+    let cancelled = false;
+    getPayment(returnedPaymentId)
+      .then((payment) => {
+        if (cancelled) return;
+        if (isUnconfirmedPayment(payment)) setPaymentUnconfirmed(true);
+      })
+      .catch(() => {
+        // Unreadable payment: fall back to the ordinary decline wording.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, returnedPaymentId, paymentUnconfirmed]);
 
   // Restore the saved form once, after the session is known so the draft can
   // be matched to its owner. Runs before any auto-fill from the profile wins.
@@ -700,8 +725,13 @@ export default function CheckoutPage() {
     );
   }
 
+  const unconfirmedNotice =
+    paymentUnconfirmed && returnedOrderId ? (
+      <UnconfirmedPaymentNotice orderId={returnedOrderId} />
+    ) : null;
+
   const resumeBanner =
-    resumeOrder && !resumeDismissed ? (
+    resumeOrder && !resumeDismissed && !paymentUnconfirmed ? (
       <ResumePaymentBanner
         order={resumeOrder}
         failed={cameBackFromFailedPayment}
@@ -722,6 +752,7 @@ export default function CheckoutPage() {
     return (
       <main className="bg-white">
         <div className="mx-auto max-w-3xl space-y-4 px-4 pt-8 md:px-10">
+          {unconfirmedNotice}
           {resumeBanner}
           {resumeNoticeBanner}
         </div>
@@ -774,8 +805,9 @@ export default function CheckoutPage() {
           </h1>
         </div>
 
-        {(resumeBanner || resumeNoticeBanner) && (
+        {(unconfirmedNotice || resumeBanner || resumeNoticeBanner) && (
           <div className="mb-8 space-y-4">
+            {unconfirmedNotice}
             {resumeBanner}
             {resumeNoticeBanner}
           </div>
@@ -1296,6 +1328,38 @@ export default function CheckoutPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+/**
+ * Shown when the PG approved a payment that dupli1 could not verify, so the
+ * card may already be charged while the order is still unpaid. Deliberately
+ * offers no way to pay again — see elug3/dupli1#232.
+ */
+function UnconfirmedPaymentNotice({ orderId }: { orderId: string }) {
+  const { t } = useLanguage();
+
+  return (
+    <div
+      role="alert"
+      className="border border-amber-300 bg-amber-50 px-4 py-4 md:px-6"
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800">
+        {t("checkout.unconfirmedTitle")}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-amber-900">
+        {t("checkout.unconfirmedBody", { order: orderId })}
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-amber-700">
+        {t("checkout.unconfirmedContact", { order: orderId })}
+      </p>
+      <Link
+        to="/history"
+        className="mt-4 inline-flex h-11 items-center justify-center border border-amber-400 px-5 text-[10px] font-semibold uppercase tracking-widest text-amber-900 transition hover:bg-amber-100"
+      >
+        {t("checkout.unconfirmedViewOrders")}
+      </Link>
+    </div>
   );
 }
 
