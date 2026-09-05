@@ -133,22 +133,24 @@ export interface Order {
   items: OrderItem[];
 }
 
-export type PaymentMethod = "credit_card" | "bypass" | "dev_simulate";
+/** Dev simulate was removed upstream and merged into bypass (payment-service.md). */
+export type PaymentMethod = "credit_card" | "bypass";
 
 export interface PaymentSettings {
-  devSimulate: boolean;
   methodBypass: boolean;
   methodCreditCard: boolean;
 }
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
+  // Deliberately NOT the session gateway: `/payments/settings` takes no auth
+  // (dupli1 docs/endpoints.md), so the browser hits it like the public catalog
+  // and the production ALB forwards `/api/*` to dupli1-proxy.
   const res = await fetch("/api/v1/payments/settings");
-  if (!res.ok) return { devSimulate: false, methodBypass: false, methodCreditCard: true };
+  if (!res.ok) return { methodBypass: false, methodCreditCard: true };
   const body = (await res.json()) as {
-    features?: { dev_simulate_success?: boolean; method_bypass?: boolean; method_credit_card?: boolean };
+    features?: { method_bypass?: boolean; method_credit_card?: boolean };
   };
   return {
-    devSimulate: body.features?.dev_simulate_success ?? false,
     methodBypass: body.features?.method_bypass ?? false,
     methodCreditCard: body.features?.method_credit_card ?? true,
   };
@@ -160,7 +162,7 @@ export interface Payment {
   amountCents: number;
   status: string;
   method: PaymentMethod | string;
-  /** Present for credit_card local/dev simulate. Omitted for bypass. */
+  /** Present for credit_card (NANO checkout bridge). Omitted for bypass. */
   checkoutUrl?: string;
 }
 
@@ -382,12 +384,9 @@ export async function createPayment(
   method: PaymentMethod = "credit_card",
   options: { note?: string } = {}
 ): Promise<Payment> {
-  // dev_simulate is a frontend-only concept; send credit_card to the backend.
-  const wireMethod: "credit_card" | "bypass" =
-    method === "dev_simulate" ? "credit_card" : method;
-  const body: { order_id: string; method: "credit_card" | "bypass"; note?: string } = {
+  const body: { order_id: string; method: PaymentMethod; note?: string } = {
     order_id: orderId,
-    method: wireMethod,
+    method,
   };
   if (method === "bypass" && options.note?.trim()) {
     body.note = options.note.trim();
@@ -412,11 +411,6 @@ export async function createPayment(
     method: raw.method ?? method,
     checkoutUrl: raw.checkout_url || undefined,
   };
-}
-
-/** Dev-only: marks a payment as succeeded (PAYMENT_ALLOW_DEV_SIMULATE). */
-export async function simulatePaymentSuccess(paymentId: string): Promise<void> {
-  await request(`/api/v1/payments/${encodeURIComponent(paymentId)}/simulate-success`);
 }
 
 export async function getOrder(orderId: string): Promise<Order> {

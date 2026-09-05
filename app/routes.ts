@@ -55,10 +55,6 @@ export default [
   ),
   route("api/v1/payments", "routes/api/v1/payments/index.ts"),
   route("api/v1/payments/:id", "routes/api/v1/payments/$id.ts"),
-  route(
-    "api/v1/payments/:id/simulate-success",
-    "routes/api/v1/payments/$id.simulate-success.ts"
-  ),
   route("api/v1/orders", "routes/api/v1/orders.ts"),
   route("api/v1/orders/:id", "routes/api/v1/orders.$id.ts"),
   // Stock is owned by dupli1-product (standalone inventory service removed).

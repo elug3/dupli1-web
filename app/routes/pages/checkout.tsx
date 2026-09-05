@@ -22,7 +22,6 @@ import {
   normalizePCCC,
   normalizePostalCode,
   replaceSessionItems,
-  simulatePaymentSuccess,
   type PaymentMethod,
   type PaymentSettings,
 } from "~/lib/checkout";
@@ -82,11 +81,12 @@ const initialForm: FormState = {
   bypassNote: "",
 };
 
-const checkoutSteps = ["information", "payment"] as const;
+const checkoutSteps = ["shipping", "payment", "review"] as const;
 type CheckoutStep = (typeof checkoutSteps)[number];
 
+/** Fields each step owns; the review step re-validates the two before it. */
 const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
-  information: [
+  shipping: [
     "email",
     "phone",
     "name",
@@ -96,8 +96,20 @@ const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
     "zip",
     "pccc",
   ],
-  payment: [],
+  payment: ["paymentMethod"],
+  review: [],
 };
+
+const addressFields: (keyof FormState)[] = [
+  "name",
+  "phone",
+  "address",
+  "apartment",
+  "city",
+  "province",
+  "zip",
+  "pccc",
+];
 
 function applyAddressToForm(
   prev: FormState,
@@ -135,15 +147,26 @@ export default function CheckoutPage() {
   const [productUnavailableOpen, setProductUnavailableOpen] = useState(false);
   const [unavailableProducts, setUnavailableProducts] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
-  const [activeStep, setActiveStep] = useState<CheckoutStep>("information");
+  const [activeStep, setActiveStep] = useState<CheckoutStep>("shipping");
   const [sessionUser, setSessionUser] = useState<User | null>(null);
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(
+    null
+  );
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | "new" | null>(
     null
   );
   const [saveAddress, setSaveAddress] = useState(false);
+
   const allowBypass = canBypassPayment(sessionUser);
+  // Settings still loading (null) keeps card visible so the step never renders empty.
+  const paymentMethodOptions: PaymentMethod[] = [];
+  if (!paymentSettings || paymentSettings.methodCreditCard) {
+    paymentMethodOptions.push("credit_card");
+  }
+  if (allowBypass && paymentSettings?.methodBypass) {
+    paymentMethodOptions.push("bypass");
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -152,57 +175,65 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getMe().then((user) => {
-      if (cancelled) return;
-      setSessionUser(user);
-      if (!user) return;
-      setForm((prev) =>
-        prev.email ? prev : { ...prev, email: user.email }
-      );
-      getCustomerProfile()
-        .then((loaded) => {
-          if (cancelled) return;
-          setProfile(loaded);
-          const defaultAddr =
-            loaded.addresses.find((a) => a.id === loaded.defaultAddressId) ??
-            loaded.addresses.find((a) => a.isDefault) ??
-            loaded.addresses[0];
-          setForm((prev) => {
-            let next = { ...prev };
-            if (!prev.name && loaded.displayName) {
-              next.name = loaded.displayName;
+    getMe()
+      .then((user) => {
+        if (cancelled) return;
+        setSessionUser(user);
+        if (!user) return;
+        setForm((prev) =>
+          prev.email ? prev : { ...prev, email: user.email }
+        );
+        getCustomerProfile()
+          .then((loaded) => {
+            if (cancelled) return;
+            setProfile(loaded);
+            const defaultAddr =
+              loaded.addresses.find((a) => a.id === loaded.defaultAddressId) ??
+              loaded.addresses.find((a) => a.isDefault) ??
+              loaded.addresses[0];
+            setForm((prev) => {
+              let next = { ...prev };
+              if (!prev.name && loaded.displayName) {
+                next.name = loaded.displayName;
+              }
+              if (!prev.phone && loaded.phone) {
+                next.phone = loaded.phone;
+              }
+              if (defaultAddr && !prev.address) {
+                next = applyAddressToForm(next, defaultAddr);
+              }
+              return next;
+            });
+            if (defaultAddr) {
+              setSelectedAddressId(defaultAddr.id);
+            } else {
+              setSelectedAddressId("new");
             }
-            if (!prev.phone && loaded.phone) {
-              next.phone = loaded.phone;
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setProfile(null);
+              setSelectedAddressId("new");
             }
-            if (defaultAddr && !prev.address) {
-              next = applyAddressToForm(next, defaultAddr);
-            }
-            return next;
           });
-          if (defaultAddr) {
-            setSelectedAddressId(defaultAddr.id);
-          } else {
-            setSelectedAddressId("new");
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setProfile(null);
-            setSelectedAddressId("new");
-          }
-        });
-    });
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // Snap off a method the backend (or this user's permissions) does not offer.
   useEffect(() => {
-    if (!allowBypass && form.paymentMethod === "bypass") {
-      setForm((prev) => ({ ...prev, paymentMethod: "credit_card", bypassNote: "" }));
-    }
-  }, [allowBypass, form.paymentMethod]);
+    if (!paymentSettings) return;
+    if (paymentMethodOptions.includes(form.paymentMethod)) return;
+    const fallback = paymentMethodOptions[0] ?? "credit_card";
+    setForm((prev) => ({
+      ...prev,
+      paymentMethod: fallback,
+      bypassNote: fallback === "bypass" ? prev.bypassNote : "",
+    }));
+  }, [paymentSettings, allowBypass, form.paymentMethod]);
 
   useEffect(() => {
     setForm((prev) => ({ ...prev, country: lockedCountry }));
@@ -241,6 +272,28 @@ export default function CheckoutPage() {
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
 
+  const activeStepIndex = checkoutSteps.indexOf(activeStep);
+  const nextStep = checkoutSteps[activeStepIndex + 1];
+  const previousStep = checkoutSteps[activeStepIndex - 1];
+  const isReviewStep = activeStep === "review";
+  const stepLabels: Record<CheckoutStep, string> = {
+    shipping: t("checkout.stepShipping"),
+    payment: t("checkout.stepPayment"),
+    review: t("checkout.stepReview"),
+  };
+  const paymentMethodLabels: Record<PaymentMethod, string> = {
+    credit_card: t("checkout.methodCreditCard"),
+    bypass: t("checkout.methodBypass"),
+  };
+  const primaryActionLabel =
+    activeStep === "shipping"
+      ? t("checkout.continueToPayment")
+      : activeStep === "payment"
+        ? t("checkout.continueToReview")
+        : t("checkout.placeOrderWithTotal", {
+            total: formatCurrency(checkoutTotal),
+          });
+
   async function applyPromo() {
     const code = promoInput.trim();
     if (!code) return;
@@ -262,14 +315,7 @@ export default function CheckoutPage() {
     if (
       selectedAddressId &&
       selectedAddressId !== "new" &&
-      (key === "name" ||
-        key === "phone" ||
-        key === "address" ||
-        key === "apartment" ||
-        key === "city" ||
-        key === "province" ||
-        key === "zip" ||
-        key === "pccc")
+      addressFields.includes(key)
     ) {
       setSelectedAddressId("new");
       setSaveAddress(false);
@@ -287,14 +333,7 @@ export default function CheckoutPage() {
     setForm((prev) => applyAddressToForm(prev, address));
     setErrors((prev) => ({
       ...prev,
-      name: undefined,
-      phone: undefined,
-      address: undefined,
-      apartment: undefined,
-      city: undefined,
-      province: undefined,
-      zip: undefined,
-      pccc: undefined,
+      ...Object.fromEntries(addressFields.map((field) => [field, undefined])),
     }));
   }
 
@@ -302,21 +341,6 @@ export default function CheckoutPage() {
     setSelectedAddressId("new");
     setSaveAddress(false);
   }
-
-  const activeStepIndex = checkoutSteps.indexOf(activeStep);
-  const isPaymentStep = activeStep === "payment";
-  const nextStep = checkoutSteps[activeStepIndex + 1];
-  const previousStep = checkoutSteps[activeStepIndex - 1];
-  const stepLabels: Record<CheckoutStep, string> = {
-    information: t("checkout.stepInformation"),
-    payment: t("checkout.stepPayment"),
-  };
-  const primaryActionLabel =
-    activeStep === "information"
-      ? t("checkout.continueToPayment")
-      : t("checkout.placeOrderWithTotal", {
-          total: formatCurrency(checkoutTotal),
-        });
 
   function validateFields(fields: (keyof FormState)[]): keyof FormState | null {
     const next: Partial<Record<keyof FormState, string>> = {};
@@ -349,6 +373,14 @@ export default function CheckoutPage() {
       firstInvalidField ??= "pccc";
     }
 
+    if (
+      fields.includes("paymentMethod") &&
+      !paymentMethodOptions.includes(form.paymentMethod)
+    ) {
+      next.paymentMethod = t("checkout.paymentUnavailable");
+      firstInvalidField ??= "paymentMethod";
+    }
+
     setErrors((prev) => ({
       ...prev,
       ...Object.fromEntries(fields.map((field) => [field, undefined])),
@@ -370,6 +402,14 @@ export default function CheckoutPage() {
     });
   }
 
+  function goToStep(step: CheckoutStep) {
+    setCheckoutError(null);
+    setActiveStep(step);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
   function handleNextStep() {
     if (!nextStep) return;
     const firstInvalidField = validateStep(activeStep);
@@ -377,16 +417,16 @@ export default function CheckoutPage() {
       scrollToField(firstInvalidField);
       return;
     }
-    setActiveStep(nextStep);
+    goToStep(nextStep);
   }
 
   function handlePreviousStep() {
-    if (previousStep) setActiveStep(previousStep);
+    if (previousStep) goToStep(previousStep);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isPaymentStep) {
+    if (!isReviewStep) {
       handleNextStep();
       return;
     }
@@ -394,12 +434,17 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setCheckoutError(null);
     try {
-      const firstInvalidField = validateStep("information");
-      if (firstInvalidField) {
-        setActiveStep("information");
-        scrollToField(firstInvalidField);
-        setSubmitting(false);
-        return;
+      // Review shows a read-only copy of both earlier steps; re-check them so a
+      // method that disappeared (or a cleared field) cannot reach the gateway.
+      for (const step of ["shipping", "payment"] as const) {
+        const firstInvalidField = validateStep(step);
+        if (firstInvalidField) {
+          // Not goToStep: that scrolls to top, which would fight scrollToField.
+          setActiveStep(step);
+          scrollToField(firstInvalidField);
+          setSubmitting(false);
+          return;
+        }
       }
 
       const user = await getMe();
@@ -487,18 +532,8 @@ export default function CheckoutPage() {
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
-      } else if (
-        form.paymentMethod === "dev_simulate" ||
-        payment.checkoutUrl.includes("/simulate-success")
-      ) {
-        // Local/dev: PAYMENT_ALLOW_DEV_SIMULATE — complete without a card PG.
-        await simulatePaymentSuccess(payment.id);
-        await clearCart();
-        navigate("/checkout/confirmation", {
-          state: { orderId: order.id, email: form.email },
-        });
       } else {
-        // NANO (or other PG): leave Dupli1 for hosted certified checkout.
+        // NANO: leave Dupli1 for the hosted certified checkout window.
         // Confirmation polls order status after NANO redirects back.
         await clearCart();
         window.location.assign(payment.checkoutUrl);
@@ -580,6 +615,7 @@ export default function CheckoutPage() {
           activeStep={activeStep}
           labels={stepLabels}
           steps={checkoutSteps}
+          onSelect={goToStep}
         />
 
         <form
@@ -587,9 +623,9 @@ export default function CheckoutPage() {
           className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16"
         >
           <div className="space-y-8">
-            {activeStep === "information" && (
-              <div className="space-y-10">
-                <CheckoutSection step="01" title={t("checkout.contact")}>
+            {activeStep === "shipping" && (
+              <CheckoutSection step="01" title={t("checkout.stepShipping")}>
+                <FieldGroup title={t("checkout.contact")}>
                   <Field
                     label={t("checkout.email")}
                     id="email"
@@ -613,9 +649,9 @@ export default function CheckoutPage() {
                     placeholder="010-1234-5678"
                     required
                   />
-                </CheckoutSection>
+                </FieldGroup>
 
-                <CheckoutSection step="02" title={t("checkout.shipping")}>
+                <FieldGroup title={t("checkout.shipping")} divided>
                   {savedAddresses.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">
@@ -796,14 +832,20 @@ export default function CheckoutPage() {
                       {t("checkout.manageAddresses")}
                     </Link>
                   </p>
-                </CheckoutSection>
-              </div>
+                </FieldGroup>
+              </CheckoutSection>
             )}
 
             {activeStep === "payment" && (
-              <CheckoutSection step="02" title={t("checkout.payment")}>
-                <div className="space-y-3" role="radiogroup" aria-label={t("checkout.paymentMethod")}>
-                  {paymentSettings?.methodCreditCard !== false && (
+              <CheckoutSection step="02" title={t("checkout.stepPayment")}>
+                <div
+                  id="paymentMethod"
+                  tabIndex={-1}
+                  className="space-y-3 scroll-mt-32 outline-none"
+                  role="radiogroup"
+                  aria-label={t("checkout.paymentMethod")}
+                >
+                  {paymentMethodOptions.includes("credit_card") && (
                     <PaymentMethodOption
                       name="paymentMethod"
                       value="credit_card"
@@ -814,18 +856,7 @@ export default function CheckoutPage() {
                       onChange={() => updateField("paymentMethod", "credit_card")}
                     />
                   )}
-                  {paymentSettings?.devSimulate && (
-                    <PaymentMethodOption
-                      name="paymentMethod"
-                      value="dev_simulate"
-                      checked={form.paymentMethod === "dev_simulate"}
-                      title="Dev Simulate"
-                      subtitle="Instantly mark payment as succeeded (dev only)"
-                      badge="DEV"
-                      onChange={() => updateField("paymentMethod", "dev_simulate")}
-                    />
-                  )}
-                  {allowBypass && paymentSettings?.methodBypass && (
+                  {paymentMethodOptions.includes("bypass") && (
                     <PaymentMethodOption
                       name="paymentMethod"
                       value="bypass"
@@ -836,37 +867,143 @@ export default function CheckoutPage() {
                       onChange={() => updateField("paymentMethod", "bypass")}
                     />
                   )}
+                  {paymentMethodOptions.length === 0 && (
+                    <p className="border border-zinc-200 bg-zinc-50/50 px-4 py-4 text-sm text-zinc-500">
+                      {t("checkout.paymentUnavailable")}
+                    </p>
+                  )}
                 </div>
-                {allowBypass && form.paymentMethod === "bypass" && (
-                  <div>
-                    <label
-                      htmlFor="bypassNote"
-                      className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
-                    >
-                      {t("checkout.bypassNote")}
-                    </label>
-                    <input
-                      id="bypassNote"
-                      type="text"
-                      value={form.bypassNote}
-                      onChange={(e) => updateField("bypassNote", e.target.value)}
-                      placeholder={t("checkout.bypassNotePlaceholder")}
-                      maxLength={200}
-                      className="h-12 w-full border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
-                    />
-                  </div>
+                {errors.paymentMethod && (
+                  <p className="text-[11px] text-red-600">{errors.paymentMethod}</p>
+                )}
+                {form.paymentMethod === "bypass" && (
+                  <Field
+                    label={t("checkout.bypassNote")}
+                    id="bypassNote"
+                    value={form.bypassNote}
+                    onChange={(v) => updateField("bypassNote", v)}
+                    placeholder={t("checkout.bypassNotePlaceholder")}
+                    maxLength={200}
+                  />
                 )}
                 <p className="text-sm leading-relaxed text-zinc-500">
                   {form.paymentMethod === "bypass"
                     ? t("checkout.bypassNoteHelp")
                     : t("checkout.paymentNote")}
                 </p>
-                {checkoutError && (
-                  <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
-                    {checkoutError}
-                  </p>
-                )}
               </CheckoutSection>
+            )}
+
+            {activeStep === "review" && (
+              <CheckoutSection step="03" title={t("checkout.stepReview")}>
+                <p className="text-sm leading-relaxed text-zinc-500">
+                  {t("checkout.reviewNote")}
+                </p>
+
+                <ReviewBlock
+                  title={t("checkout.contact")}
+                  onEdit={() => goToStep("shipping")}
+                >
+                  <p>{form.email}</p>
+                  <p>{form.phone}</p>
+                </ReviewBlock>
+
+                <ReviewBlock
+                  title={t("checkout.stepShipping")}
+                  onEdit={() => goToStep("shipping")}
+                >
+                  <p className="font-medium text-zinc-950">{form.name}</p>
+                  <p>
+                    ({form.zip}) {form.province} {form.city} {form.address}
+                    {form.apartment ? ` ${form.apartment}` : ""}
+                  </p>
+                  <p>{form.country}</p>
+                  <p className="text-zinc-400">
+                    {t("checkout.pccc")}: {form.pccc}
+                  </p>
+                </ReviewBlock>
+
+                <ReviewBlock
+                  title={t("checkout.paymentMethod")}
+                  onEdit={() => goToStep("payment")}
+                >
+                  <p className="font-medium text-zinc-950">
+                    {paymentMethodLabels[form.paymentMethod]}
+                  </p>
+                  {form.paymentMethod === "bypass" && form.bypassNote.trim() && (
+                    <p className="text-zinc-400">{form.bypassNote}</p>
+                  )}
+                </ReviewBlock>
+
+                <ReviewBlock
+                  title={t("checkout.reviewItems", { count: items.length })}
+                  onEdit={() => navigate("/cart")}
+                >
+                  <ul className="space-y-3">
+                    {items.map((item) => (
+                      <li
+                        key={item.skuId ?? item.sku}
+                        className="flex items-center gap-3"
+                      >
+                        <div className="h-14 w-11 shrink-0 overflow-hidden bg-zinc-50">
+                          <img
+                            src={item.image}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-zinc-950">
+                            {translateProductName(item.productId, item.name)}
+                          </p>
+                          <p className="text-[11px] text-zinc-400">
+                            {t("checkout.reviewQuantity", { count: item.quantity })}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-medium text-zinc-950">
+                          {formatCurrency(item.price * item.quantity)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <dl className="mt-4 space-y-2 border-t border-zinc-200 pt-4">
+                    <div className="flex justify-between">
+                      <dt>{t("cart.subtotal")}</dt>
+                      <dd className="text-zinc-950">
+                        {formatCurrency(summary.subtotal)}
+                      </dd>
+                    </div>
+                    {summary.promoApplied && coupon && (
+                      <div className="flex justify-between text-emerald-700">
+                        <dt>{t("cart.promo", { code: coupon.code })}</dt>
+                        <dd>−{formatCurrency(summary.discount)}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <dt>{t("cart.shipping")}</dt>
+                      <dd className="text-zinc-950">
+                        {summary.shipping === 0
+                          ? t("cart.complimentary")
+                          : formatCurrency(summary.shipping)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between border-t border-zinc-200 pt-2 text-base">
+                      <dt className="font-semibold uppercase tracking-widest text-zinc-950">
+                        {t("cart.total")}
+                      </dt>
+                      <dd className="text-lg font-semibold text-zinc-950">
+                        {formatCurrency(checkoutTotal)}
+                      </dd>
+                    </div>
+                  </dl>
+                </ReviewBlock>
+              </CheckoutSection>
+            )}
+
+            {checkoutError && (
+              <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                {checkoutError}
+              </p>
             )}
 
             <div className="lg:hidden">
@@ -885,7 +1022,7 @@ export default function CheckoutPage() {
               ) : (
                 <span />
               )}
-              {isPaymentStep ? (
+              {isReviewStep ? (
                 <button
                   type="submit"
                   disabled={submitting || cartBusy}
@@ -957,7 +1094,7 @@ export default function CheckoutPage() {
             />
 
             <div className="mt-4 space-y-3">
-              {isPaymentStep ? (
+              {isReviewStep ? (
                 <button
                   type="submit"
                   disabled={submitting || cartBusy}
@@ -1093,10 +1230,12 @@ function CheckoutStepper({
   activeStep,
   labels,
   steps,
+  onSelect,
 }: {
   activeStep: CheckoutStep;
   labels: Record<CheckoutStep, string>;
   steps: readonly CheckoutStep[];
+  onSelect: (step: CheckoutStep) => void;
 }) {
   const { t } = useLanguage();
   const activeIndex = steps.indexOf(activeStep);
@@ -1105,38 +1244,51 @@ function CheckoutStepper({
     <ol className="mb-10 grid gap-3 border-y border-zinc-100 py-4 md:mb-12 md:grid-cols-3">
       {steps.map((step, index) => {
         const isActive = step === activeStep;
+        // Only completed steps are clickable; moving forward has to validate.
         const isComplete = index < activeIndex;
 
         return (
-          <li key={step} className="flex items-center gap-3">
-            <span
-              className={[
-                "flex size-8 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
-                isActive
-                  ? "border-zinc-950 bg-zinc-950 text-white"
-                  : isComplete
-                    ? "border-[#c8a96e] bg-[#c8a96e] text-white"
-                    : "border-zinc-200 text-zinc-300",
-              ].join(" ")}
+          <li key={step}>
+            <button
+              type="button"
+              onClick={() => onSelect(step)}
+              disabled={!isComplete}
+              aria-current={isActive ? "step" : undefined}
+              className="flex w-full items-center gap-3 text-left enabled:cursor-pointer disabled:cursor-default"
             >
-              {isComplete ? <CheckIcon /> : String(index + 1).padStart(2, "0")}
-            </span>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
-                {t("checkout.stepCount", {
-                  current: index + 1,
-                  total: steps.length,
-                })}
-              </p>
-              <p
+              <span
                 className={[
-                  "text-sm font-medium",
-                  isActive ? "text-zinc-950" : "text-zinc-400",
+                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
+                  isActive
+                    ? "border-zinc-950 bg-zinc-950 text-white"
+                    : isComplete
+                      ? "border-[#c8a96e] bg-[#c8a96e] text-white"
+                      : "border-zinc-200 text-zinc-300",
                 ].join(" ")}
               >
-                {labels[step]}
-              </p>
-            </div>
+                {isComplete ? <CheckIcon /> : String(index + 1).padStart(2, "0")}
+              </span>
+              <span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
+                  {t("checkout.stepCount", {
+                    current: index + 1,
+                    total: steps.length,
+                  })}
+                </span>
+                <span
+                  className={[
+                    "block text-sm font-medium",
+                    isActive
+                      ? "text-zinc-950"
+                      : isComplete
+                        ? "text-zinc-500 hover:text-zinc-950"
+                        : "text-zinc-400",
+                  ].join(" ")}
+                >
+                  {labels[step]}
+                </span>
+              </span>
+            </button>
           </li>
         );
       })}
@@ -1168,6 +1320,57 @@ function CheckoutSection({
       </div>
       <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+/** Sub-group inside a step, e.g. Contact vs Shipping within step 01. */
+function FieldGroup({
+  title,
+  children,
+  divided = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  divided?: boolean;
+}) {
+  return (
+    <div className={divided ? "space-y-4 border-t border-zinc-100 pt-8" : "space-y-4"}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function ReviewBlock({
+  title,
+  onEdit,
+  children,
+}: {
+  title: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <div className="border border-zinc-100 bg-zinc-50/50 p-4 md:p-6">
+      <div className="mb-3 flex items-baseline justify-between gap-4">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-950">
+          {title}
+        </h3>
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={t("checkout.editSection", { section: title })}
+          className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 underline underline-offset-2 transition hover:text-zinc-950"
+        >
+          {t("checkout.edit")}
+        </button>
+      </div>
+      <div className="space-y-1 text-sm text-zinc-600">{children}</div>
+    </div>
   );
 }
 
@@ -1325,7 +1528,7 @@ function PaymentMethodOption({
   return (
     <label
       className={[
-        "flex items-center justify-between border px-4 py-4 transition",
+        "flex items-center justify-between gap-4 border px-4 py-4 transition",
         disabled
           ? "cursor-not-allowed border-zinc-100 bg-zinc-50/50 opacity-60"
           : checked
@@ -1348,7 +1551,7 @@ function PaymentMethodOption({
           <p className="text-[11px] text-zinc-400">{subtitle}</p>
         </div>
       </div>
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
         {badge}
       </span>
     </label>
