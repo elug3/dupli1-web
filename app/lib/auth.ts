@@ -1,3 +1,5 @@
+import { resetCart } from "./cart";
+
 export type AccountType = "customer" | "manager" | "service" | "admin";
 
 /**
@@ -116,6 +118,9 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
 export async function login(email: string, password: string): Promise<void> {
   const res = await post(SESSION_LOGIN, { email, password });
   if (!res.ok) throw new Error(await errorMessage(res, "Login failed"));
+  // The cart store outlives client-side navigation: without this the `guest`
+  // status cached while signed out survives, and /checkout redirects back here.
+  resetCart();
 }
 
 export async function register(
@@ -124,6 +129,8 @@ export async function register(
 ): Promise<void> {
   const res = await post(SESSION_REGISTER, { email, password });
   if (!res.ok) throw new Error(await errorMessage(res, "Registration failed"));
+  // Register also establishes the session cookie, so it changes sessions too.
+  resetCart();
 }
 
 /** Authenticated API calls go through the cookie session gateway, which
@@ -149,4 +156,6 @@ export async function authedFetch(
 
 export async function logout(): Promise<void> {
   await post(SESSION_LOGOUT, {}).catch(() => {});
+  // Never leave the previous customer's lines on screen for the next session.
+  resetCart();
 }
