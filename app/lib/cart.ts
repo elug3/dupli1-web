@@ -155,6 +155,17 @@ async function applyCartResponse(res: Response): Promise<void> {
   });
 }
 
+/**
+ * Drop cached cart state back to `idle` so the next `useCart` mount refetches.
+ *
+ * The store is a module singleton that outlives client-side navigation, so a
+ * `guest` status set while signed out would otherwise stick after login and
+ * bounce /checkout straight back to /login. Call on every session change.
+ */
+export function resetCart(): void {
+  setState({ status: "idle", items: [], subtotalCents: 0 });
+}
+
 export async function refreshCart(): Promise<void> {
   setState({ ...state, status: "loading" });
   try {
