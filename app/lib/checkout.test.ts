@@ -343,6 +343,9 @@ describe("classifyPaymentReturn", () => {
     expect(classifyPaymentReturn("amount_mismatch")).toBe("unconfirmed");
     expect(classifyPaymentReturn("declined")).toBe("declined");
     expect(classifyPaymentReturn("invalid_payload")).toBe("declined");
+    // checkout_failed happens before the card window opens — nothing was charged,
+    // so the shopper can safely try again (payment nanoReturnCheckoutFailed).
+    expect(classifyPaymentReturn("checkout_failed")).toBe("declined");
   });
 });
 
