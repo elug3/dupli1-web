@@ -10,6 +10,7 @@ import {
   isUnpurchasableVariantError,
   classifyPaymentReturn,
   findResumableOrder,
+  blocksNewCheckoutOrder,
   isUnconfirmedPayment,
   isResumableOrder,
   isValidKRPhone,
@@ -410,5 +411,43 @@ describe("isUnconfirmedPayment", () => {
     for (const status of ["failed", "succeeded", "canceled", "expired"]) {
       expect(isUnconfirmedPayment(payment(status))).toBe(false);
     }
+  });
+});
+
+describe("blocksNewCheckoutOrder", () => {
+  const pendingOrder = {
+    id: "ord_1",
+    customerId: "cust_1",
+    status: "pending" as const,
+    totalCents: 250000,
+    items: [],
+    paymentDueAtMs: Date.now() + 60_000,
+  };
+
+  it("blocks when payment is unconfirmed", () => {
+    expect(
+      blocksNewCheckoutOrder({ paymentUnconfirmed: true, resumeOrder: null })
+    ).toBe(true);
+  });
+
+  it("blocks when a resumable pending order exists", () => {
+    expect(
+      blocksNewCheckoutOrder({
+        paymentUnconfirmed: false,
+        resumeOrder: pendingOrder,
+      })
+    ).toBe(true);
+  });
+
+  it("allows a new order when nothing is blocking", () => {
+    expect(
+      blocksNewCheckoutOrder({ paymentUnconfirmed: false, resumeOrder: null })
+    ).toBe(false);
+    expect(
+      blocksNewCheckoutOrder({
+        paymentUnconfirmed: false,
+        resumeOrder: { ...pendingOrder, paymentDueAtMs: Date.now() - 1 },
+      })
+    ).toBe(false);
   });
 });
