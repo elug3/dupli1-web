@@ -320,6 +320,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Your card may already have been charged for order {order}, but we could not confirm it automatically. Please do not pay again — we will email you as soon as it is confirmed.",
     "checkout.unconfirmedContact":
       "If you do not hear from us shortly, contact support and quote order {order}.",
+    "checkout.unconfirmedBodyPayment":
+      "Your card may already have been charged for payment {ref}, but we could not confirm it automatically. Please do not pay again — we will email you as soon as it is confirmed.",
+    "checkout.unconfirmedContactPayment":
+      "If you do not hear from us shortly, contact support and quote payment {ref}.",
+    "checkout.unconfirmedBodyNoRef":
+      "Your card may already have been charged, but we could not confirm it automatically. Please do not pay again — we will email you as soon as it is confirmed.",
+    "checkout.unconfirmedContactNoRef":
+      "If you do not hear from us shortly, contact support with the time of your payment attempt.",
     "checkout.unconfirmedViewOrders": "View my orders",
     "checkout.payment": "Payment",
     "checkout.paymentMethod": "Payment method",
@@ -887,6 +895,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "주문 {order}에 대해 카드 결제가 이미 완료되었을 수 있으나 자동으로 확인하지 못했습니다. 다시 결제하지 마세요. 확인되는 대로 이메일로 안내드리겠습니다.",
     "checkout.unconfirmedContact":
       "잠시 후에도 안내를 받지 못하셨다면 주문번호 {order}와 함께 고객센터로 문의해 주세요.",
+    "checkout.unconfirmedBodyPayment":
+      "결제 {ref}에 대해 카드 결제가 이미 완료되었을 수 있으나 자동으로 확인하지 못했습니다. 다시 결제하지 마세요. 확인되는 대로 이메일로 안내드리겠습니다.",
+    "checkout.unconfirmedContactPayment":
+      "잠시 후에도 안내를 받지 못하셨다면 결제번호 {ref}와 함께 고객센터로 문의해 주세요.",
+    "checkout.unconfirmedBodyNoRef":
+      "카드 결제가 이미 완료되었을 수 있으나 자동으로 확인하지 못했습니다. 다시 결제하지 마세요. 확인되는 대로 이메일로 안내드리겠습니다.",
+    "checkout.unconfirmedContactNoRef":
+      "잠시 후에도 안내를 받지 못하셨다면 결제를 시도한 시각과 함께 고객센터로 문의해 주세요.",
     "checkout.unconfirmedViewOrders": "내 주문 보기",
     "checkout.payment": "결제",
     "checkout.paymentMethod": "결제 수단",
@@ -1442,6 +1458,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "订单 {order} 的银行卡可能已完成扣款，但我们无法自动确认。请勿重复付款，确认后我们会立即通过邮件通知您。",
     "checkout.unconfirmedContact":
       "如果稍后仍未收到通知，请联系客服并提供订单号 {order}。",
+    "checkout.unconfirmedBodyPayment":
+      "付款 {ref} 的银行卡可能已完成扣款，但我们无法自动确认。请勿重复付款，确认后我们会立即通过邮件通知您。",
+    "checkout.unconfirmedContactPayment":
+      "如果稍后仍未收到通知，请联系客服并提供付款号 {ref}。",
+    "checkout.unconfirmedBodyNoRef":
+      "您的银行卡可能已完成扣款，但我们无法自动确认。请勿重复付款，确认后我们会立即通过邮件通知您。",
+    "checkout.unconfirmedContactNoRef":
+      "如果稍后仍未收到通知，请联系客服并提供您尝试付款的时间。",
     "checkout.unconfirmedViewOrders": "查看我的订单",
     "checkout.payment": "付款",
     "checkout.paymentMethod": "付款方式",

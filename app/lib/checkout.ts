@@ -502,9 +502,11 @@ const UNCONFIRMED_REASONS = new Set([
 ]);
 
 /**
- * Classifies a `?error=` reason on the PG failure redirect. Absent or
- * unrecognised reasons mean an ordinary decline, which is today's behaviour
- * while dupli1#232 is unfixed and no reason is sent at all.
+ * Classifies a `?error=` reason on the PG failure redirect.
+ *
+ * dupli1 attaches a reason on every failure path (payment nanoReturnReason), so
+ * an absent or unrecognised one means we cannot show a charge was approved —
+ * treat it as an ordinary decline rather than alarming the shopper.
  */
 export function classifyPaymentReturn(reason: string | null | undefined): PaymentReturnKind {
   const value = reason?.trim().toLowerCase();
@@ -518,6 +520,49 @@ export function classifyPaymentReturn(reason: string | null | undefined): Paymen
  */
 export function isUnconfirmedPayment(payment: Payment): boolean {
   return payment.status === "requires_payment";
+}
+
+/**
+ * How the unconfirmed-payment notice should identify the attempt to the shopper.
+ *
+ * `order` is what support wants quoted; `payment` is the fallback when the PG
+ * return could not be tied to an order at all.
+ */
+export type PaymentReference =
+  | { kind: "order"; value: string }
+  | { kind: "payment"; value: string }
+  | null;
+
+function firstNonEmpty(...values: (string | undefined)[]): string | undefined {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+/**
+ * Picks the reference the unconfirmed-payment warning should quote.
+ *
+ * dupli1 omits `order_id` from the failure redirect whenever it could not tie
+ * the callback to a payment row — `unknown_payment`, `shop_mismatch` and
+ * `lookup_failed` all reject with a nil payment (payment/pkg/service/nano_callback.go),
+ * and `appendNanoReturnQuery` drops empty values rather than blanking them.
+ * That is precisely when a charge is most likely to be stranded, so the warning
+ * must never be conditional on having an order id: fall through to the order we
+ * independently found, then to the payment id, and show the notice with no
+ * reference at all rather than staying silent.
+ */
+export function resolvePaymentReference(input: {
+  returnedOrderId?: string;
+  resumableOrderId?: string;
+  returnedPaymentId?: string;
+}): PaymentReference {
+  const orderId = firstNonEmpty(input.returnedOrderId, input.resumableOrderId);
+  if (orderId) return { kind: "order", value: orderId };
+  const paymentId = firstNonEmpty(input.returnedPaymentId);
+  if (paymentId) return { kind: "payment", value: paymentId };
+  return null;
 }
 
 export async function getOrder(orderId: string): Promise<Order> {
