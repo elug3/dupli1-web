@@ -6,6 +6,7 @@ import { canBypassPayment, getMe, type User } from "~/lib/auth";
 import { clearCart, redeemCoupon, type RedeemedCoupon } from "~/lib/cart";
 import {
   applySessionCoupon,
+  blocksNewCheckoutOrder,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
@@ -595,6 +596,16 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setCheckoutError(null);
     try {
+      if (blocksNewCheckoutOrder({ paymentUnconfirmed, resumeOrder })) {
+        setCheckoutError(
+          paymentUnconfirmed
+            ? t("checkout.unconfirmedTitle")
+            : t("checkout.resumeTitle")
+        );
+        setSubmitting(false);
+        return;
+      }
+
       // Review shows a read-only copy of both earlier steps; re-check them so a
       // method that disappeared (or a cleared field) cannot reach the gateway.
       for (const step of ["shipping", "payment"] as const) {

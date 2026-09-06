@@ -585,6 +585,16 @@ export function isResumableOrder(order: Order, nowMs: number = Date.now()): bool
   return order.paymentDueAtMs > nowMs;
 }
 
+/** Whether placing a brand-new order must be blocked to avoid double charges. */
+export function blocksNewCheckoutOrder(opts: {
+  paymentUnconfirmed: boolean;
+  resumeOrder: Order | null;
+  nowMs?: number;
+}): boolean {
+  if (opts.paymentUnconfirmed) return true;
+  return opts.resumeOrder !== null && isResumableOrder(opts.resumeOrder, opts.nowMs);
+}
+
 /**
  * The order a returning shopper should be offered a chance to pay.
  *
