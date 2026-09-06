@@ -28,8 +28,10 @@ import {
   isResumableOrder,
   isUnconfirmedPayment,
   replaceSessionItems,
+  resolvePaymentReference,
   type Order,
   type PaymentMethod,
+  type PaymentReference,
   type PaymentSettings,
 } from "~/lib/checkout";
 import {
@@ -173,8 +175,9 @@ export default function CheckoutPage() {
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [resumeNotice, setResumeNotice] = useState<string | null>(null);
   const [resuming, setResuming] = useState(false);
-  // NANO sends both success and failure back with ?order_id=&payment_id=
-  // (payment handler appendOrderPaymentQuery); failure lands here.
+  // NANO returns land back here through dupli1's payment handler
+  // (appendNanoReturnQuery), which carries ?order_id=&payment_id=&error= and
+  // omits any of the three it could not fill rather than sending it blank.
   const [searchParams] = useSearchParams();
   const returnedOrderId = searchParams.get("order_id") ?? undefined;
   const returnedPaymentId = searchParams.get("payment_id") ?? undefined;
@@ -725,10 +728,18 @@ export default function CheckoutPage() {
     );
   }
 
-  const unconfirmedNotice =
-    paymentUnconfirmed && returnedOrderId ? (
-      <UnconfirmedPaymentNotice orderId={returnedOrderId} />
-    ) : null;
+  // Warn on every unconfirmed return, with whatever reference we can muster.
+  // Gating this on ?order_id= hid the warning in exactly the cases dupli1 could
+  // not tie the callback to an order — where a stranded charge is most likely.
+  const unconfirmedNotice = paymentUnconfirmed ? (
+    <UnconfirmedPaymentNotice
+      reference={resolvePaymentReference({
+        returnedOrderId,
+        resumableOrderId: resumeOrder?.id,
+        returnedPaymentId,
+      })}
+    />
+  ) : null;
 
   const resumeBanner =
     resumeOrder && !resumeDismissed && !paymentUnconfirmed ? (
@@ -1336,8 +1347,33 @@ export default function CheckoutPage() {
  * card may already be charged while the order is still unpaid. Deliberately
  * offers no way to pay again — see elug3/dupli1#232.
  */
-function UnconfirmedPaymentNotice({ orderId }: { orderId: string }) {
+function UnconfirmedPaymentNotice({
+  reference,
+}: {
+  reference: PaymentReference;
+}) {
   const { t } = useLanguage();
+
+  // Support needs something to search on, so quote whichever id survived the
+  // return. With none, the warning still stands — it just cannot name the order.
+  const [bodyKey, contactKey, values] =
+    reference === null
+      ? [
+          "checkout.unconfirmedBodyNoRef",
+          "checkout.unconfirmedContactNoRef",
+          undefined,
+        ]
+      : reference.kind === "order"
+        ? [
+            "checkout.unconfirmedBody",
+            "checkout.unconfirmedContact",
+            { order: reference.value },
+          ]
+        : [
+            "checkout.unconfirmedBodyPayment",
+            "checkout.unconfirmedContactPayment",
+            { ref: reference.value },
+          ];
 
   return (
     <div
@@ -1348,10 +1384,10 @@ function UnconfirmedPaymentNotice({ orderId }: { orderId: string }) {
         {t("checkout.unconfirmedTitle")}
       </p>
       <p className="mt-2 text-sm leading-relaxed text-amber-900">
-        {t("checkout.unconfirmedBody", { order: orderId })}
+        {t(bodyKey, values)}
       </p>
       <p className="mt-2 text-[11px] leading-relaxed text-amber-700">
-        {t("checkout.unconfirmedContact", { order: orderId })}
+        {t(contactKey, values)}
       </p>
       <Link
         to="/history"

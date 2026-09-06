@@ -19,6 +19,7 @@ import {
   normalizePCCC,
   normalizePostalCode,
   resolveCheckoutVariantRef,
+  resolvePaymentReference,
 } from "./checkout";
 
 describe("isUnpurchasableVariantError", () => {
@@ -311,7 +312,7 @@ describe("findResumableOrder", () => {
 
 describe("classifyPaymentReturn", () => {
   it("treats a missing reason as an ordinary decline", () => {
-    // Today's behaviour: dupli1 sends no reason yet (elug3/dupli1#232).
+    // A reason dupli1 could not attach must not be read as an approval.
     for (const value of [null, undefined, "", "   "]) {
       expect(classifyPaymentReturn(value)).toBe("declined");
     }
@@ -332,6 +333,63 @@ describe("classifyPaymentReturn", () => {
   it("treats an unrecognised reason as a decline rather than alarming the shopper", () => {
     expect(classifyPaymentReturn("user_cancelled")).toBe("declined");
     expect(classifyPaymentReturn("something_new")).toBe("declined");
+  });
+
+  // The values dupli1 actually puts on the wire (payment nanoReturnReason).
+  // Pinning them here and in TestNanoReturnUnconfirmedReasonsMatchStorefront on
+  // the Go side is what keeps the two repos from drifting apart silently.
+  it("classifies every reason dupli1 emits", () => {
+    expect(classifyPaymentReturn("verify_failed")).toBe("unconfirmed");
+    expect(classifyPaymentReturn("amount_mismatch")).toBe("unconfirmed");
+    expect(classifyPaymentReturn("declined")).toBe("declined");
+    expect(classifyPaymentReturn("invalid_payload")).toBe("declined");
+  });
+});
+
+describe("resolvePaymentReference", () => {
+  it("prefers the order id the PG return carried", () => {
+    expect(
+      resolvePaymentReference({
+        returnedOrderId: "ord_1",
+        resumableOrderId: "ord_2",
+        returnedPaymentId: "pay_1",
+      })
+    ).toEqual({ kind: "order", value: "ord_1" });
+  });
+
+  it("falls back to the order we found ourselves when the return omitted one", () => {
+    // dupli1 drops order_id whenever it could not tie the callback to a payment
+    // row (unknown_payment / shop_mismatch / lookup_failed).
+    expect(
+      resolvePaymentReference({
+        resumableOrderId: "ord_2",
+        returnedPaymentId: "pay_1",
+      })
+    ).toEqual({ kind: "order", value: "ord_2" });
+  });
+
+  it("falls back to the payment id when no order is known", () => {
+    expect(resolvePaymentReference({ returnedPaymentId: "pay_1" })).toEqual({
+      kind: "payment",
+      value: "pay_1",
+    });
+  });
+
+  it("returns null rather than inventing a reference", () => {
+    expect(resolvePaymentReference({})).toBeNull();
+  });
+
+  it("treats blank and whitespace-only ids as absent", () => {
+    expect(
+      resolvePaymentReference({
+        returnedOrderId: "   ",
+        resumableOrderId: "",
+        returnedPaymentId: "  pay_1  ",
+      })
+    ).toEqual({ kind: "payment", value: "pay_1" });
+    expect(
+      resolvePaymentReference({ returnedOrderId: "", returnedPaymentId: " " })
+    ).toBeNull();
   });
 });
 
