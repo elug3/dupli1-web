@@ -12,6 +12,8 @@ import {
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
+  storefrontNanoCheckoutPath,
+  shouldOpenNanoCheckout,
   classifyPaymentReturn,
   findResumableOrder,
   getOrder,
@@ -477,8 +479,9 @@ export default function CheckoutPage() {
       // one is live and mints a fresh one after a failure — never a double
       // charge (verified: two calls both return the same payment id).
       const payment = await createPayment(resumeOrder.id, "credit_card");
-      if (payment.checkoutUrl && payment.status !== "succeeded") {
-        window.location.assign(payment.checkoutUrl);
+      if (shouldOpenNanoCheckout(payment)) {
+        // Stay on dupli1-web; the BFF calls the payment-service bridge.
+        window.location.assign(storefrontNanoCheckoutPath(payment.id));
         return;
       }
       // Already settled while we were away.
@@ -692,18 +695,19 @@ export default function CheckoutPage() {
       // re-populate a checkout the shopper already finished.
       clearCheckoutDraft();
 
-      if (!payment.checkoutUrl || payment.status === "succeeded") {
+      if (!shouldOpenNanoCheckout(payment)) {
         // Money already taken (bypass), so the bag has served its purpose.
         await clearCart();
         navigate("/checkout/confirmation", {
           state: { orderId: order.id, email: form.email },
         });
       } else {
-        // NANO: leave Dupli1 for the hosted certified checkout window.
-        // Deliberately keep the bag until payment is confirmed — abandoning
-        // here must not strand the shopper with an empty bag and an order
-        // that expires in 5 minutes. Confirmation clears it once paid.
-        window.location.assign(payment.checkoutUrl);
+        // NANO: stay on dupli1-web (`/checkout/pay/:id`). The BFF opens the
+        // payment-service bridge; do not send the shopper to `/api/v1/...`.
+        // Keep the bag until payment is confirmed — abandoning here must not
+        // strand the shopper with an empty bag and an order that expires in
+        // 5 minutes. Confirmation clears it once paid.
+        window.location.assign(storefrontNanoCheckoutPath(payment.id));
       }
     } catch (err) {
       const message =

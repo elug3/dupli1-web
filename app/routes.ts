@@ -68,6 +68,9 @@ export default [
   route("cart", "routes/pages/cart.tsx"),
   route("checkout", "routes/pages/checkout.tsx"),
   route("checkout/confirmation", "routes/pages/checkout.confirmation.tsx"),
+  // Resource route: HTML/redirect from the payment NANO bridge, not SPA chrome.
+  // Shoppers land here instead of the gateway `/api/v1/payments/.../nano/checkout`.
+  route("checkout/pay/:paymentId", "routes/pages/checkout.pay.$paymentId.ts"),
   route("history", "routes/pages/history.tsx"),
   route("profile", "routes/pages/profile.tsx"),
   route("login", "routes/pages/login.tsx"),

@@ -200,6 +200,20 @@ export interface Payment {
   checkoutUrl?: string;
 }
 
+/** Storefront path for NANO checkout. Do not send the browser to `/api/v1/payments/...`. */
+export function storefrontNanoCheckoutPath(paymentId: string): string {
+  return `/checkout/pay/${encodeURIComponent(paymentId)}`;
+}
+
+/** True when the shopper should open the NANO window (not bypass / already paid). */
+export function shouldOpenNanoCheckout(payment: Payment): boolean {
+  return (
+    Boolean(payment.id) &&
+    payment.status !== "succeeded" &&
+    payment.method !== "bypass"
+  );
+}
+
 interface RawSession {
   id: string;
   status: "open" | "completed" | "expired";
