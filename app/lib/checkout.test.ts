@@ -20,6 +20,8 @@ import {
   normalizePostalCode,
   resolveCheckoutVariantRef,
   resolvePaymentReference,
+  shouldOpenNanoCheckout,
+  storefrontNanoCheckoutPath,
 } from "./checkout";
 
 describe("isUnpurchasableVariantError", () => {
@@ -410,5 +412,34 @@ describe("isUnconfirmedPayment", () => {
     for (const status of ["failed", "succeeded", "canceled", "expired"]) {
       expect(isUnconfirmedPayment(payment(status))).toBe(false);
     }
+  });
+});
+
+describe("storefrontNanoCheckoutPath", () => {
+  it("stays on the storefront, not the gateway /api/v1 path", () => {
+    expect(storefrontNanoCheckoutPath("pay_000016")).toBe("/checkout/pay/pay_000016");
+    expect(storefrontNanoCheckoutPath("pay_000016")).not.toContain("/api/");
+  });
+});
+
+describe("shouldOpenNanoCheckout", () => {
+  const base = {
+    id: "pay_1",
+    orderId: "ord_1",
+    amountCents: 1000,
+    status: "requires_payment",
+    method: "credit_card",
+    checkoutUrl: "https://dupli1.com/api/v1/payments/pay_1/nano/checkout",
+  };
+
+  it("opens NANO for an unpaid card payment even when checkout_url is the gateway", () => {
+    expect(shouldOpenNanoCheckout(base)).toBe(true);
+  });
+
+  it("does not open NANO after bypass or success", () => {
+    expect(shouldOpenNanoCheckout({ ...base, method: "bypass", checkoutUrl: undefined })).toBe(
+      false
+    );
+    expect(shouldOpenNanoCheckout({ ...base, status: "succeeded" })).toBe(false);
   });
 });

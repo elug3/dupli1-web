@@ -150,9 +150,12 @@ unsigned callers get 401 and the UI treats the bag as empty until login.
 
 Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
 The storefront payment step offers **credit card** (`method: "credit_card"`) via
-NANO certified checkout when configured, or local simulate when
-`PAYMENT_ALLOW_DEV_SIMULATE` is on. Dupli1 never collects card PAN/CVC — the
-browser redirects to the PG `checkout_url`. Staff sessions with
+NANO certified checkout when configured. Dupli1 never collects card PAN/CVC —
+the browser stays on dupli1-web at `/checkout/pay/:paymentId`. That resource
+route's BFF calls the payment-service bridge (`GET /api/v1/payments/{id}/nano/checkout`)
+over the internal gateway. Do not send the shopper to that `/api/v1/...` URL:
+production ALB forwards `/api/*` to `dupli1-proxy`, so it is a gateway endpoint,
+not a storefront page. Staff sessions with
 `payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
 Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
 (`customer` | `manager` | `service` — backend `account_type` uses the same

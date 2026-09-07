@@ -377,6 +377,104 @@ async function proxyResponse(
   });
 }
 
+function redirectTo(location: string, setCookie?: string): Response {
+  const headers = new Headers({
+    Location: location,
+    "Cache-Control": "no-store",
+  });
+  if (setCookie) headers.append("Set-Cookie", setCookie);
+  return new Response(null, { status: 302, headers });
+}
+
+/**
+ * Shopper-facing NANO checkout. The browser stays on dupli1-web
+ * (`/checkout/pay/:id`); this BFF call reaches the payment-service bridge via
+ * the internal gateway. Production ALB sends `/api/*` to dupli1-proxy, so the
+ * shopper must not be redirected to `/api/v1/payments/.../nano/checkout`.
+ *
+ * `redirect: "manual"` so a 302 from payment (to NANO's window) is forwarded
+ * to the browser instead of consumed here.
+ */
+export async function proxyNanoCheckout(
+  request: Request,
+  paymentId: string
+): Promise<Response> {
+  const id = paymentId.trim();
+  const payPath = `/checkout/pay/${encodeURIComponent(id)}`;
+  const loginUrl = `/login?next=${encodeURIComponent(payPath)}`;
+
+  if (!id || /[^A-Za-z0-9_-]/.test(id)) {
+    return redirectTo("/checkout?error=checkout_failed");
+  }
+
+  const tokenResult = await getAccessToken(request);
+  if (tokenResult instanceof Response) {
+    return redirectTo(loginUrl, tokenResult.headers.get("Set-Cookie") ?? undefined);
+  }
+
+  let setCookie = tokenResult.setCookie;
+  const checkoutTarget = upstreamUrl(
+    "payments",
+    `/api/v1/payments/${encodeURIComponent(id)}/nano/checkout`
+  );
+  const headers = new Headers({
+    Accept: "text/html,application/xhtml+xml",
+    Authorization: `Bearer ${tokenResult.token}`,
+  });
+  const ua = request.headers.get("User-Agent");
+  if (ua) headers.set("User-Agent", ua);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(checkoutTarget, {
+      method: "GET",
+      headers,
+      redirect: "manual",
+    });
+  } catch {
+    return redirectTo("/checkout?error=checkout_failed", setCookie);
+  }
+
+  if (upstream.status === 401) {
+    const retried = await getAccessToken(request, { forceRefresh: true });
+    if (retried instanceof Response) {
+      return redirectTo(loginUrl, retried.headers.get("Set-Cookie") ?? undefined);
+    }
+    headers.set("Authorization", `Bearer ${retried.token}`);
+    try {
+      upstream = await fetch(checkoutTarget, {
+        method: "GET",
+        headers,
+        redirect: "manual",
+      });
+    } catch {
+      return redirectTo("/checkout?error=checkout_failed", retried.setCookie);
+    }
+    if (upstream.status === 401) {
+      return redirectTo(loginUrl, retried.setCookie);
+    }
+    setCookie = retried.setCookie ?? setCookie;
+  }
+
+  const out = new Headers();
+  const contentType = upstream.headers.get("Content-Type");
+  if (contentType) out.set("Content-Type", contentType);
+  out.set("Cache-Control", "no-store");
+  const location = upstream.headers.get("Location");
+  if (location) out.set("Location", location);
+  if (setCookie) out.append("Set-Cookie", setCookie);
+
+  const body = NULL_BODY_STATUSES.has(upstream.status)
+    ? null
+    : await upstream.arrayBuffer();
+
+  return new Response(body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: out,
+  });
+}
+
 export async function handleLogin(request: Request): Promise<Response> {
   const body = await parseJsonBody(request);
   const upstream = await requestTokens("/api/v1/auth/login", body);
