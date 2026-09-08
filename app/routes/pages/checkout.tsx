@@ -15,8 +15,7 @@ import {
   storefrontNanoCheckoutPath,
   shouldOpenNanoCheckout,
   classifyPaymentReturn,
-  findResumableOrder,
-  getOrder,
+  resolveResumableOrder,
   getPayment,
   getPaymentSettings,
   getUnpurchasableCartItems,
@@ -27,7 +26,6 @@ import {
   isValidPCCC,
   normalizePCCC,
   normalizePostalCode,
-  isResumableOrder,
   isUnconfirmedPayment,
   replaceSessionItems,
   resolvePaymentReference,
@@ -282,13 +280,8 @@ export default function CheckoutPage() {
 
     async function lookup(customerId: string) {
       try {
-        const found = returnedOrderId
-          ? await getOrder(returnedOrderId)
-          : await findResumableOrder(customerId);
+        const found = await resolveResumableOrder(customerId, returnedOrderId);
         if (cancelled || !found) return;
-        // A returned order belonging to someone else, or already paid, is not
-        // ours to offer — fall through to showing nothing.
-        if (found.customerId !== customerId || !isResumableOrder(found)) return;
         setResumeOrder(found);
       } catch {
         // A failed lookup must never block checkout; the banner just stays off.
