@@ -138,11 +138,27 @@ export interface Order {
   id: string;
   customerId: string;
   status: string;
+  /** Whole KRW won (JSON `subtotal_cents`). */
+  subtotalCents: number;
+  /** Whole KRW won (JSON `discount_cents`). Goods only — never delivery. */
+  discountCents: number;
+  /** Whole KRW won (JSON `shipping_fee_cents`), snapshotted at order creation. */
+  shippingFeeCents: number;
   totalCents: number;
+  couponCode?: string;
   items: OrderItem[];
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
   paymentDueAtMs?: number;
   paymentId?: string;
+}
+
+/** True when the order JSON carried a pricing breakdown, not only a total. */
+export function orderHasPricingBreakdown(order: Order): boolean {
+  return (
+    order.subtotalCents > 0 ||
+    order.discountCents > 0 ||
+    order.shippingFeeCents > 0
+  );
 }
 
 /** Dev simulate was removed upstream and merged into bypass (payment-service.md). */
@@ -238,7 +254,11 @@ interface RawOrder {
   id: string;
   customer_id: string;
   status: string;
+  subtotal_cents?: number;
+  discount_cents?: number;
+  shipping_fee_cents?: number;
   total_cents?: number;
+  coupon_code?: string;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
   payment_id?: string;
@@ -264,7 +284,11 @@ function mapOrder(raw: RawOrder): Order {
     id: raw.id,
     customerId: raw.customer_id,
     status: raw.status,
+    subtotalCents: raw.subtotal_cents ?? 0,
+    discountCents: raw.discount_cents ?? 0,
+    shippingFeeCents: raw.shipping_fee_cents ?? 0,
     totalCents: raw.total_cents ?? 0,
+    couponCode: raw.coupon_code,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,

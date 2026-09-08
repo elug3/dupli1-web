@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { clearCart } from "~/lib/cart";
-import { getOrder, type Order } from "~/lib/checkout";
+import { getOrder, orderHasPricingBreakdown, type Order } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
 interface ConfirmationState {
@@ -120,6 +120,34 @@ export default function CheckoutConfirmationPage() {
                 <dt className="text-zinc-400">{t("confirmation.order")}</dt>
                 <dd className="font-medium text-zinc-950">{order.id}</dd>
               </div>
+            )}
+            {order && orderHasPricingBreakdown(order) && (
+              <>
+                <div className="flex justify-between gap-8">
+                  <dt className="text-zinc-400">{t("cart.subtotal")}</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {formatCurrency(order.subtotalCents)}
+                  </dd>
+                </div>
+                {order.discountCents > 0 && (
+                  <div className="flex justify-between gap-8 text-emerald-700">
+                    <dt>
+                      {order.couponCode
+                        ? t("cart.promo", { code: order.couponCode })
+                        : t("confirmation.discount")}
+                    </dt>
+                    <dd>−{formatCurrency(order.discountCents)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-8">
+                  <dt className="text-zinc-400">{t("cart.shipping")}</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {order.shippingFeeCents === 0
+                      ? t("cart.complimentary")
+                      : formatCurrency(order.shippingFeeCents)}
+                  </dd>
+                </div>
+              </>
             )}
             {total != null && (
               <div className="flex justify-between gap-8">

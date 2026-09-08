@@ -5,13 +5,13 @@
 // Line items key on variant SKU / sku_id; prices are server-sourced.
 
 /**
- * Flat shipping fee (KRW) used for display before a checkout session exists —
- * marketing copy and the cart page, which has nothing authoritative to read yet.
+ * Offline fallback for the flat delivery charge (whole KRW) when
+ * GET /api/v1/orders/settings has not answered yet, or cannot be reached.
  *
  * It is NOT the charged amount. The order service owns that
  * (DUPLI1_ORDER_SHIPPING_FEE_CENTS) and publishes it as `shipping_fee_cents` on
- * GET /api/v1/orders/settings, and on the checkout session and order. Prefer
- * those; leaving this constant to stand in is how the two silently drift apart.
+ * settings, the checkout session, and the order. Storefront copy and totals
+ * read those; leaving this constant on screen is how the two silently drift.
  */
 export const SHIPPING_FEE = 30000;
 

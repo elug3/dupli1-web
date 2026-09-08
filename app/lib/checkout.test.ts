@@ -12,6 +12,8 @@ import {
   findResumableOrder,
   isUnconfirmedPayment,
   isResumableOrder,
+  listMyOrders,
+  orderHasPricingBreakdown,
   resolveResumableOrder,
   isValidKRPhone,
   isValidKRPostalCode,
@@ -232,6 +234,9 @@ function order(overrides: Partial<Parameters<typeof isResumableOrder>[0]> = {}) 
     id: "ord_1",
     customerId: "cust-1",
     status: "pending",
+    subtotalCents: 40000,
+    discountCents: 0,
+    shippingFeeCents: 30000,
     totalCents: 70000,
     items: [],
     paymentDueAtMs: NOW + 60_000,
@@ -310,6 +315,70 @@ describe("findResumableOrder", () => {
     const found = await findResumableOrder("cust-1", NOW);
     expect(found?.paymentDueAtMs).toBe(NOW + 60_000);
     expect(found?.paymentId).toBe("pay_9");
+  });
+});
+
+describe("order pricing breakdown", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("maps shipping_fee_cents, subtotal, and discount from the order JSON", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        orders: [
+          {
+            id: "ord_1",
+            customer_id: "cust-1",
+            status: "paid",
+            subtotal_cents: 100000,
+            discount_cents: 10000,
+            shipping_fee_cents: 30000,
+            total_cents: 120000,
+            coupon_code: "SUMMER30",
+          },
+        ],
+      }),
+    }));
+    const [mapped] = await listMyOrders("cust-1");
+    expect(mapped.subtotalCents).toBe(100000);
+    expect(mapped.discountCents).toBe(10000);
+    expect(mapped.shippingFeeCents).toBe(30000);
+    expect(mapped.totalCents).toBe(120000);
+    expect(mapped.couponCode).toBe("SUMMER30");
+    expect(orderHasPricingBreakdown(mapped)).toBe(true);
+  });
+
+  it("treats a legacy total-only order as having no breakdown", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        orders: [
+          {
+            id: "ord_legacy",
+            customer_id: "cust-1",
+            status: "paid",
+            total_cents: 70000,
+          },
+        ],
+      }),
+    }));
+    const [mapped] = await listMyOrders("cust-1");
+    expect(mapped.subtotalCents).toBe(0);
+    expect(mapped.shippingFeeCents).toBe(0);
+    expect(mapped.totalCents).toBe(70000);
+    expect(orderHasPricingBreakdown(mapped)).toBe(false);
+  });
+
+  it("keeps an explicit zero shipping fee as free delivery, not missing", () => {
+    expect(
+      orderHasPricingBreakdown(
+        order({ subtotalCents: 40000, shippingFeeCents: 0, totalCents: 40000 })
+      )
+    ).toBe(true);
   });
 });
 

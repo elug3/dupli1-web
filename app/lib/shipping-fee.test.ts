@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SHIPPING_FEE, computeTotals, type CartLine } from "./cart";
 import { getShippingFeeCents } from "./checkout";
+import {
+  loadShippingFeeCents,
+  resetShippingFeeCache,
+  resolvedShippingFee,
+} from "./useShippingFee";
 
 const LINE: CartLine = {
   sku: "SKU-1",
@@ -12,6 +17,7 @@ const LINE: CartLine = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetShippingFeeCache();
 });
 
 describe("computeTotals shipping fee", () => {
@@ -89,5 +95,35 @@ describe("getShippingFeeCents", () => {
       })
     );
     await expect(getShippingFeeCents()).resolves.toBeNull();
+  });
+});
+
+describe("resolvedShippingFee", () => {
+  it("keeps an explicit zero as free delivery", () => {
+    expect(resolvedShippingFee(0)).toBe(0);
+  });
+
+  it("falls back to SHIPPING_FEE when settings did not answer", () => {
+    expect(resolvedShippingFee(null)).toBe(SHIPPING_FEE);
+    expect(resolvedShippingFee(undefined)).toBe(SHIPPING_FEE);
+  });
+
+  it("passes through a live fee from the order service", () => {
+    expect(resolvedShippingFee(4500)).toBe(4500);
+  });
+});
+
+describe("loadShippingFeeCents cache", () => {
+  it("hits settings once and reuses the answer", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ limits: { shipping_fee_cents: 4500 } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadShippingFeeCents()).resolves.toBe(4500);
+    await expect(loadShippingFeeCents()).resolves.toBe(4500);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

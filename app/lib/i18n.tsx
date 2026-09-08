@@ -65,6 +65,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "language.chinese": "Chinese",
 
     "announcement.shipping": "Shipping: {amount} on all orders",
+    "announcement.shippingFree": "Complimentary shipping on all orders",
     "announcement.code": "Code",
     "announcement.discount": "30% off",
 
@@ -171,6 +172,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.watches": "Watches",
     "home.categoryLabel.outerwear": "Padding",
     "home.valueShipping": "Shipping: {amount}",
+    "home.valueShippingFree": "Complimentary shipping",
     "home.valueAuthenticity": "Authenticity Guaranteed",
     "home.valueCuration": "Expert Curation",
     "home.scroll": "Scroll",
@@ -220,6 +222,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.shippingReturns": "Shipping & Returns",
     "product.shippingReturnsBody":
       "Flat-rate shipping of {amount} on every order. Returns accepted within 30 days of delivery.",
+    "product.shippingReturnsBodyFree":
+      "Complimentary shipping on every order. Returns accepted within 30 days of delivery.",
     "product.authenticityBody":
       "Every item sold by Dupli1 is backed by our Quality Guarantee. We partner directly with authorized retailers to ensure each product meets our rigorous standards.",
     "product.badgeNew": "New",
@@ -262,6 +266,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.discountApplied": "{discount}% off applied.",
     "cart.authenticityGuaranteed": "Quality guarantee on every order",
     "cart.shippingFeeNote": "Flat-rate shipping of {amount} on every order",
+    "cart.shippingFeeNoteFree": "Complimentary shipping on every order",
     "cart.returns": "30-day returns on eligible items",
     "cart.decreaseQuantity": "Decrease quantity",
     "cart.increaseQuantity": "Increase quantity",
@@ -384,6 +389,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "confirmation.emailTo": "A confirmation email will be sent to {email}.",
     "confirmation.emailShortly": "A confirmation email will be sent shortly.",
     "confirmation.order": "Order",
+    "confirmation.discount": "Discount",
     "confirmation.total": "Total",
     "confirmation.viewOrders": "View Orders",
     "confirmation.confirmingPayment": "Confirming your payment…",
@@ -644,6 +650,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "language.chinese": "중국어",
 
     "announcement.shipping": "전 상품 배송비 {amount}",
+    "announcement.shippingFree": "전 상품 무료배송",
     "announcement.code": "코드",
     "announcement.discount": "30% 할인",
 
@@ -750,6 +757,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.watches": "시계",
     "home.categoryLabel.outerwear": "패딩",
     "home.valueShipping": "배송비 {amount}",
+    "home.valueShippingFree": "무료배송",
     "home.valueAuthenticity": "정품 보증",
     "home.valueCuration": "전문 큐레이션",
     "home.scroll": "스크롤",
@@ -799,6 +807,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.shippingReturns": "배송 및 반품",
     "product.shippingReturnsBody":
       "전 상품 배송비 {amount} 고정. 배송 후 30일 이내 반품 가능합니다.",
+    "product.shippingReturnsBodyFree":
+      "전 상품 무료배송. 배송 후 30일 이내 반품 가능합니다.",
     "product.authenticityBody":
       "Dupli1에서 판매되는 모든 상품은 품질 보증이 적용됩니다. 공식 리테일러와 직접 협력하여 엄격한 품질 기준을 충족하는 제품만 제공합니다.",
     "product.badgeNew": "신상품",
@@ -841,6 +851,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.discountApplied": "{discount}% 할인이 적용되었습니다.",
     "cart.authenticityGuaranteed": "모든 주문 품질 보증",
     "cart.shippingFeeNote": "전 상품 배송비 {amount} 고정",
+    "cart.shippingFeeNoteFree": "전 상품 무료배송",
     "cart.returns": "대상 상품 30일 반품",
     "cart.decreaseQuantity": "수량 줄이기",
     "cart.increaseQuantity": "수량 늘리기",
@@ -961,6 +972,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "confirmation.emailTo": "확인 이메일을 {email}(으)로 보내드립니다.",
     "confirmation.emailShortly": "확인 이메일을 곧 보내드립니다.",
     "confirmation.order": "주문",
+    "confirmation.discount": "할인",
     "confirmation.total": "합계",
     "confirmation.viewOrders": "주문 보기",
     "confirmation.confirmingPayment": "결제를 확인하는 중입니다…",
@@ -1220,6 +1232,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "language.chinese": "中文",
 
     "announcement.shipping": "全场统一运费 {amount}",
+    "announcement.shippingFree": "全场包邮",
     "announcement.code": "代码",
     "announcement.discount": "7 折优惠",
 
@@ -1321,6 +1334,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.watches": "腕表",
     "home.categoryLabel.outerwear": "羽绒",
     "home.valueShipping": "运费 {amount}",
+    "home.valueShippingFree": "包邮",
     "home.valueAuthenticity": "正品保证",
     "home.valueCuration": "专业甄选",
     "home.scroll": "滚动",
@@ -1369,6 +1383,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.shippingReturns": "配送与退货",
     "product.shippingReturnsBody":
       "全场统一运费 {amount}。收货后 30 天内可退货。",
+    "product.shippingReturnsBodyFree":
+      "全场包邮。收货后 30 天内可退货。",
     "product.authenticityBody":
       "Dupli1 售出的每件商品均享有品质保证。我们直接与授权零售商合作，确保每件商品均符合我们的严格品质标准。",
     "product.badgeNew": "新品",
@@ -1409,6 +1425,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.discountApplied": "已应用 {discount}% 折扣。",
     "cart.authenticityGuaranteed": "每笔订单均提供品质保证",
     "cart.shippingFeeNote": "全场统一运费 {amount}",
+    "cart.shippingFeeNoteFree": "全场包邮",
     "cart.returns": "符合条件商品 30 天退货",
     "cart.decreaseQuantity": "减少数量",
     "cart.increaseQuantity": "增加数量",
@@ -1526,6 +1543,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "confirmation.emailTo": "确认邮件将发送至 {email}。",
     "confirmation.emailShortly": "确认邮件将很快发送。",
     "confirmation.order": "订单",
+    "confirmation.discount": "折扣",
     "confirmation.total": "合计",
     "confirmation.viewOrders": "查看订单",
     "confirmation.confirmingPayment": "正在确认您的付款…",
