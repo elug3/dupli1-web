@@ -6,10 +6,13 @@ import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
 import { brandToSlug } from "~/lib/catalog";
 import {
+  type Bag,
   type ServerProduct,
   addToWishlist,
+  bagImage,
   fetchAvailableStock,
   fetchProduct,
+  fetchRecommendations,
   listWishlist,
   productImage,
   removeFromWishlist,
@@ -75,6 +78,7 @@ export default function ProductPage() {
     <main className="bg-white">
       <Breadcrumb product={product} />
       <ProductLayout product={product} />
+      <RelatedProducts seedId={product.id} />
     </main>
   );
 }
@@ -88,19 +92,31 @@ function Breadcrumb({ product }: { product: ServerProduct }) {
   return (
     <div className="border-b border-zinc-100 px-4 py-3 md:px-8">
       <div className="mx-auto max-w-7xl">
-        <nav className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-400">
-          <Link to="/" className="transition hover:text-zinc-950">{t("product.home")}</Link>
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] uppercase tracking-widest text-zinc-400 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <Link to="/" className="shrink-0 transition hover:text-zinc-950">
+            {t("product.home")}
+          </Link>
           <ChevronIcon />
-          <Link to="/category/product-type/handbags" className="transition hover:text-zinc-950">{t("product.bags")}</Link>
+          <Link
+            to="/category/product-type/handbags"
+            className="shrink-0 transition hover:text-zinc-950"
+          >
+            {t("product.bags")}
+          </Link>
           <ChevronIcon />
           <Link
             to={brandSlug ? `/category/brand/${brandSlug}` : "/category/product-type/handbags"}
-            className="transition hover:text-zinc-950"
+            className="shrink-0 transition hover:text-zinc-950"
           >
             {product.brand}
           </Link>
           <ChevronIcon />
-          <span className="text-zinc-600">{translateProductName(product.id, product.name)}</span>
+          <span className="max-w-[14rem] truncate text-zinc-600 sm:max-w-md md:max-w-xl">
+            {translateProductName(product.id, product.name)}
+          </span>
         </nav>
       </div>
     </div>
@@ -492,6 +508,69 @@ function AccordionItem({ title, body }: { title: string; body: string }) {
         <p className="pb-4 text-sm leading-relaxed text-zinc-500">{body}</p>
       )}
     </div>
+  );
+}
+
+function RelatedProducts({ seedId }: { seedId: string }) {
+  const { t, translateProductName } = useLanguage();
+  const [products, setProducts] = useState<Bag[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRecommendations(seedId, 8)
+      .then((items) => {
+        if (!cancelled) setProducts(items);
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [seedId]);
+
+  if (products.length === 0) return null;
+
+  return (
+    <section className="border-t border-zinc-100 px-4 py-12 md:px-8 md:py-16">
+      <div className="mx-auto max-w-7xl">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-zinc-400">
+          {t("product.similarItems")}
+        </p>
+        <h2
+          className="mt-2 text-2xl font-light text-zinc-950 md:text-3xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {t("product.youMayAlsoLike")}
+        </h2>
+        <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4 md:gap-x-6">
+          {products.map((product) => (
+            <Link key={product.id} to={`/product/${product.id}`} className="group">
+              <div
+                className="relative mb-3 overflow-hidden bg-zinc-50"
+                style={{ paddingBottom: "120%" }}
+              >
+                <img
+                  src={bagImage(product.brand, product.image)}
+                  alt={translateProductName(product.id, product.name)}
+                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                />
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                {product.brand}
+              </p>
+              <p className="mt-0.5 text-sm font-medium text-zinc-950">
+                {translateProductName(product.id, product.name)}
+              </p>
+              <ProductPrice
+                price={product.price}
+                officialPrice={product.officialPrice}
+              />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

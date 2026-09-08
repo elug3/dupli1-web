@@ -352,6 +352,27 @@ export async function fetchProduct(id: string): Promise<ServerProduct> {
   return toServerProduct((await res.json()) as UpstreamProduct);
 }
 
+interface RecommendationsResponse {
+  seedId?: string;
+  items?: UpstreamProduct[] | null;
+}
+
+/** Related parents for PDP “You may also like” (product recommendations API). */
+export async function fetchRecommendations(
+  id: string,
+  limit = 8
+): Promise<Bag[]> {
+  const params = new URLSearchParams();
+  if (limit > 0) params.set("limit", String(limit));
+  const qs = params.toString();
+  const res = await fetch(
+    `/api/v1/products/${encodeURIComponent(id)}/recommendations${qs ? `?${qs}` : ""}`
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as RecommendationsResponse;
+  return (body.items ?? []).map(toBag);
+}
+
 /**
  * Real-time stock for a sellable variant.
  * Served by dupli1-product at `/api/v1/inventory/*` (standalone inventory

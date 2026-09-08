@@ -225,6 +225,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "New",
     "product.badgeFeatured": "Featured",
     "product.priceLoading": "Loading",
+    "product.discountPercent": "-{percent}%",
+    "product.youMayAlsoLike": "You may also like",
+    "product.similarItems": "Similar items",
 
     "cart.metaTitle": "Shopping Bag — Dupli1",
     "cart.metaDescription":
@@ -801,6 +804,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "신상품",
     "product.badgeFeatured": "추천",
     "product.priceLoading": "불러오는 중",
+    "product.discountPercent": "-{percent}%",
+    "product.youMayAlsoLike": "함께 보면 좋은 상품",
+    "product.similarItems": "유사 상품",
 
     "cart.metaTitle": "장바구니 — Dupli1",
     "cart.metaDescription":
@@ -1368,6 +1374,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "新品",
     "product.badgeFeatured": "精选",
     "product.priceLoading": "加载中",
+    "product.discountPercent": "-{percent}%",
+    "product.youMayAlsoLike": "你可能还喜欢",
+    "product.similarItems": "相似商品",
 
     "cart.metaTitle": "购物袋 — Dupli1",
     "cart.metaDescription": "查看已选奢华包袋并继续结账。",
@@ -2153,12 +2162,19 @@ const valueTranslations: Record<string, Partial<Record<LanguageCode, string>>> =
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+const DEFAULT_LANGUAGE: LanguageCode = "ko";
+
 const fallbackLanguageContext: LanguageContextValue = {
-  language: "en",
-  languageOption: LANGUAGES[0],
+  language: DEFAULT_LANGUAGE,
+  languageOption:
+    LANGUAGES.find((option) => option.code === DEFAULT_LANGUAGE) ?? LANGUAGES[0],
   languages: LANGUAGES,
   setLanguage: () => {},
-  t: (key, values) => interpolate(dictionaries.en[key] ?? key, values),
+  t: (key, values) =>
+    interpolate(
+      dictionaries[DEFAULT_LANGUAGE][key] ?? dictionaries.en[key] ?? key,
+      values
+    ),
   formatCurrency: (amount) =>
     new Intl.NumberFormat("ko-KR", {
       style: "currency",
@@ -2196,16 +2212,25 @@ function interpolate(message: string, values?: TranslationValues): string {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<LanguageCode>("en");
+  // Korean-first storefront: default to KO until localStorage / browser locale resolve.
+  const [language, setLanguageState] = useState<LanguageCode>(DEFAULT_LANGUAGE);
 
   useEffect(() => {
     const stored = normalizeLanguage(localStorage.getItem(STORAGE_KEY));
-    const browser = normalizeLanguage(navigator.language);
-    setLanguageState(stored ?? browser ?? "en");
+    const browser =
+      normalizeLanguage(navigator.language) ??
+      (typeof navigator.languages === "object"
+        ? navigator.languages
+            .map((entry) => normalizeLanguage(entry))
+            .find((entry): entry is LanguageCode => entry != null) ?? null
+        : null);
+    setLanguageState(stored ?? browser ?? DEFAULT_LANGUAGE);
   }, []);
 
   const languageOption =
-    LANGUAGES.find((option) => option.code === language) ?? LANGUAGES[0];
+    LANGUAGES.find((option) => option.code === language) ??
+    LANGUAGES.find((option) => option.code === DEFAULT_LANGUAGE) ??
+    LANGUAGES[0];
 
   useEffect(() => {
     document.documentElement.lang = languageOption.htmlLang;

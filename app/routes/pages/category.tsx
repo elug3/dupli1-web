@@ -112,12 +112,12 @@ function CategoryShell({
 
       {/* Solid-color banner — shared across every category/style/target/brand page */}
       <div className="mt-6 bg-zinc-950">
-        <div className="mx-auto max-w-7xl px-4 py-12 text-center md:px-8 md:py-16">
+        <div className="mx-auto max-w-7xl px-4 py-6 text-center md:px-8 md:py-8">
           <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
             {eyebrow}
           </p>
           <h1
-            className="mt-3 text-4xl font-light tracking-tight text-white md:text-5xl"
+            className="mt-2 text-3xl font-light tracking-tight text-white md:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             {title}

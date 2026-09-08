@@ -103,12 +103,20 @@ export default function Profile() {
         <p className="mt-2 text-sm text-zinc-500">
           {t("profile.signInDescription")}
         </p>
-        <Link
-          to="/login"
-          className="mt-6 inline-flex h-12 items-center bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
-        >
-          {t("profile.signIn")}
-        </Link>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link
+            to="/login"
+            className="inline-flex h-12 items-center bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            {t("profile.signIn")}
+          </Link>
+          <Link
+            to="/login?mode=register"
+            className="inline-flex h-12 items-center border border-zinc-200 bg-white px-8 text-sm font-semibold text-zinc-950 transition hover:border-zinc-400"
+          >
+            {t("login.createAccount")}
+          </Link>
+        </div>
       </main>
     );
   }
