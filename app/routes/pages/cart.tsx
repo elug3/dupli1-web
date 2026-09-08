@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
 import { redeemCoupon, type RedeemedCoupon } from "~/lib/cart";
 import { useLanguage } from "~/lib/i18n";
-import { useShippingFeeCents } from "~/lib/useShippingFee";
+import { useShippingFeeKrw } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { ProductPrice } from "~/components/product-price";
 import { useCart } from "~/lib/useCart";
@@ -339,7 +339,7 @@ export function OrderSummary({
   disabled?: boolean;
 }) {
   const { t, formatCurrency } = useLanguage();
-  const shippingFeeCents = useShippingFeeCents();
+  const shippingFeeKrw = useShippingFeeKrw();
 
   return (
     <div className="border border-zinc-100 bg-zinc-50/50 p-6 md:p-8">
@@ -438,9 +438,9 @@ export function OrderSummary({
         </li>
         <li className="flex items-center gap-2">
           <TruckIcon />
-          {shippingFeeCents === 0
+          {shippingFeeKrw === 0
             ? t("cart.shippingFeeNoteFree")
-            : t("cart.shippingFeeNote", { amount: formatCurrency(shippingFeeCents) })}
+            : t("cart.shippingFeeNote", { amount: formatCurrency(shippingFeeKrw) })}
         </li>
         <li className="flex items-center gap-2">
           <ReturnIcon />

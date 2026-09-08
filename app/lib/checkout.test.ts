@@ -236,7 +236,7 @@ function order(overrides: Partial<Parameters<typeof isResumableOrder>[0]> = {}) 
     status: "pending",
     subtotalCents: 40000,
     discountCents: 0,
-    shippingFeeCents: 30000,
+    shippingFeeKrw: 30000,
     totalCents: 70000,
     items: [],
     paymentDueAtMs: NOW + 60_000,
@@ -323,7 +323,7 @@ describe("order pricing breakdown", () => {
     vi.unstubAllGlobals();
   });
 
-  it("maps shipping_fee_cents, subtotal, and discount from the order JSON", async () => {
+  it("maps shipping_fee_krw, subtotal, and discount from the order JSON", async () => {
     vi.stubGlobal("fetch", async () => ({
       ok: true,
       status: 200,
@@ -335,7 +335,7 @@ describe("order pricing breakdown", () => {
             status: "paid",
             subtotal_cents: 100000,
             discount_cents: 10000,
-            shipping_fee_cents: 30000,
+            shipping_fee_krw: 30000,
             total_cents: 120000,
             coupon_code: "SUMMER30",
           },
@@ -345,7 +345,7 @@ describe("order pricing breakdown", () => {
     const [mapped] = await listMyOrders("cust-1");
     expect(mapped.subtotalCents).toBe(100000);
     expect(mapped.discountCents).toBe(10000);
-    expect(mapped.shippingFeeCents).toBe(30000);
+    expect(mapped.shippingFeeKrw).toBe(30000);
     expect(mapped.totalCents).toBe(120000);
     expect(mapped.couponCode).toBe("SUMMER30");
     expect(orderHasPricingBreakdown(mapped)).toBe(true);
@@ -368,7 +368,7 @@ describe("order pricing breakdown", () => {
     }));
     const [mapped] = await listMyOrders("cust-1");
     expect(mapped.subtotalCents).toBe(0);
-    expect(mapped.shippingFeeCents).toBe(0);
+    expect(mapped.shippingFeeKrw).toBe(0);
     expect(mapped.totalCents).toBe(70000);
     expect(orderHasPricingBreakdown(mapped)).toBe(false);
   });
@@ -376,7 +376,7 @@ describe("order pricing breakdown", () => {
   it("keeps an explicit zero shipping fee as free delivery, not missing", () => {
     expect(
       orderHasPricingBreakdown(
-        order({ subtotalCents: 40000, shippingFeeCents: 0, totalCents: 40000 })
+        order({ subtotalCents: 40000, shippingFeeKrw: 0, totalCents: 40000 })
       )
     ).toBe(true);
   });

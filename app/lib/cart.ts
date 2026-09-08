@@ -9,7 +9,7 @@
  * GET /api/v1/orders/settings has not answered yet, or cannot be reached.
  *
  * It is NOT the charged amount. The order service owns that
- * (DUPLI1_ORDER_SHIPPING_FEE_CENTS) and publishes it as `shipping_fee_cents` on
+ * (DUPLI1_ORDER_SHIPPING_FEE_KRW) and publishes it as `shipping_fee_krw` on
  * settings, the checkout session, and the order. Storefront copy and totals
  * read those; leaving this constant on screen is how the two silently drift.
  */
@@ -247,10 +247,10 @@ export function computeTotals(
   discountFraction: number,
   /**
    * Delivery charge in whole KRW, from the order service — either the checkout
-   * session's `shipping_fee_cents` or the settings endpoint. Defaults to
+   * session's `shipping_fee_krw` or the settings endpoint. Defaults to
    * SHIPPING_FEE when the service has not answered yet.
    */
-  shippingFeeCents: number = SHIPPING_FEE
+  shippingFeeKrw: number = SHIPPING_FEE
 ): CartTotals {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   // KRW is zero-decimal: *_cents fields are already whole won.
@@ -260,7 +260,7 @@ export function computeTotals(
   const afterDiscount = subtotal - discount;
   // An empty bag owes nothing to ship — matches the order service, which quotes
   // a total of 0 for a session with no items rather than a bare delivery charge.
-  const shipping = itemCount === 0 ? 0 : shippingFeeCents;
+  const shipping = itemCount === 0 ? 0 : shippingFeeKrw;
   const total = afterDiscount + shipping;
 
   return { itemCount, subtotal, shipping, discount, total, promoApplied };

@@ -118,7 +118,7 @@ export interface CheckoutSession {
    * when the session opens. Prefer it over the SHIPPING_FEE constant, which is
    * only a pre-session display fallback.
    */
-  shippingFeeCents: number;
+  shippingFeeKrw: number;
   totalCents: number;
   couponCode?: string;
   orderId?: string;
@@ -142,8 +142,8 @@ export interface Order {
   subtotalCents: number;
   /** Whole KRW won (JSON `discount_cents`). Goods only — never delivery. */
   discountCents: number;
-  /** Whole KRW won (JSON `shipping_fee_cents`), snapshotted at order creation. */
-  shippingFeeCents: number;
+  /** Whole KRW won (JSON `shipping_fee_krw`), snapshotted at order creation. */
+  shippingFeeKrw: number;
   totalCents: number;
   couponCode?: string;
   items: OrderItem[];
@@ -157,7 +157,7 @@ export function orderHasPricingBreakdown(order: Order): boolean {
   return (
     order.subtotalCents > 0 ||
     order.discountCents > 0 ||
-    order.shippingFeeCents > 0
+    order.shippingFeeKrw > 0
   );
 }
 
@@ -192,14 +192,14 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
  * field, so callers fall back to the SHIPPING_FEE display constant rather than
  * silently quoting 0.
  */
-export async function getShippingFeeCents(): Promise<number | null> {
+export async function getShippingFeeKrw(): Promise<number | null> {
   try {
     const res = await fetch("/api/v1/orders/settings");
     if (!res.ok) return null;
     const body = (await res.json()) as {
-      limits?: { shipping_fee_cents?: number };
+      limits?: { shipping_fee_krw?: number };
     };
-    const fee = body.limits?.shipping_fee_cents;
+    const fee = body.limits?.shipping_fee_krw;
     return typeof fee === "number" && fee >= 0 ? fee : null;
   } catch {
     return null;
@@ -235,7 +235,7 @@ interface RawSession {
   status: "open" | "completed" | "expired";
   subtotal_cents?: number;
   discount_cents?: number;
-  shipping_fee_cents?: number;
+  shipping_fee_krw?: number;
   total_cents?: number;
   coupon_code?: string;
   order_id?: string;
@@ -256,7 +256,7 @@ interface RawOrder {
   status: string;
   subtotal_cents?: number;
   discount_cents?: number;
-  shipping_fee_cents?: number;
+  shipping_fee_krw?: number;
   total_cents?: number;
   coupon_code?: string;
   items?: RawOrderItem[] | null;
@@ -271,7 +271,7 @@ function mapSession(raw: RawSession): CheckoutSession {
     subtotalCents: raw.subtotal_cents ?? 0,
     discountCents: raw.discount_cents ?? 0,
     // Older order services omit the field; 0 (free delivery) is the safe read.
-    shippingFeeCents: raw.shipping_fee_cents ?? 0,
+    shippingFeeKrw: raw.shipping_fee_krw ?? 0,
     totalCents: raw.total_cents ?? 0,
     couponCode: raw.coupon_code,
     orderId: raw.order_id,
@@ -286,7 +286,7 @@ function mapOrder(raw: RawOrder): Order {
     status: raw.status,
     subtotalCents: raw.subtotal_cents ?? 0,
     discountCents: raw.discount_cents ?? 0,
-    shippingFeeCents: raw.shipping_fee_cents ?? 0,
+    shippingFeeKrw: raw.shipping_fee_krw ?? 0,
     totalCents: raw.total_cents ?? 0,
     couponCode: raw.coupon_code,
     items: (raw.items ?? []).map((item) => ({

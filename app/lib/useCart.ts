@@ -10,7 +10,7 @@ import {
   type CartStatus,
   type CartTotals,
 } from "./cart";
-import { useShippingFeeCents } from "./useShippingFee";
+import { useShippingFeeKrw } from "./useShippingFee";
 
 interface ProductMeta {
   name: string;
@@ -92,19 +92,19 @@ export function useCart() {
 
   // Shared with announcement / home / product so every surface quotes the
   // fee GET /api/v1/orders/settings publishes. Until it resolves (or if it
-  // fails), useShippingFeeCents falls back to SHIPPING_FEE.
-  const serviceShippingFee = useShippingFeeCents();
+  // fails), useShippingFeeKrw falls back to SHIPPING_FEE.
+  const serviceShippingFee = useShippingFeeKrw();
 
-  // An explicit shippingFeeCents wins — pass the checkout session's
-  // `shipping_fee_cents` once a session exists, since that quote is frozen for
+  // An explicit shippingFeeKrw wins — pass the checkout session's
+  // `shipping_fee_krw` once a session exists, since that quote is frozen for
   // the session and is what the resulting order will carry.
   const totals = useCallback(
-    (discountFraction = 0, shippingFeeCents?: number): CartTotals =>
+    (discountFraction = 0, shippingFeeKrw?: number): CartTotals =>
       computeTotals(
         raw.items,
         raw.subtotalCents,
         discountFraction,
-        shippingFeeCents ?? serviceShippingFee
+        shippingFeeKrw ?? serviceShippingFee
       ),
     [raw.items, raw.subtotalCents, serviceShippingFee]
   );
