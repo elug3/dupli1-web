@@ -619,3 +619,30 @@ export async function findResumableOrder(
     (order.paymentDueAtMs ?? 0) > (newest.paymentDueAtMs ?? 0) ? order : newest
   );
 }
+
+/**
+ * Pick the pending order a returning shopper should be offered to pay.
+ *
+ * When the URL carries ?order_id= from a NANO return, that id is tried first
+ * as a fast path. If it is missing, expired, or belongs to someone else, fall
+ * back to scanning the customer's order list so a stale query param cannot hide
+ * a different order that is still inside its unpaid window.
+ */
+export async function resolveResumableOrder(
+  customerId: string,
+  returnedOrderId?: string | null,
+  nowMs: number = Date.now()
+): Promise<Order | null> {
+  const directId = returnedOrderId?.trim();
+  if (directId) {
+    try {
+      const direct = await getOrder(directId);
+      if (direct.customerId === customerId && isResumableOrder(direct, nowMs)) {
+        return direct;
+      }
+    } catch {
+      // Lookup failed or the URL order is no longer payable — scan the list.
+    }
+  }
+  return findResumableOrder(customerId, nowMs);
+}

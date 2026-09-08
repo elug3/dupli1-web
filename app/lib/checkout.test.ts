@@ -12,6 +12,7 @@ import {
   findResumableOrder,
   isUnconfirmedPayment,
   isResumableOrder,
+  resolveResumableOrder,
   isValidKRPhone,
   isValidKRPostalCode,
   isValidPCCC,
@@ -309,6 +310,102 @@ describe("findResumableOrder", () => {
     const found = await findResumableOrder("cust-1", NOW);
     expect(found?.paymentDueAtMs).toBe(NOW + 60_000);
     expect(found?.paymentId).toBe("pay_9");
+  });
+});
+
+describe("resolveResumableOrder", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch(handlers: {
+    order?: Record<string, unknown> | null;
+    orders?: unknown[];
+    orderStatus?: number;
+  }) {
+    vi.stubGlobal("fetch", async (input: RequestInfo) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/api/v1/orders?")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ orders: handlers.orders ?? [] }),
+        };
+      }
+      if (url.includes("/api/v1/orders/")) {
+        if (handlers.orderStatus && handlers.orderStatus >= 400) {
+          return {
+            ok: false,
+            status: handlers.orderStatus,
+            json: async () => ({ error: "not found" }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => handlers.order ?? {},
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+  }
+
+  it("uses the URL order when it is still payable", async () => {
+    stubFetch({
+      order: {
+        id: "ord_url",
+        customer_id: "cust-1",
+        status: "pending",
+        payment_due_at: new Date(NOW + 60_000).toISOString(),
+      },
+      orders: [
+        {
+          id: "ord_list",
+          customer_id: "cust-1",
+          status: "pending",
+          payment_due_at: new Date(NOW + 90_000).toISOString(),
+        },
+      ],
+    });
+    const found = await resolveResumableOrder("cust-1", "ord_url", NOW);
+    expect(found?.id).toBe("ord_url");
+  });
+
+  it("falls back to the order list when the URL order expired", async () => {
+    stubFetch({
+      order: {
+        id: "ord_stale",
+        customer_id: "cust-1",
+        status: "pending",
+        payment_due_at: new Date(NOW - 1000).toISOString(),
+      },
+      orders: [
+        {
+          id: "ord_live",
+          customer_id: "cust-1",
+          status: "pending",
+          payment_due_at: new Date(NOW + 60_000).toISOString(),
+        },
+      ],
+    });
+    const found = await resolveResumableOrder("cust-1", "ord_stale", NOW);
+    expect(found?.id).toBe("ord_live");
+  });
+
+  it("falls back when the URL order lookup fails", async () => {
+    stubFetch({
+      orderStatus: 404,
+      orders: [
+        {
+          id: "ord_live",
+          customer_id: "cust-1",
+          status: "pending",
+          payment_due_at: new Date(NOW + 60_000).toISOString(),
+        },
+      ],
+    });
+    const found = await resolveResumableOrder("cust-1", "ord_missing", NOW);
+    expect(found?.id).toBe("ord_live");
   });
 });
 
