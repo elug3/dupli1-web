@@ -14,9 +14,9 @@ import {
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
-import { SHIPPING_FEE } from "./lib/cart";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
+import { useShippingFeeCents } from "./lib/useShippingFee";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -80,11 +80,16 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 
 function AnnouncementBar() {
   const { t, formatCurrency } = useLanguage();
+  const shippingFeeCents = useShippingFeeCents();
+  const shippingCopy =
+    shippingFeeCents === 0
+      ? t("announcement.shippingFree")
+      : t("announcement.shipping", { amount: formatCurrency(shippingFeeCents) });
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">
       <p className="text-center text-[10px] tracking-[0.18em] text-white/70 uppercase">
-        {t("announcement.shipping", { amount: formatCurrency(SHIPPING_FEE) })}&ensp;·&ensp;{t("announcement.code")}&ensp;
+        {shippingCopy}&ensp;·&ensp;{t("announcement.code")}&ensp;
         <span className="font-medium text-[#c8a96e] tracking-widest">SUMMER30</span>
         &ensp;—&ensp;{t("announcement.discount")}
       </p>

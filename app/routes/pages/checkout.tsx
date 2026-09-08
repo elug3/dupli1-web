@@ -1217,7 +1217,12 @@ export default function CheckoutPage() {
             )}
 
             <div className="lg:hidden">
-              <MiniBag items={items} total={checkoutTotal} mutation={mutation} />
+              <MiniBag
+                items={items}
+                shipping={summary.shipping}
+                total={checkoutTotal}
+                mutation={mutation}
+              />
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -1922,10 +1927,12 @@ function PaymentMethodOption({
 
 function MiniBag({
   items,
+  shipping,
   total,
   mutation,
 }: {
   items: ReturnType<typeof useCart>["items"];
+  shipping: number;
   total: number;
   mutation: ReturnType<typeof useCartMutation>;
 }) {
@@ -1992,10 +1999,18 @@ function MiniBag({
           );
         })}
       </ul>
-      <div className="mt-4 flex justify-between border-t border-zinc-200 pt-4 text-sm font-semibold text-zinc-950">
-        <span>{t("cart.total")}</span>
-        <span>{formatCurrency(total)}</span>
-      </div>
+      <dl className="mt-4 space-y-2 border-t border-zinc-200 pt-4 text-sm">
+        <div className="flex justify-between text-zinc-600">
+          <dt>{t("cart.shipping")}</dt>
+          <dd className="font-medium text-zinc-950">
+            {shipping === 0 ? t("cart.complimentary") : formatCurrency(shipping)}
+          </dd>
+        </div>
+        <div className="flex justify-between font-semibold text-zinc-950">
+          <dt>{t("cart.total")}</dt>
+          <dd>{formatCurrency(total)}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

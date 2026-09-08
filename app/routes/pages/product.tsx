@@ -18,8 +18,8 @@ import {
   removeFromWishlist,
 } from "~/lib/api";
 import { getMe } from "~/lib/auth";
-import { SHIPPING_FEE } from "~/lib/cart";
 import { useLanguage } from "~/lib/i18n";
+import { useShippingFeeCents } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
   isProductInStock,
@@ -267,6 +267,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
     translateProductName,
     translateValue,
   } = useLanguage();
+  const shippingFeeCents = useShippingFeeCents();
   const mutation = useCartMutation();
   const { addItem, isPending, getAction, authRequired, error: cartError } = mutation;
   const navigate = useNavigate();
@@ -440,7 +441,12 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           },
           {
             title: t("product.shippingReturns"),
-            body: t("product.shippingReturnsBody", { amount: formatCurrency(SHIPPING_FEE) }),
+            body:
+              shippingFeeCents === 0
+                ? t("product.shippingReturnsBodyFree")
+                : t("product.shippingReturnsBody", {
+                    amount: formatCurrency(shippingFeeCents),
+                  }),
           },
           {
             title: t("product.qualityAssurance"),
