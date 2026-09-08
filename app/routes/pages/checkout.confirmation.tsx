@@ -142,9 +142,9 @@ export default function CheckoutConfirmationPage() {
                 <div className="flex justify-between gap-8">
                   <dt className="text-zinc-400">{t("cart.shipping")}</dt>
                   <dd className="font-medium text-zinc-950">
-                    {order.shippingFeeCents === 0
+                    {order.shippingFeeKrw === 0
                       ? t("cart.complimentary")
-                      : formatCurrency(order.shippingFeeCents)}
+                      : formatCurrency(order.shippingFeeKrw)}
                   </dd>
                 </div>
               </>
