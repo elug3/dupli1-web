@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { login, register } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
@@ -21,7 +21,14 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextPath = useMemo(() => safeNextPath(searchParams.get("next")), [searchParams]);
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const initialMode = useMemo<"login" | "register">(() => {
+    const mode = searchParams.get("mode")?.toLowerCase();
+    return mode === "register" || mode === "signup" ? "register" : "login";
+  }, [searchParams]);
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

@@ -3,6 +3,17 @@ import { useLanguage } from "../lib/i18n";
 
 const PRICE_LOAD_DELAY_MS = 800;
 
+/** Percent off list price when selling price is lower; null when not a sale. */
+export function saleDiscountPercent(
+  price: number,
+  officialPrice: number
+): number | null {
+  if (!Number.isFinite(price) || !Number.isFinite(officialPrice)) return null;
+  if (officialPrice <= 0 || officialPrice <= price) return null;
+  const percent = Math.round((1 - price / officialPrice) * 100);
+  return percent > 0 ? percent : null;
+}
+
 export function ProductPrice({
   price,
   officialPrice,
@@ -30,6 +41,9 @@ export function ProductPrice({
     typeof officialPrice === "number" &&
     Number.isFinite(officialPrice) &&
     officialPrice > price;
+  const discount = showOfficial
+    ? saleDiscountPercent(price, officialPrice)
+    : null;
 
   if (size === "lg") {
     return (
@@ -42,6 +56,11 @@ export function ProductPrice({
             {formatCurrency(officialPrice)}
           </span>
         )}
+        {discount != null && (
+          <span className="text-sm font-semibold tracking-tight text-rose-700">
+            {t("product.discountPercent", { percent: discount })}
+          </span>
+        )}
       </span>
     );
   }
@@ -52,6 +71,11 @@ export function ProductPrice({
       {showOfficial && (
         <span className="text-xs font-medium text-zinc-400 line-through">
           {formatCurrency(officialPrice)}
+        </span>
+      )}
+      {discount != null && (
+        <span className="text-[11px] font-semibold text-rose-700">
+          {t("product.discountPercent", { percent: discount })}
         </span>
       )}
     </p>

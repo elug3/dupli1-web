@@ -75,7 +75,7 @@ export default function CartPage() {
         </div>
 
         {status === "guest" ? (
-          <SignInPrompt />
+          <SignInPrompt recommendations={recommendations} />
         ) : status === "loading" || status === "idle" ? (
           <BagSkeleton />
         ) : items.length === 0 ? (
@@ -194,27 +194,50 @@ function EmptyBag({ recommendations }: { recommendations: Bag[] }) {
   );
 }
 
-function SignInPrompt() {
+function SignInPrompt({ recommendations }: { recommendations: Bag[] }) {
   const { t } = useLanguage();
+  const next = encodeURIComponent("/cart");
 
   return (
-    <div className="border-b border-zinc-100 py-16 text-center md:py-24">
-      <p
-        className="text-3xl font-light text-zinc-950 md:text-4xl"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {t("profile.signInToDupli1")}
-      </p>
-      <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-400">
-        {t("profile.signInDescription")}
-      </p>
-      <Link
-        to={`/login?next=${encodeURIComponent("/cart")}`}
-        className="mt-8 inline-flex h-12 items-center bg-zinc-950 px-10 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
-      >
-        {t("login.signIn")}
-      </Link>
-    </div>
+    <>
+      <div className="border-b border-zinc-100 py-16 text-center md:py-24">
+        <p
+          className="text-3xl font-light text-zinc-950 md:text-4xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {t("profile.signInToDupli1")}
+        </p>
+        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-400">
+          {t("profile.signInDescription")}
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link
+            to={`/login?next=${next}`}
+            className="inline-flex h-12 items-center bg-zinc-950 px-10 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
+          >
+            {t("login.signIn")}
+          </Link>
+          <Link
+            to={`/login?mode=register&next=${next}`}
+            className="inline-flex h-12 items-center border border-zinc-200 bg-white px-10 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:border-zinc-400"
+          >
+            {t("login.createAccount")}
+          </Link>
+        </div>
+        <Link
+          to="/"
+          className="mt-6 inline-block text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+        >
+          {t("cart.continueShopping")}
+        </Link>
+      </div>
+
+      <Recommendations
+        title={t("cart.pairsWellWith")}
+        subtitle={t("cart.mostViewed")}
+        products={recommendations}
+      />
+    </>
   );
 }
 
@@ -283,7 +306,7 @@ function Recommendations({
             <p className="mt-0.5 text-sm font-medium text-zinc-950">
               {translateProductName(product.id, product.name)}
             </p>
-            <ProductPrice price={product.price} />
+            <ProductPrice price={product.price} officialPrice={product.officialPrice} />
           </Link>
         ))}
       </div>

@@ -24,6 +24,10 @@ export default [
   // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.
   route("api/v1/products", "routes/api/v1/products/index.ts"),
   route("api/v1/products/:id/images", "routes/api/v1/products/$id.images.ts"),
+  route(
+    "api/v1/products/:id/recommendations",
+    "routes/api/v1/products/$id.recommendations.ts"
+  ),
   route("api/v1/products/:id", "routes/api/v1/products/$id.ts"),
   // Local-dev BFF mirrors for cart/checkout (unused in production ALB path).
   // Browser cart/checkout calls go through `/auth/session/gateway` so the BFF
