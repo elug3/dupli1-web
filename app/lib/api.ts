@@ -422,6 +422,36 @@ export function bagImage(brand: string, image?: string): string {
   );
 }
 
+/**
+ * Target display width for category / home / cart listing cards (CSS px).
+ * Real CDN/upload thumbs are not wired yet — see dupli1
+ * docs/product-images-browser-access.md (“Listing / category sizes”).
+ */
+export const LISTING_IMAGE_WIDTH = 600;
+
+/**
+ * Listing-card image URL. Today this is the original CDN object (pass-through);
+ * swap the body once upload-time thumbs or an on-demand transform exist.
+ */
+export function listingProductImage(
+  category: string,
+  brand: string,
+  image?: string
+): string {
+  return productImage(category, brand, image);
+}
+
+/** Same as {@link listingProductImage} for bag-shaped listings. */
+export function listingBagImage(brand: string, image?: string): string {
+  return bagImage(brand, image);
+}
+
+/**
+ * `sizes` for the common 2-col mobile / 4-col desktop product grid.
+ * Harmless with a single `src`; ready for `srcset` once resized variants exist.
+ */
+export const LISTING_IMAGE_SIZES = "(min-width: 768px) 25vw, 50vw";
+
 export function heroBagImage(image?: string, brand?: string): string {
   if (!image) return bagImage(brand ?? "");
   return image.replace(/w_\d+,h_\d+/, "w_1200,h_1400");
