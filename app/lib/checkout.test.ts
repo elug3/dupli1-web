@@ -234,10 +234,10 @@ function order(overrides: Partial<Parameters<typeof isResumableOrder>[0]> = {}) 
     id: "ord_1",
     customerId: "cust-1",
     status: "pending",
-    subtotalCents: 40000,
-    discountCents: 0,
+    subtotalKrw: 40000,
+    discountKrw: 0,
     shippingFeeKrw: 30000,
-    totalCents: 70000,
+    totalKrw: 70000,
     items: [],
     paymentDueAtMs: NOW + 60_000,
     ...overrides,
@@ -307,7 +307,7 @@ describe("findResumableOrder", () => {
         id: "ord_9",
         customer_id: "cust-1",
         status: "pending",
-        total_cents: 70000,
+        total_krw: 70000,
         payment_id: "pay_9",
         payment_due_at: new Date(NOW + 60_000).toISOString(),
       },
@@ -333,20 +333,20 @@ describe("order pricing breakdown", () => {
             id: "ord_1",
             customer_id: "cust-1",
             status: "paid",
-            subtotal_cents: 100000,
-            discount_cents: 10000,
+            subtotal_krw: 100000,
+            discount_krw: 10000,
             shipping_fee_krw: 30000,
-            total_cents: 120000,
+            total_krw: 120000,
             coupon_code: "SUMMER30",
           },
         ],
       }),
     }));
     const [mapped] = await listMyOrders("cust-1");
-    expect(mapped.subtotalCents).toBe(100000);
-    expect(mapped.discountCents).toBe(10000);
+    expect(mapped.subtotalKrw).toBe(100000);
+    expect(mapped.discountKrw).toBe(10000);
     expect(mapped.shippingFeeKrw).toBe(30000);
-    expect(mapped.totalCents).toBe(120000);
+    expect(mapped.totalKrw).toBe(120000);
     expect(mapped.couponCode).toBe("SUMMER30");
     expect(orderHasPricingBreakdown(mapped)).toBe(true);
   });
@@ -361,22 +361,22 @@ describe("order pricing breakdown", () => {
             id: "ord_legacy",
             customer_id: "cust-1",
             status: "paid",
-            total_cents: 70000,
+            total_krw: 70000,
           },
         ],
       }),
     }));
     const [mapped] = await listMyOrders("cust-1");
-    expect(mapped.subtotalCents).toBe(0);
+    expect(mapped.subtotalKrw).toBe(0);
     expect(mapped.shippingFeeKrw).toBe(0);
-    expect(mapped.totalCents).toBe(70000);
+    expect(mapped.totalKrw).toBe(70000);
     expect(orderHasPricingBreakdown(mapped)).toBe(false);
   });
 
   it("keeps an explicit zero shipping fee as free delivery, not missing", () => {
     expect(
       orderHasPricingBreakdown(
-        order({ subtotalCents: 40000, shippingFeeKrw: 0, totalCents: 40000 })
+        order({ subtotalKrw: 40000, shippingFeeKrw: 0, totalKrw: 40000 })
       )
     ).toBe(true);
   });
@@ -568,7 +568,7 @@ describe("isUnconfirmedPayment", () => {
   const payment = (status: string) => ({
     id: "pay_1",
     orderId: "ord_1",
-    amountCents: 250000,
+    amountKrw: 250000,
     status,
     method: "credit_card",
   });
@@ -595,7 +595,7 @@ describe("shouldOpenNanoCheckout", () => {
   const base = {
     id: "pay_1",
     orderId: "ord_1",
-    amountCents: 1000,
+    amountKrw: 1000,
     status: "requires_payment",
     method: "credit_card",
     checkoutUrl: "https://dupli1.com/api/v1/payments/pay_1/nano/checkout",

@@ -24,9 +24,9 @@ interface ProductMeta {
 const SERVER_SNAPSHOT: {
   status: CartStatus;
   items: CartLine[];
-  subtotalCents: number;
+  subtotalKrw: number;
   error?: string;
-} = { status: "idle", items: [], subtotalCents: 0 };
+} = { status: "idle", items: [], subtotalKrw: 0 };
 
 function getServerSnapshot() {
   return SERVER_SNAPSHOT;
@@ -82,8 +82,8 @@ export function useCart() {
       ...line,
       name: productMeta?.name ?? line.productId,
       brand: productMeta?.brand ?? "",
-      // unit_price_cents is whole KRW won (zero-decimal); do not ÷100.
-      price: line.unitPriceCents,
+      // unit_price_krw is whole KRW won (zero-decimal); do not ÷100.
+      price: line.unitPriceKrw,
       image: line.imageUrl ?? productMeta?.image ?? "",
     };
   });
@@ -102,11 +102,11 @@ export function useCart() {
     (discountFraction = 0, shippingFeeKrw?: number): CartTotals =>
       computeTotals(
         raw.items,
-        raw.subtotalCents,
+        raw.subtotalKrw,
         discountFraction,
         shippingFeeKrw ?? serviceShippingFee
       ),
-    [raw.items, raw.subtotalCents, serviceShippingFee]
+    [raw.items, raw.subtotalKrw, serviceShippingFee]
   );
 
   const refresh = useCallback(() => refreshCart(), []);

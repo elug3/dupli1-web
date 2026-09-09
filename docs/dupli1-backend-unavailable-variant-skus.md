@@ -18,7 +18,7 @@ Today, when a cart or checkout line references a variant that is no longer sella
    ```
    No `sku_id` (or `sku`) is included.
 
-2. **Cart read** (`GET /api/v1/cart`) keeps stale lines but **silently drops enrichment** when `resolveVariant` fails (`cart/pkg/service/service.go` → `enrichCart`). The client sees `sku` / `sku_id` + `quantity` but empty `product_id`, `unit_price_cents`, etc. There is no explicit `unavailable` flag or `missing` list.
+2. **Cart read** (`GET /api/v1/cart`) keeps stale lines but **silently drops enrichment** when `resolveVariant` fails (`cart/pkg/service/service.go` → `enrichCart`). The client sees `sku` / `sku_id` + `quantity` but empty `product_id`, `unit_price_krw`, etc. There is no explicit `unavailable` flag or `missing` list.
 
 3. **Checkout session** (`PUT /api/v1/checkout/sessions/{id}/items`, `POST .../complete`) fails with the same plain `"variant not found"` string from order pricing (`order/pkg/ports/product.go` → `ErrVariantNotFound`). No per-line breakdown.
 
@@ -66,7 +66,7 @@ Implement **Option A** (preferred). Option B is acceptable as a smaller first st
       "reason": "variant_not_found"
     }
   ],
-  "subtotal_cents": 125000,
+  "subtotal_krw": 125000,
   "updated_at": "2026-07-05T12:00:00Z"
 }
 ```
@@ -80,7 +80,7 @@ Implement **Option A** (preferred). Option B is acceptable as a smaller first st
 
 **Line-level flag (optional but helpful):** add `"available": false` on entries in `items[]` that failed enrichment, so clients can join without a second array. If both exist, `unavailable_items` is authoritative.
 
-**Pricing rule:** `subtotal_cents` must **exclude** unavailable lines (today enrichment failure already yields `unit_price_cents: 0`; make that explicit and documented).
+**Pricing rule:** `subtotal_krw` must **exclude** unavailable lines (today enrichment failure already yields `unit_price_krw: 0`; make that explicit and documented).
 
 #### 2. Checkout session `GET` + successful item mutations — same shape
 
