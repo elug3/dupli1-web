@@ -41,6 +41,8 @@ export interface UpstreamProduct {
   status?: string;
   imageUrls?: string[];
   defaultImageUrl?: string;
+  /** ~600px JPEG sibling for category/home cards (upload-time thumb). */
+  defaultListingImageUrl?: string;
   availableColors?: string[];
   availableSizes?: string[];
   tags?: string[];
@@ -162,6 +164,14 @@ function firstImage(product: UpstreamProduct): string | undefined {
   return product.imageUrls?.find((url) => url.trim().length > 0);
 }
 
+/** Prefer listing thumb for bag/list responses; fall back to full-size. */
+function firstListingImage(product: UpstreamProduct): string | undefined {
+  if (product.defaultListingImageUrl?.trim()) {
+    return product.defaultListingImageUrl.trim();
+  }
+  return firstImage(product);
+}
+
 function productPrice(product: UpstreamProduct): number {
   return product.price ?? 0;
 }
@@ -193,7 +203,7 @@ export function toBagResponse(product: UpstreamProduct): BagResponse {
     material: product.material,
     capacity: product.capacity ?? "",
     stock: product.stock ?? 0,
-    image: firstImage(product),
+    image: firstListingImage(product),
   };
 }
 
@@ -256,7 +266,7 @@ export function toSearchResult(product: UpstreamProduct): SearchResult {
     Style: product.style ?? "",
     Gender: product.target ?? product.family ?? "",
     Status: mapDisplayStatus(product.status, product.tags),
-    Image: firstImage(product),
+    Image: firstListingImage(product),
   };
 }
 
