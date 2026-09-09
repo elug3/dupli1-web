@@ -110,8 +110,8 @@ export interface SessionItem {
 export interface CheckoutSession {
   id: string;
   status: "open" | "completed" | "expired";
-  subtotalCents: number;
-  discountCents: number;
+  subtotalKrw: number;
+  discountKrw: number;
   /**
    * Delivery charge the order service quoted for this session, in whole KRW.
    * Authoritative: it is what the backend will actually charge, and it is fixed
@@ -119,7 +119,7 @@ export interface CheckoutSession {
    * only a pre-session display fallback.
    */
   shippingFeeKrw: number;
-  totalCents: number;
+  totalKrw: number;
   couponCode?: string;
   orderId?: string;
 }
@@ -128,8 +128,8 @@ export interface OrderItem {
   sku: string;
   skuId?: string;
   quantity: number;
-  /** Whole KRW won (JSON `unit_price_cents`). */
-  unitPriceCents: number;
+  /** Whole KRW won (JSON `unit_price_krw`). */
+  unitPriceKrw: number;
   productName?: string;
   imageUrl?: string;
 }
@@ -138,13 +138,13 @@ export interface Order {
   id: string;
   customerId: string;
   status: string;
-  /** Whole KRW won (JSON `subtotal_cents`). */
-  subtotalCents: number;
-  /** Whole KRW won (JSON `discount_cents`). Goods only — never delivery. */
-  discountCents: number;
+  /** Whole KRW won (JSON `subtotal_krw`). */
+  subtotalKrw: number;
+  /** Whole KRW won (JSON `discount_krw`). Goods only — never delivery. */
+  discountKrw: number;
   /** Whole KRW won (JSON `shipping_fee_krw`), snapshotted at order creation. */
   shippingFeeKrw: number;
-  totalCents: number;
+  totalKrw: number;
   couponCode?: string;
   items: OrderItem[];
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
@@ -155,8 +155,8 @@ export interface Order {
 /** True when the order JSON carried a pricing breakdown, not only a total. */
 export function orderHasPricingBreakdown(order: Order): boolean {
   return (
-    order.subtotalCents > 0 ||
-    order.discountCents > 0 ||
+    order.subtotalKrw > 0 ||
+    order.discountKrw > 0 ||
     order.shippingFeeKrw > 0
   );
 }
@@ -209,7 +209,7 @@ export async function getShippingFeeKrw(): Promise<number | null> {
 export interface Payment {
   id: string;
   orderId: string;
-  amountCents: number;
+  amountKrw: number;
   status: string;
   method: PaymentMethod | string;
   /** Present for credit_card (NANO checkout bridge). Omitted for bypass. */
@@ -233,10 +233,10 @@ export function shouldOpenNanoCheckout(payment: Payment): boolean {
 interface RawSession {
   id: string;
   status: "open" | "completed" | "expired";
-  subtotal_cents?: number;
-  discount_cents?: number;
+  subtotal_krw?: number;
+  discount_krw?: number;
   shipping_fee_krw?: number;
-  total_cents?: number;
+  total_krw?: number;
   coupon_code?: string;
   order_id?: string;
 }
@@ -245,7 +245,7 @@ interface RawOrderItem {
   sku: string;
   sku_id?: string;
   quantity: number;
-  unit_price_cents: number;
+  unit_price_krw: number;
   product_name?: string;
   image_url?: string;
 }
@@ -254,10 +254,10 @@ interface RawOrder {
   id: string;
   customer_id: string;
   status: string;
-  subtotal_cents?: number;
-  discount_cents?: number;
+  subtotal_krw?: number;
+  discount_krw?: number;
   shipping_fee_krw?: number;
-  total_cents?: number;
+  total_krw?: number;
   coupon_code?: string;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
@@ -268,11 +268,11 @@ function mapSession(raw: RawSession): CheckoutSession {
   return {
     id: raw.id,
     status: raw.status,
-    subtotalCents: raw.subtotal_cents ?? 0,
-    discountCents: raw.discount_cents ?? 0,
+    subtotalKrw: raw.subtotal_krw ?? 0,
+    discountKrw: raw.discount_krw ?? 0,
     // Older order services omit the field; 0 (free delivery) is the safe read.
     shippingFeeKrw: raw.shipping_fee_krw ?? 0,
-    totalCents: raw.total_cents ?? 0,
+    totalKrw: raw.total_krw ?? 0,
     couponCode: raw.coupon_code,
     orderId: raw.order_id,
   };
@@ -284,16 +284,16 @@ function mapOrder(raw: RawOrder): Order {
     id: raw.id,
     customerId: raw.customer_id,
     status: raw.status,
-    subtotalCents: raw.subtotal_cents ?? 0,
-    discountCents: raw.discount_cents ?? 0,
+    subtotalKrw: raw.subtotal_krw ?? 0,
+    discountKrw: raw.discount_krw ?? 0,
     shippingFeeKrw: raw.shipping_fee_krw ?? 0,
-    totalCents: raw.total_cents ?? 0,
+    totalKrw: raw.total_krw ?? 0,
     couponCode: raw.coupon_code,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
       quantity: item.quantity,
-      unitPriceCents: item.unit_price_cents,
+      unitPriceKrw: item.unit_price_krw,
       productName: item.product_name || undefined,
       imageUrl: item.image_url || undefined,
     })),
@@ -482,7 +482,7 @@ export async function createPayment(
   const raw = (await res.json()) as {
     id: string;
     order_id: string;
-    amount_cents: number;
+    amount_krw: number;
     status: string;
     method?: string;
     checkout_url?: string;
@@ -490,7 +490,7 @@ export async function createPayment(
   return {
     id: raw.id,
     orderId: raw.order_id,
-    amountCents: raw.amount_cents,
+    amountKrw: raw.amount_krw,
     status: raw.status,
     method: raw.method ?? method,
     checkoutUrl: raw.checkout_url || undefined,
@@ -507,7 +507,7 @@ export async function getPayment(paymentId: string): Promise<Payment> {
   const raw = (await res.json()) as {
     id: string;
     order_id: string;
-    amount_cents: number;
+    amount_krw: number;
     status: string;
     method?: string;
     checkout_url?: string;
@@ -515,7 +515,7 @@ export async function getPayment(paymentId: string): Promise<Payment> {
   return {
     id: raw.id,
     orderId: raw.order_id,
-    amountCents: raw.amount_cents,
+    amountKrw: raw.amount_krw,
     status: raw.status,
     method: raw.method ?? "credit_card",
     checkoutUrl: raw.checkout_url || undefined,

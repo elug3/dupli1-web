@@ -1456,7 +1456,7 @@ function ResumePaymentBanner({
           <p className="mt-2 text-sm leading-relaxed text-zinc-700">
             {t(failed ? "checkout.resumeFailedBody" : "checkout.resumeBody", {
               order: order.id,
-              total: formatCurrency(order.totalCents),
+              total: formatCurrency(order.totalKrw),
             })}
           </p>
           {remainingMs !== null && (
