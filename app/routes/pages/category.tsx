@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router";
 import {
   type DisplayProduct,
   bannerBagImage,
+  listingProductImage,
+  LISTING_IMAGE_SIZES,
   productImage,
   searchProducts,
 } from "~/lib/api";
@@ -171,19 +173,25 @@ function ProductGrid({ products }: { products: DisplayProduct[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-5 md:gap-y-12">
-      {products.map((product) => (
+      {products.map((product, index) => (
         <Link key={product.id} to={`/product/${product.id}`} className="group">
           <div
             className="relative mb-3 overflow-hidden bg-zinc-50"
             style={{ paddingBottom: "110%" }}
           >
             <img
-              src={productImage(
+              src={listingProductImage(
                 product.category,
                 String(product.details.Brand ?? ""),
                 product.image
               )}
               alt={translateProductName(product.id, product.name)}
+              width={600}
+              height={660}
+              sizes={LISTING_IMAGE_SIZES}
+              loading={index < 4 ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={index < 4 ? "high" : undefined}
               className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
             />
           </div>

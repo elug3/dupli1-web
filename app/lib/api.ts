@@ -72,6 +72,8 @@ interface UpstreamProduct {
   status?: string;
   imageUrls?: string[];
   defaultImageUrl?: string;
+  /** ~600px JPEG sibling for category/home cards (upload-time thumb). */
+  defaultListingImageUrl?: string;
   tags?: string[];
   createdAt?: string;
   capacity?: string;
@@ -94,6 +96,7 @@ interface UpstreamProduct {
     officialPrice?: number;
     status: string;
     imageUrls?: string[];
+    listingImageUrls?: string[];
     availableQty?: number;
     inStock?: boolean;
   }>;
@@ -119,6 +122,14 @@ function upstreamOfficialPrice(product: UpstreamProduct): number | undefined {
 function upstreamImage(product: UpstreamProduct): string | undefined {
   if (product.defaultImageUrl?.trim()) return product.defaultImageUrl.trim();
   return product.imageUrls?.find((url) => url.trim().length > 0);
+}
+
+/** Prefer listing thumb for grids; fall back to full-size original. */
+function upstreamListingImage(product: UpstreamProduct): string | undefined {
+  if (product.defaultListingImageUrl?.trim()) {
+    return product.defaultListingImageUrl.trim();
+  }
+  return upstreamImage(product);
 }
 
 function upstreamImages(product: UpstreamProduct): string[] {
@@ -168,7 +179,7 @@ function toBag(product: UpstreamProduct): Bag {
     material: product.material,
     capacity: product.capacity ?? "",
     stock: product.stock ?? 0,
-    image: upstreamImage(product),
+    image: upstreamListingImage(product),
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
   };
@@ -422,6 +433,34 @@ export function bagImage(brand: string, image?: string): string {
   );
 }
 
+/**
+ * Target display width for category / home / cart listing cards (CSS px).
+ * Upload-time thumbs use longest edge ≤ this (`.w600.jpg` on the product CDN).
+ */
+export const LISTING_IMAGE_WIDTH = 600;
+
+/**
+ * Listing-card image URL. Prefer `defaultListingImageUrl` from the product API
+ * (already mapped into Bag/DisplayProduct.image for list/search).
+ */
+export function listingProductImage(
+  category: string,
+  brand: string,
+  image?: string
+): string {
+  return productImage(category, brand, image);
+}
+
+/** Same as {@link listingProductImage} for bag-shaped listings. */
+export function listingBagImage(brand: string, image?: string): string {
+  return bagImage(brand, image);
+}
+
+/**
+ * `sizes` for the common 2-col mobile / 4-col desktop product grid.
+ */
+export const LISTING_IMAGE_SIZES = "(min-width: 768px) 25vw, 50vw";
+
 export function heroBagImage(image?: string, brand?: string): string {
   if (!image) return bagImage(brand ?? "");
   return image.replace(/w_\d+,h_\d+/, "w_1200,h_1400");
@@ -618,7 +657,7 @@ export async function searchProducts(
         Style: product.style ?? "",
         Gender: product.target ?? product.family ?? "",
         Status: upstreamStatus(product),
-        Image: upstreamImage(product),
+        Image: upstreamListingImage(product),
       },
       category
     )
