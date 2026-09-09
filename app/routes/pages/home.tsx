@@ -8,6 +8,8 @@ import {
   bagImage,
   bannerBagImage,
   heroBagImage,
+  listingBagImage,
+  LISTING_IMAGE_SIZES,
 } from "~/lib/api";
 import {
   PRODUCT_TYPE_TO_SUBCATEGORY,
@@ -509,15 +511,21 @@ function FeaturedBags() {
                   <div className="mt-2 h-3 w-20 bg-zinc-200" />
                 </div>
               ))
-            : bags.map((bag) => (
+            : bags.map((bag, index) => (
                 <Link key={bag.id} to={`/product/${bag.id}`} className="group">
                   <div
                     className="relative mb-4 overflow-hidden bg-white"
                     style={{ paddingBottom: "115%" }}
                   >
                     <img
-                      src={bagImage(bag.brand, bag.image)}
+                      src={listingBagImage(bag.brand, bag.image)}
                       alt={bag.name}
+                      width={600}
+                      height={690}
+                      sizes={LISTING_IMAGE_SIZES}
+                      loading={index < 4 ? "eager" : "lazy"}
+                      decoding="async"
+                      fetchPriority={index < 4 ? "high" : undefined}
                       className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-zinc-950/0 transition duration-500 group-hover:bg-zinc-950/5" />
