@@ -144,7 +144,7 @@ such as `DUPLI1_CART_API_BASE_URL`). Cart owns persistent bag lines
 - `POST|PUT /api/v1/cart/items` (body: `{ sku` or `sku_id`, `quantity }`)
 - `DELETE /api/v1/cart/items/{sku}` or `.../items/by-sku-id/{skuId}`
 
-Cart `unit_price_cents` / `subtotal_cents` are **whole KRW won** (KRW is a
+Cart `unit_price_krw` / `subtotal_krw` are **whole KRW won** (KRW is a
 zero-decimal currency — do not divide by 100). There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 

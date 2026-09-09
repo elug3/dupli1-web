@@ -70,8 +70,8 @@ export default function CheckoutConfirmationPage() {
     };
   }, [orderId]);
 
-  // total_cents is whole KRW won (zero-decimal); do not ÷100.
-  const total = order ? order.totalCents : undefined;
+  // total_krw is whole KRW won (zero-decimal); do not ÷100.
+  const total = order ? order.totalKrw : undefined;
   const statusMessage =
     order?.status === "pending"
       ? t("confirmation.confirmingPayment")
@@ -126,17 +126,17 @@ export default function CheckoutConfirmationPage() {
                 <div className="flex justify-between gap-8">
                   <dt className="text-zinc-400">{t("cart.subtotal")}</dt>
                   <dd className="font-medium text-zinc-950">
-                    {formatCurrency(order.subtotalCents)}
+                    {formatCurrency(order.subtotalKrw)}
                   </dd>
                 </div>
-                {order.discountCents > 0 && (
+                {order.discountKrw > 0 && (
                   <div className="flex justify-between gap-8 text-emerald-700">
                     <dt>
                       {order.couponCode
                         ? t("cart.promo", { code: order.couponCode })
                         : t("confirmation.discount")}
                     </dt>
-                    <dd>−{formatCurrency(order.discountCents)}</dd>
+                    <dd>−{formatCurrency(order.discountKrw)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-8">

@@ -6,7 +6,7 @@ const CART_LINE = {
   sku: "SKU-1",
   product_id: "p1",
   quantity: 2,
-  unit_price_cents: 1000,
+  unit_price_krw: 1000,
 };
 
 /** Scripted fetch: session endpoints always succeed, cart depends on `signedIn`.
@@ -24,7 +24,7 @@ function stubFetch(signedIn: boolean) {
     return {
       ok: true,
       status: 200,
-      json: async () => ({ items: [CART_LINE], subtotal_cents: 2000 }),
+      json: async () => ({ items: [CART_LINE], subtotal_krw: 2000 }),
     } as unknown as Response;
   });
   vi.stubGlobal("fetch", fetchStub);
@@ -57,7 +57,7 @@ describe("resetCart", () => {
 
     resetCart();
     expect(getCartSnapshot().items).toEqual([]);
-    expect(getCartSnapshot().subtotalCents).toBe(0);
+    expect(getCartSnapshot().subtotalKrw).toBe(0);
   });
 });
 

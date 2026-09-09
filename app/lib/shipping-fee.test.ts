@@ -12,7 +12,7 @@ const LINE: CartLine = {
   sku: "SKU-1",
   product_id: "p1",
   quantity: 1,
-  unit_price_cents: 1004,
+  unit_price_krw: 1004,
 } as unknown as CartLine;
 
 afterEach(() => {
