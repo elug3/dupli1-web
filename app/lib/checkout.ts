@@ -560,6 +560,23 @@ export function isUnconfirmedPayment(payment: Payment): boolean {
   return payment.status === "requires_payment";
 }
 
+/** URL errors where requires_payment is expected and retry is safe. */
+const SAFE_RETRY_REASONS = new Set(["checkout_failed"]);
+
+/**
+ * Whether a PG return should be upgraded to unconfirmed after fetching the
+ * payment row. checkout_failed means the NANO bridge never opened the card
+ * window, so requires_payment is normal — do not show the stranded-charge
+ * warning or hide the resume banner.
+ */
+export function shouldPromoteReturnToUnconfirmed(
+  urlError: string | null | undefined
+): boolean {
+  const value = urlError?.trim().toLowerCase();
+  if (value && SAFE_RETRY_REASONS.has(value)) return false;
+  return true;
+}
+
 /**
  * How the unconfirmed-payment notice should identify the attempt to the shopper.
  *
