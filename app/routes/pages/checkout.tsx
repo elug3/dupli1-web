@@ -27,6 +27,7 @@ import {
   normalizePCCC,
   normalizePostalCode,
   isUnconfirmedPayment,
+  shouldPromoteReturnToUnconfirmed,
   replaceSessionItems,
   resolvePaymentReference,
   type Order,
@@ -296,6 +297,9 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!mounted || !returnedPaymentId || paymentUnconfirmed) return;
+    // checkout_failed leaves the payment at requires_payment — the bridge never
+    // opened the card window, so that is safe to retry, not a stranded charge.
+    if (!shouldPromoteReturnToUnconfirmed(searchParams.get("error"))) return;
     let cancelled = false;
     getPayment(returnedPaymentId)
       .then((payment) => {
@@ -308,7 +312,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [mounted, returnedPaymentId, paymentUnconfirmed]);
+  }, [mounted, returnedPaymentId, paymentUnconfirmed, searchParams]);
 
   // Restore the saved form once, after the session is known so the draft can
   // be matched to its owner. Runs before any auto-fill from the profile wins.

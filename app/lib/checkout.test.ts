@@ -11,6 +11,7 @@ import {
   classifyPaymentReturn,
   findResumableOrder,
   isUnconfirmedPayment,
+  shouldPromoteReturnToUnconfirmed,
   isResumableOrder,
   listMyOrders,
   orderHasPricingBreakdown,
@@ -561,6 +562,27 @@ describe("resolvePaymentReference", () => {
     expect(
       resolvePaymentReference({ returnedOrderId: "", returnedPaymentId: " " })
     ).toBeNull();
+  });
+});
+
+describe("shouldPromoteReturnToUnconfirmed", () => {
+  it("does not upgrade checkout_failed — bridge never opened the card window", () => {
+    expect(shouldPromoteReturnToUnconfirmed("checkout_failed")).toBe(false);
+    expect(shouldPromoteReturnToUnconfirmed("  CHECKOUT_FAILED  ")).toBe(false);
+  });
+
+  it("still upgrades other returns when the payment row must be checked", () => {
+    for (const value of [
+      "declined",
+      "invalid_payload",
+      "verify_failed",
+      "amount_mismatch",
+      null,
+      undefined,
+      "",
+    ]) {
+      expect(shouldPromoteReturnToUnconfirmed(value)).toBe(true);
+    }
   });
 });
 
