@@ -606,7 +606,8 @@ function OrdersSection({ user }: { user: User }) {
                     ₩{order.totalKrw.toLocaleString()}
                   </span>
                 </div>
-                {order.cancelRequestedAt ? (
+                {order.cancelRequestedAt &&
+                (order.status === "paid" || order.status === "in_transit") ? (
                   <p className="mt-3 text-[11px] text-amber-700">
                     {t("profile.cancelRequested")}
                   </p>
