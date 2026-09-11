@@ -9,7 +9,7 @@ import {
   getCustomerProfile,
   updateCustomerProfile,
 } from "~/lib/profile";
-import { type Order, isValidKRPhone, listMyOrders } from "~/lib/checkout";
+import { type Order, cancelMyOrder, isValidKRPhone, listMyOrders } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
 type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
@@ -486,6 +486,8 @@ function OrdersSection({ user }: { user: User }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -508,9 +510,32 @@ function OrdersSection({ user }: { user: User }) {
     return t(key as Parameters<typeof t>[0]) || status;
   }
 
+  async function handleCancel(order: Order) {
+    const immediate = Boolean(order.immediateCancelAllowed);
+    const ok = window.confirm(
+      immediate ? t("profile.confirmCancelImmediate") : t("profile.confirmCancelRequest")
+    );
+    if (!ok) return;
+    setCancelingId(order.id);
+    setCancelError(null);
+    try {
+      const updated = await cancelMyOrder(order.id);
+      setOrders((current) =>
+        (current ?? []).map((row) => (row.id === updated.id ? updated : row))
+      );
+    } catch {
+      setCancelError(t("profile.cancelFailed"));
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
   return (
     <section>
       <SectionHeader title={t("profile.orders")} count={loading ? undefined : (orders?.length ?? 0)} />
+      {cancelError ? (
+        <p className="mb-3 text-xs text-red-600">{cancelError}</p>
+      ) : null}
 
       {loading ? (
         <div className="space-y-3">
@@ -581,6 +606,25 @@ function OrdersSection({ user }: { user: User }) {
                     ₩{order.totalKrw.toLocaleString()}
                   </span>
                 </div>
+                {order.cancelRequestedAt ? (
+                  <p className="mt-3 text-[11px] text-amber-700">
+                    {t("profile.cancelRequested")}
+                  </p>
+                ) : null}
+                {(order.immediateCancelAllowed || order.cancelRequestAllowed) && (
+                  <button
+                    type="button"
+                    disabled={cancelingId === order.id}
+                    onClick={() => handleCancel(order)}
+                    className="mt-3 text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                  >
+                    {cancelingId === order.id
+                      ? t("profile.canceling")
+                      : order.immediateCancelAllowed
+                        ? t("profile.cancelOrder")
+                        : t("profile.requestCancel")}
+                  </button>
+                )}
               </div>
             );
           })}

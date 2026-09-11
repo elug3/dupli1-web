@@ -562,7 +562,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Enter your coupon code at checkout in the promo code field. Only one code may be applied per order.",
     "profile.faqCancelOrder": "Can I cancel or modify an order?",
     "profile.faqCancelOrderAnswer":
-      "Orders can be cancelled within 1 hour of placement. After that, please contact our support team and we'll do our best to assist.",
+      "You can cancel for an immediate refund until a manager confirms the order (confirmation is required within 2 hours of payment). After confirmation, or while the order is in transit, cancellation goes to a manager and is processed after they confirm — they have 2 hours, after which the refund is approved automatically.",
+    "profile.cancelOrder": "Cancel order",
+    "profile.requestCancel": "Request cancellation",
+    "profile.canceling": "Canceling…",
+    "profile.cancelRequested": "Cancellation requested — waiting for manager confirmation (within 2 hours).",
+    "profile.confirmCancelImmediate": "Cancel this order and refund immediately?",
+    "profile.confirmCancelRequest": "Request cancellation? A manager will confirm within 2 hours.",
+    "profile.cancelFailed": "Could not cancel this order.",
 
     "notFound.metaTitle": "Page not found | Dupli1",
     "notFound.metaDescription": "The requested Dupli1 page could not be found.",
@@ -1145,7 +1152,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "결제 화면의 프로모션 코드 입력란에 쿠폰 코드를 입력하세요. 주문당 하나의 코드만 적용할 수 있습니다.",
     "profile.faqCancelOrder": "주문을 취소하거나 변경할 수 있나요?",
     "profile.faqCancelOrderAnswer":
-      "주문 후 1시간 이내에는 취소할 수 있습니다. 이후에는 지원팀에 문의해 주시면 가능한 한 도와드리겠습니다.",
+      "매니저가 주문을 확인하기 전(결제 후 2시간 이내 확인)에는 즉시 환불됩니다. 주문 확인 이후이거나 배송 중인 취소는 매니저 확인 후 처리되며, 매니저는 2시간 이내에 응답해야 합니다. 기한이 지나면 환불이 자동 승인됩니다.",
+    "profile.cancelOrder": "주문 취소",
+    "profile.requestCancel": "취소 요청",
+    "profile.canceling": "취소 중…",
+    "profile.cancelRequested": "취소가 요청되었습니다. 매니저 확인을 기다리는 중입니다 (2시간 이내).",
+    "profile.confirmCancelImmediate": "이 주문을 취소하고 즉시 환불할까요?",
+    "profile.confirmCancelRequest": "취소를 요청할까요? 매니저가 2시간 이내에 확인합니다.",
+    "profile.cancelFailed": "주문을 취소하지 못했습니다.",
 
     "notFound.metaTitle": "페이지를 찾을 수 없음 | Dupli1",
     "notFound.metaDescription": "요청한 Dupli1 페이지를 찾을 수 없습니다.",
@@ -1711,7 +1725,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "在结账时的优惠码输入框中输入您的优惠券代码。每个订单只能使用一个代码。",
     "profile.faqCancelOrder": "可以取消或修改订单吗？",
     "profile.faqCancelOrderAnswer":
-      "下单后 1 小时内可以取消。之后请联系我们的支持团队，我们会尽力协助。",
+      "经理确认订单前（付款后需在 2 小时内确认）可立即退款。确认之后或运送中的取消需经理确认后处理，经理须在 2 小时内回应；超时将自动批准退款。",
+    "profile.cancelOrder": "取消订单",
+    "profile.requestCancel": "申请取消",
+    "profile.canceling": "取消中…",
+    "profile.cancelRequested": "已申请取消，等待经理确认（2 小时内）。",
+    "profile.confirmCancelImmediate": "取消此订单并立即退款？",
+    "profile.confirmCancelRequest": "申请取消？经理将在 2 小时内确认。",
+    "profile.cancelFailed": "无法取消此订单。",
 
     "notFound.metaTitle": "页面未找到 | Dupli1",
     "notFound.metaDescription": "无法找到请求的 Dupli1 页面。",

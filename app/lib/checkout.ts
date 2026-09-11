@@ -150,6 +150,11 @@ export interface Order {
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
   paymentDueAtMs?: number;
   paymentId?: string;
+  confirmedAt?: string;
+  cancelRequestedAt?: string;
+  cancelRequestReason?: string;
+  immediateCancelAllowed?: boolean;
+  cancelRequestAllowed?: boolean;
 }
 
 /** True when the order JSON carried a pricing breakdown, not only a total. */
@@ -262,6 +267,11 @@ interface RawOrder {
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
   payment_id?: string;
+  confirmed_at?: string;
+  cancel_requested_at?: string;
+  cancel_request_reason?: string;
+  immediate_cancel_allowed?: boolean;
+  cancel_request_allowed?: boolean;
 }
 
 function mapSession(raw: RawSession): CheckoutSession {
@@ -299,6 +309,11 @@ function mapOrder(raw: RawOrder): Order {
     })),
     paymentDueAtMs: Number.isNaN(dueAt) ? undefined : dueAt,
     paymentId: raw.payment_id || undefined,
+    confirmedAt: raw.confirmed_at || undefined,
+    cancelRequestedAt: raw.cancel_requested_at || undefined,
+    cancelRequestReason: raw.cancel_request_reason || undefined,
+    immediateCancelAllowed: raw.immediate_cancel_allowed,
+    cancelRequestAllowed: raw.cancel_request_allowed,
   };
 }
 
@@ -612,6 +627,15 @@ export async function listMyOrders(customerId: string): Promise<Order[]> {
   const res = await request(`/api/v1/orders?customer_id=${encodeURIComponent(customerId)}`);
   const body = (await res.json()) as { orders?: RawOrder[] | null };
   return (body.orders ?? []).map(mapOrder);
+}
+
+/** Customer cancel: immediate refund before confirm, else a manager-approval request. */
+export async function cancelMyOrder(orderId: string, reason?: string): Promise<Order> {
+  const res = await request(`/api/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason ?? "" }),
+  });
+  return mapOrder(await res.json());
 }
 
 /** True while an order can still be paid: pending and inside its unpaid window. */
