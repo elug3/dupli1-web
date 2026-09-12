@@ -629,6 +629,19 @@ export async function listMyOrders(customerId: string): Promise<Order[]> {
   return (body.orders ?? []).map(mapOrder);
 }
 
+/** Show the "cancellation requested" banner only while the order is still active. */
+export function shouldShowCancelRequestedBanner(order: Order): boolean {
+  return Boolean(
+    order.cancelRequestedAt &&
+      (order.status === "paid" || order.status === "in_transit")
+  );
+}
+
+/** True when the profile page should offer cancel / request-cancel actions. */
+export function canCustomerCancelOrder(order: Order): boolean {
+  return Boolean(order.immediateCancelAllowed || order.cancelRequestAllowed);
+}
+
 /** Customer cancel: immediate refund before confirm, else a manager-approval request. */
 export async function cancelMyOrder(orderId: string, reason?: string): Promise<Order> {
   const res = await request(`/api/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
