@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
+  canCustomerCancelOrder,
+  cancelMyOrder,
   cartHasUnpurchasableItems,
   formatKRPhoneInput,
   getUnpurchasableCartItems,
@@ -10,6 +12,7 @@ import {
   isUnpurchasableVariantError,
   classifyPaymentReturn,
   findResumableOrder,
+  getOrder,
   isUnconfirmedPayment,
   isResumableOrder,
   listMyOrders,
@@ -24,6 +27,7 @@ import {
   resolveCheckoutVariantRef,
   resolvePaymentReference,
   shouldOpenNanoCheckout,
+  shouldShowCancelRequestedBanner,
   storefrontNanoCheckoutPath,
 } from "./checkout";
 
@@ -588,6 +592,112 @@ describe("storefrontNanoCheckoutPath", () => {
   it("stays on the storefront, not the gateway /api/v1 path", () => {
     expect(storefrontNanoCheckoutPath("pay_000016")).toBe("/checkout/pay/pay_000016");
     expect(storefrontNanoCheckoutPath("pay_000016")).not.toContain("/api/");
+  });
+});
+
+describe("refund policy order mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("maps refund-policy flags from the order JSON", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ord_1",
+        customer_id: "cust-1",
+        status: "paid",
+        total_krw: 70000,
+        confirmed_at: "2026-09-11T08:00:00Z",
+        cancel_requested_at: "2026-09-11T09:00:00Z",
+        cancel_request_reason: "changed mind",
+        immediate_cancel_allowed: false,
+        cancel_request_allowed: false,
+      }),
+    }));
+    const mapped = await getOrder("ord_1");
+    expect(mapped.confirmedAt).toBe("2026-09-11T08:00:00Z");
+    expect(mapped.cancelRequestedAt).toBe("2026-09-11T09:00:00Z");
+    expect(mapped.cancelRequestReason).toBe("changed mind");
+    expect(mapped.immediateCancelAllowed).toBe(false);
+    expect(mapped.cancelRequestAllowed).toBe(false);
+  });
+
+  it("cancelMyOrder posts to /cancel with optional reason", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.url;
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: "ord_1",
+          customer_id: "cust-1",
+          status: "canceled",
+          total_krw: 70000,
+        }),
+      };
+    });
+    const updated = await cancelMyOrder("ord_1", "too big");
+    expect(updated.status).toBe("canceled");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toContain("/api/v1/orders/ord_1/cancel");
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ reason: "too big" });
+  });
+});
+
+describe("shouldShowCancelRequestedBanner", () => {
+  const base = {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "paid",
+    subtotalKrw: 40000,
+    discountKrw: 0,
+    shippingFeeKrw: 30000,
+    totalKrw: 70000,
+    items: [],
+    cancelRequestedAt: "2026-09-11T09:00:00Z",
+  };
+
+  it("shows while paid or in_transit with a pending request", () => {
+    expect(shouldShowCancelRequestedBanner(base)).toBe(true);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "in_transit" })).toBe(true);
+  });
+
+  it("hides after cancel completes or before a request exists", () => {
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "canceled" })).toBe(false);
+    expect(shouldShowCancelRequestedBanner({ ...base, cancelRequestedAt: undefined })).toBe(false);
+  });
+});
+
+describe("canCustomerCancelOrder", () => {
+  const base = {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "paid",
+    subtotalKrw: 40000,
+    discountKrw: 0,
+    shippingFeeKrw: 30000,
+    totalKrw: 70000,
+    items: [],
+  };
+
+  it("offers cancel when immediate refund or request is allowed", () => {
+    expect(canCustomerCancelOrder({ ...base, immediateCancelAllowed: true })).toBe(true);
+    expect(canCustomerCancelOrder({ ...base, cancelRequestAllowed: true })).toBe(true);
+  });
+
+  it("hides the action when neither flag is set", () => {
+    expect(
+      canCustomerCancelOrder({
+        ...base,
+        immediateCancelAllowed: false,
+        cancelRequestAllowed: false,
+      })
+    ).toBe(false);
   });
 });
 
