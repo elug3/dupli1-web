@@ -9,7 +9,14 @@ import {
   getCustomerProfile,
   updateCustomerProfile,
 } from "~/lib/profile";
-import { type Order, cancelMyOrder, isValidKRPhone, listMyOrders } from "~/lib/checkout";
+import {
+  type Order,
+  cancelMyOrder,
+  canCustomerCancelOrder,
+  isValidKRPhone,
+  listMyOrders,
+  shouldShowCancelRequestedBanner,
+} from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
 type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
@@ -606,13 +613,12 @@ function OrdersSection({ user }: { user: User }) {
                     ₩{order.totalKrw.toLocaleString()}
                   </span>
                 </div>
-                {order.cancelRequestedAt &&
-                (order.status === "paid" || order.status === "in_transit") ? (
+                {shouldShowCancelRequestedBanner(order) ? (
                   <p className="mt-3 text-[11px] text-amber-700">
                     {t("profile.cancelRequested")}
                   </p>
                 ) : null}
-                {(order.immediateCancelAllowed || order.cancelRequestAllowed) && (
+                {canCustomerCancelOrder(order) && (
                   <button
                     type="button"
                     disabled={cancelingId === order.id}
