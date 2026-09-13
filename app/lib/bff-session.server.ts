@@ -2,6 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import type { User } from "./auth";
 import { getServiceAccountAccessToken, serviceAccountConfigured } from "./service-account.server";
+import {
+  type StoredSession,
+  deleteSessionRecord,
+  readSessionRecord,
+  writeSessionRecord,
+} from "./session-store.server";
 import "./tls-ca.server";
 
 const SESSION_COOKIE_NAME = "dupli1_session";
@@ -28,26 +34,10 @@ interface TokenResponse {
   [key: string]: unknown;
 }
 
-interface SessionRecord {
-  refreshToken: string;
-  accessToken: string;
-  accessTokenExpiresAt: number;
-  expiresAt: number;
-  user?: User;
-}
-
 interface AccessTokenResult {
   token: string;
   setCookie?: string;
 }
-
-declare global {
-  // Keep the cache stable across Vite server reloads during local development.
-  // Production deployments should replace this with shared server-side storage.
-  var __dupli1BffSessions: Map<string, SessionRecord> | undefined;
-}
-
-const sessions = (globalThis.__dupli1BffSessions ??= new Map());
 
 function now(): number {
   return Date.now();
@@ -169,33 +159,81 @@ function sessionIdFromRequest(request: Request): string | null {
   return parseCookies(request.headers.get("Cookie")).get(SESSION_COOKIE_NAME) ?? null;
 }
 
-function readSession(request: Request): { id: string; record: SessionRecord } | null {
+async function readSession(
+  request: Request
+): Promise<{ id: string; record: StoredSession } | null> {
   const sessionId = sessionIdFromRequest(request);
   if (!sessionId) return null;
 
-  const record = sessions.get(sessionId);
+  const record = await readSessionRecord(sessionId);
   if (!record) return null;
-
-  if (record.expiresAt <= now()) {
-    sessions.delete(sessionId);
-    return null;
-  }
 
   return { id: sessionId, record };
 }
 
-async function exchangeRefreshToken(refreshToken: string): Promise<{
-  accessToken: string;
-  refreshToken: string;
-  expiresIn?: number;
-} | null> {
-  const upstream = await requestTokens("/api/v1/auth/refresh", {
-    refresh_token: refreshToken,
-  });
+/**
+ * Why a refresh handshake produced no tokens.
+ *
+ * `rejected` is auth's verdict on the token itself — invalid, expired, already
+ * rotated, or the account is locked. The session really is over.
+ *
+ * `unavailable` means we never got a verdict: auth was unreachable, timed out,
+ * or answered with its own failure. The refresh token is still presumed good,
+ * and it is the only thing standing between the customer and a re-login, so it
+ * must survive someone else's outage.
+ */
+type RefreshFailure = "rejected" | "unavailable";
 
-  if (!upstream.ok) return null;
+type RefreshResult =
+  | {
+      ok: true;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn?: number;
+    }
+  | { ok: false; failure: RefreshFailure };
 
-  const body = (await upstream.json()) as TokenResponse;
+/**
+ * Statuses that are auth's verdict on the refresh token (docs/api.md
+ * `POST /api/v1/auth/refresh`): `400` malformed body, `401` invalid, expired,
+ * rotated, revoked, or a deactivated/locked account.
+ *
+ * Every other status — including a `404` from a misrouted gateway and any
+ * `5xx` — is deliberately *not* a rejection. Guessing wrong in that direction
+ * signs out every customer at once, and the default has to fail safe.
+ */
+const REFRESH_REJECTED_STATUSES = new Set([400, 401]);
+
+async function exchangeRefreshToken(
+  refreshToken: string
+): Promise<RefreshResult> {
+  let upstream: Response;
+  try {
+    upstream = await requestTokens("/api/v1/auth/refresh", {
+      refresh_token: refreshToken,
+    });
+  } catch {
+    // Connection refused, DNS, TLS, timeout — auth never saw the request.
+    return { ok: false, failure: "unavailable" };
+  }
+
+  if (!upstream.ok) {
+    return {
+      ok: false,
+      failure: REFRESH_REJECTED_STATUSES.has(upstream.status)
+        ? "rejected"
+        : "unavailable",
+    };
+  }
+
+  let body: TokenResponse;
+  try {
+    body = (await upstream.json()) as TokenResponse;
+  } catch {
+    // 200 with a body we cannot read (proxy error page) is not a verdict.
+    return { ok: false, failure: "unavailable" };
+  }
+
   const accessToken =
     typeof body.token === "string"
       ? body.token
@@ -203,9 +241,12 @@ async function exchangeRefreshToken(refreshToken: string): Promise<{
         ? body.access_token
         : null;
 
-  if (!accessToken) return null;
+  // Auth accepted the token but sent nothing usable: a contract problem on
+  // their side, not grounds for ending the customer's session.
+  if (!accessToken) return { ok: false, failure: "unavailable" };
 
   return {
+    ok: true,
     accessToken,
     refreshToken:
       typeof body.refresh_token === "string" && body.refresh_token
@@ -218,13 +259,27 @@ async function exchangeRefreshToken(refreshToken: string): Promise<{
   };
 }
 
+/** Auth could not be consulted. Distinct from 401 so the browser keeps its
+ * cookie and can retry, rather than being sent to the login form. */
+function authUnavailableResponse(): Response {
+  return json(
+    {
+      error: "Sign-in service is temporarily unavailable. Please try again.",
+      error_code: "auth_unavailable",
+    },
+    { status: 503 }
+  );
+}
+
 async function createSessionFromRefreshToken(
   refreshToken: string,
   user?: User
 ): Promise<{ setCookie: string } | Response> {
   const exchanged = await exchangeRefreshToken(refreshToken);
-  if (!exchanged) {
-    return json({ error: "Auth server did not issue an access token" }, { status: 502 });
+  if (!exchanged.ok) {
+    return exchanged.failure === "unavailable"
+      ? authUnavailableResponse()
+      : json({ error: "Auth server did not issue an access token" }, { status: 502 });
   }
 
   return createSession({
@@ -255,14 +310,14 @@ function accessTokenExpiresAt(expiresIn?: number): number {
   return now() + seconds * 1000;
 }
 
-function createSession(tokens: {
+async function createSession(tokens: {
   access_token: string;
   refresh_token: string;
   expires_in?: number;
   user?: User;
-}): { setCookie: string } {
+}): Promise<{ setCookie: string }> {
   const sessionId = randomUUID();
-  sessions.set(sessionId, {
+  await writeSessionRecord(sessionId, {
     refreshToken: tokens.refresh_token,
     accessToken: tokens.access_token,
     accessTokenExpiresAt: accessTokenExpiresAt(tokens.expires_in),
@@ -273,15 +328,27 @@ function createSession(tokens: {
   return { setCookie: sessionCookie(sessionId) };
 }
 
-function touchSession(sessionId: string, record: SessionRecord): string {
-  record.expiresAt = now() + SESSION_TTL_SECONDS * 1000;
-  sessions.set(sessionId, record);
+/**
+ * Persist a record and extend its deadline.
+ *
+ * Records now come back from the store as copies, so callers must hand the
+ * updated record here — mutating what `readSession` returned no longer reaches
+ * storage.
+ */
+async function touchSession(
+  sessionId: string,
+  record: StoredSession
+): Promise<string> {
+  await writeSessionRecord(sessionId, {
+    ...record,
+    expiresAt: now() + SESSION_TTL_SECONDS * 1000,
+  });
   return sessionCookie(sessionId);
 }
 
-function forgetSession(request: Request): void {
+async function forgetSession(request: Request): Promise<void> {
   const sessionId = sessionIdFromRequest(request);
-  if (sessionId) sessions.delete(sessionId);
+  if (sessionId) await deleteSessionRecord(sessionId);
 }
 
 async function parseJsonBody(request: Request): Promise<Record<string, unknown>> {
@@ -346,7 +413,14 @@ async function sanitizedAuthResponse(
       payload = { ok: upstream.ok };
     }
   } else if (!upstream.ok) {
-    payload = { error: await upstream.text() };
+    // A non-JSON error body is an infrastructure page, not a message: the ALB
+    // serves HTML for 502/503/504 when nginx is unreachable, and passing that
+    // through put a whole HTML document in the browser's error box. Nothing in
+    // it is worth showing, so only the status survives.
+    payload = {
+      error: `Upstream request failed: ${upstream.status}`,
+      error_code: "upstream_unavailable",
+    };
   }
 
   return json(payload, { status: upstream.status }, setCookie);
@@ -387,7 +461,7 @@ export async function handleLogin(request: Request): Promise<Response> {
 
   const tokens = (await upstream.json()) as TokenResponse;
   if (isTokenResponse(tokens)) {
-    const { setCookie } = createSession(tokens);
+    const { setCookie } = await createSession(tokens);
     return json({ ok: true, user: tokens.user ?? null }, { status: 200 }, setCookie);
   }
 
@@ -452,7 +526,7 @@ export async function handleRegister(request: Request): Promise<Response> {
 
   const loginBody = (await loginResponse.json()) as TokenResponse;
   if (isTokenResponse(loginBody)) {
-    const { setCookie } = createSession(loginBody);
+    const { setCookie } = await createSession(loginBody);
     return json({ ok: true, user: loginBody.user ?? null }, { status: 200 }, setCookie);
   }
 
@@ -466,11 +540,100 @@ export async function handleRegister(request: Request): Promise<Response> {
   return json({ ok: true }, { status: 200 }, sessionResult.setCookie);
 }
 
+/** Apply a successful exchange to a record and persist it. */
+async function storeExchange(
+  sessionId: string,
+  record: StoredSession,
+  exchanged: { accessToken: string; refreshToken: string; expiresIn?: number }
+): Promise<AccessTokenResult> {
+  const updated: StoredSession = {
+    ...record,
+    accessToken: exchanged.accessToken,
+    refreshToken: exchanged.refreshToken,
+    accessTokenExpiresAt: accessTokenExpiresAt(exchanged.expiresIn),
+  };
+  return {
+    token: updated.accessToken,
+    setCookie: await touchSession(sessionId, updated),
+  };
+}
+
+/**
+ * One in-flight refresh per session.
+ *
+ * Refresh rotates on use, so two concurrent exchanges spend the same token and
+ * auth rejects the loser. Joiners share the winner's result instead of racing.
+ */
+const refreshesInFlight = new Map<
+  string,
+  Promise<AccessTokenResult | Response>
+>();
+
+async function refreshSessionTokens(
+  sessionId: string,
+  record: StoredSession
+): Promise<AccessTokenResult | Response> {
+  const joined = refreshesInFlight.get(sessionId);
+  if (joined) return joined;
+
+  const attempt = (async (): Promise<AccessTokenResult | Response> => {
+    const exchanged = await exchangeRefreshToken(record.refreshToken);
+    if (exchanged.ok) {
+      return storeExchange(sessionId, record, exchanged);
+    }
+
+    if (exchanged.failure === "unavailable") {
+      // Keep the record and the cookie. Auth never ruled on this token, so
+      // dropping it would turn a blip on their side into a real sign-out —
+      // the refresh token is unrecoverable once we forget it.
+      //
+      // Refresh rotates on use, so a request auth processed but never
+      // delivered leaves us holding a spent token. The next attempt then gets
+      // a real 401 and ends the session below, which is the correct outcome
+      // reached one retry later instead of guessed at now.
+      return authUnavailableResponse();
+    }
+
+    // Auth's verdict is "rejected" — but with a shared store that is not proof
+    // the session is over. Another task may have rotated the token between our
+    // read and our call, which invalidates ours while the session stays
+    // healthy. In-process coalescing cannot see that, so consult the store
+    // before signing anybody out.
+    const current = await readSessionRecord(sessionId);
+    if (current && current.refreshToken !== record.refreshToken) {
+      if (current.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > now()) {
+        return { token: current.accessToken };
+      }
+      const retried = await exchangeRefreshToken(current.refreshToken);
+      if (retried.ok) {
+        return storeExchange(sessionId, current, retried);
+      }
+      if (retried.failure === "unavailable") {
+        return authUnavailableResponse();
+      }
+    }
+
+    await deleteSessionRecord(sessionId);
+    return json(
+      { error: "Session expired. Please sign in again." },
+      { status: 401 },
+      clearSessionCookie()
+    );
+  })();
+
+  refreshesInFlight.set(sessionId, attempt);
+  try {
+    return await attempt;
+  } finally {
+    refreshesInFlight.delete(sessionId);
+  }
+}
+
 export async function getAccessToken(
   request: Request,
   options: { forceRefresh?: boolean } = {}
 ): Promise<AccessTokenResult | Response> {
-  const session = readSession(request);
+  const session = await readSession(request);
   if (!session) {
     return json(
       { error: "Not authenticated" },
@@ -487,25 +650,7 @@ export async function getAccessToken(
     return { token: session.record.accessToken };
   }
 
-  const exchanged = await exchangeRefreshToken(session.record.refreshToken);
-
-  if (!exchanged) {
-    sessions.delete(session.id);
-    return json(
-      { error: "Session expired. Please sign in again." },
-      { status: 401 },
-      clearSessionCookie()
-    );
-  }
-
-  session.record.accessToken = exchanged.accessToken;
-  session.record.refreshToken = exchanged.refreshToken;
-  session.record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
-
-  return {
-    token: session.record.accessToken,
-    setCookie: touchSession(session.id, session.record),
-  };
+  return refreshSessionTokens(session.id, session.record);
 }
 
 export async function handleRefresh(request: Request): Promise<Response> {
@@ -518,11 +663,18 @@ async function fetchAuthMe(
   token: string,
   setCookie?: string
 ): Promise<Response> {
-  const upstream = await fetch(upstreamUrl("auth", "/api/v1/auth/me"), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl("auth", "/api/v1/auth/me"), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    // Unreachable auth must not throw out of the route: a 500 with an HTML
+    // body tells the browser nothing, and the session is still intact.
+    return authUnavailableResponse();
+  }
   return proxyResponse(upstream, { noStore: true, setCookie });
 }
 
@@ -540,7 +692,7 @@ export async function handleMe(request: Request): Promise<Response> {
 
     me = await fetchAuthMe(refreshed.token, refreshed.setCookie);
     if (me.status === 401) {
-      forgetSession(request);
+      await forgetSession(request);
       return json(
         { error: "Not authenticated" },
         { status: 401 },
@@ -553,7 +705,7 @@ export async function handleMe(request: Request): Promise<Response> {
 }
 
 export async function handleLogout(request: Request): Promise<Response> {
-  const session = readSession(request);
+  const session = await readSession(request);
 
   if (session) {
     await fetch(upstreamUrl("auth", "/api/v1/auth/logout"), {
@@ -564,7 +716,7 @@ export async function handleLogout(request: Request): Promise<Response> {
         audience: TOKEN_AUDIENCE,
       }),
     }).catch(() => {});
-    sessions.delete(session.id);
+    await deleteSessionRecord(session.id);
   }
 
   return json({ ok: true }, { status: 200 }, clearSessionCookie());
@@ -624,7 +776,7 @@ export async function proxyBackendApi(
       return json(
         {
           error: `${service} rejected a valid session token`,
-          code: "upstream_unauthorized",
+          error_code: "upstream_unauthorized",
           service,
         },
         { status: 502 },

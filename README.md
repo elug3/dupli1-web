@@ -144,8 +144,8 @@ such as `DUPLI1_CART_API_BASE_URL`). Cart owns persistent bag lines
 - `POST|PUT /api/v1/cart/items` (body: `{ sku` or `sku_id`, `quantity }`)
 - `DELETE /api/v1/cart/items/{sku}` or `.../items/by-sku-id/{skuId}`
 
-Cart `unit_price_cents` / `subtotal_cents` are **whole KRW won** (KRW is a
-zero-decimal currency — do not divide by 100). There is no guest cart yet;
+Cart `unit_price_won` / `subtotal_won` are **whole KRW won**, never scaled.
+There is no guest cart yet;
 unsigned callers get 401 and the UI treats the bag as empty until login.
 
 Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
@@ -165,7 +165,18 @@ only collects money; order ship commits the reservation.
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
 and refresh tokens are cached server-side by the BFF; access tokens are reused
-for at most five minutes and refreshed with the cached refresh token pair. The
+for at most five minutes and refreshed with the cached refresh token pair.
+
+That store lives in `app/lib/session-store.server.ts`: **Redis when `REDIS_URL`
+is set** (`redis://redis.dupli1.local:6379` in ECS), otherwise a per-process
+`Map` so `npm run dev` and the tests need no infrastructure. The Map is only
+correct for a single task — the ALB target group has no session affinity, so a
+request landing on another task finds no session, clears the cookie and signs
+the customer out everywhere, including during the ~300s two-task window of a
+rolling deploy. Refresh rotates on use, so concurrent refreshes for one session
+are coalesced, and a rejection is re-checked against the store before anyone is
+signed out: another task may have rotated the token, which invalidates ours
+while the session stays healthy. The
 BFF includes `audience: "web"` in token requests for the backend contract, but
 the current Go auth service must also support/enforce that claim and configure
 its JWT expiry if the token `exp` itself must be exactly five minutes.
