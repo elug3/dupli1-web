@@ -610,7 +610,7 @@ function OrdersSection({ user }: { user: User }) {
                     Total
                   </span>
                   <span className="text-sm font-medium text-zinc-950">
-                    ₩{order.totalKrw.toLocaleString()}
+                    ₩{order.totalWon.toLocaleString()}
                   </span>
                 </div>
                 {shouldShowCancelRequestedBanner(order) ? (

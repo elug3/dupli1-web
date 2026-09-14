@@ -16,7 +16,7 @@ import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
-import { useShippingFeeKrw } from "./lib/useShippingFee";
+import { useShippingFeeWon } from "./lib/useShippingFee";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -80,11 +80,11 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 
 function AnnouncementBar() {
   const { t, formatCurrency } = useLanguage();
-  const shippingFeeKrw = useShippingFeeKrw();
+  const shippingFeeWon = useShippingFeeWon();
   const shippingCopy =
-    shippingFeeKrw === 0
+    shippingFeeWon === 0
       ? t("announcement.shippingFree")
-      : t("announcement.shipping", { amount: formatCurrency(shippingFeeKrw) });
+      : t("announcement.shipping", { amount: formatCurrency(shippingFeeWon) });
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">

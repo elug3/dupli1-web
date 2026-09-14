@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SHIPPING_FEE, computeTotals, type CartLine } from "./cart";
-import { getShippingFeeKrw } from "./checkout";
+import { getShippingFeeWon } from "./checkout";
 import {
-  loadShippingFeeKrw,
+  loadShippingFeeWon,
   resetShippingFeeCache,
   resolvedShippingFee,
 } from "./useShippingFee";
@@ -12,7 +12,7 @@ const LINE: CartLine = {
   sku: "SKU-1",
   product_id: "p1",
   quantity: 1,
-  unit_price_krw: 1004,
+  unit_price_won: 1004,
 } as unknown as CartLine;
 
 afterEach(() => {
@@ -57,7 +57,7 @@ describe("computeTotals shipping fee", () => {
   });
 });
 
-describe("getShippingFeeKrw", () => {
+describe("getShippingFeeWon", () => {
   function stubSettings(body: unknown, ok = true) {
     vi.stubGlobal(
       "fetch",
@@ -66,25 +66,25 @@ describe("getShippingFeeKrw", () => {
   }
 
   it("reads the fee the order service publishes", async () => {
-    stubSettings({ limits: { currency: "krw", shipping_fee_krw: 30000 } });
-    await expect(getShippingFeeKrw()).resolves.toBe(30000);
+    stubSettings({ limits: { currency: "krw", shipping_fee_won: 30000 } });
+    await expect(getShippingFeeWon()).resolves.toBe(30000);
   });
 
   it("reads an explicit zero as free delivery, not as missing", async () => {
-    stubSettings({ limits: { shipping_fee_krw: 0 } });
-    await expect(getShippingFeeKrw()).resolves.toBe(0);
+    stubSettings({ limits: { shipping_fee_won: 0 } });
+    await expect(getShippingFeeWon()).resolves.toBe(0);
   });
 
   // null means "no answer", so callers keep the display constant instead of
   // quoting 0 and under-charging on screen.
   it("returns null when the service omits the field", async () => {
     stubSettings({ limits: { currency: "krw" } });
-    await expect(getShippingFeeKrw()).resolves.toBeNull();
+    await expect(getShippingFeeWon()).resolves.toBeNull();
   });
 
   it("returns null on a failed response", async () => {
     stubSettings({}, false);
-    await expect(getShippingFeeKrw()).resolves.toBeNull();
+    await expect(getShippingFeeWon()).resolves.toBeNull();
   });
 
   it("returns null when the request throws", async () => {
@@ -94,7 +94,7 @@ describe("getShippingFeeKrw", () => {
         throw new Error("network down");
       })
     );
-    await expect(getShippingFeeKrw()).resolves.toBeNull();
+    await expect(getShippingFeeWon()).resolves.toBeNull();
   });
 });
 
@@ -113,17 +113,17 @@ describe("resolvedShippingFee", () => {
   });
 });
 
-describe("loadShippingFeeKrw cache", () => {
+describe("loadShippingFeeWon cache", () => {
   it("hits settings once and reuses the answer", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ limits: { shipping_fee_krw: 4500 } }),
+      json: async () => ({ limits: { shipping_fee_won: 4500 } }),
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(loadShippingFeeKrw()).resolves.toBe(4500);
-    await expect(loadShippingFeeKrw()).resolves.toBe(4500);
+    await expect(loadShippingFeeWon()).resolves.toBe(4500);
+    await expect(loadShippingFeeWon()).resolves.toBe(4500);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

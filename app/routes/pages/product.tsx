@@ -19,7 +19,7 @@ import {
 } from "~/lib/api";
 import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
-import { useShippingFeeKrw } from "~/lib/useShippingFee";
+import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
   isProductInStock,
@@ -267,7 +267,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
     translateProductName,
     translateValue,
   } = useLanguage();
-  const shippingFeeKrw = useShippingFeeKrw();
+  const shippingFeeWon = useShippingFeeWon();
   const mutation = useCartMutation();
   const { addItem, isPending, getAction, authRequired, error: cartError } = mutation;
   const navigate = useNavigate();
@@ -442,10 +442,10 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           {
             title: t("product.shippingReturns"),
             body:
-              shippingFeeKrw === 0
+              shippingFeeWon === 0
                 ? t("product.shippingReturnsBodyFree")
                 : t("product.shippingReturnsBody", {
-                    amount: formatCurrency(shippingFeeKrw),
+                    amount: formatCurrency(shippingFeeWon),
                   }),
           },
           {

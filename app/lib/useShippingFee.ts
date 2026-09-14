@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { SHIPPING_FEE } from "./cart";
-import { getShippingFeeKrw } from "./checkout";
+import { getShippingFeeWon } from "./checkout";
 
 // Shared across announcement, home, product, cart, and checkout so a single
 // GET /api/v1/orders/settings serves every surface on the page.
@@ -19,10 +19,10 @@ export function resolvedShippingFee(fee: number | null | undefined): number {
   return typeof fee === "number" && fee >= 0 ? fee : SHIPPING_FEE;
 }
 
-export function loadShippingFeeKrw(): Promise<number | null> {
+export function loadShippingFeeWon(): Promise<number | null> {
   if (cached !== undefined) return Promise.resolve(cached);
   if (!inflight) {
-    inflight = getShippingFeeKrw()
+    inflight = getShippingFeeWon()
       .then((fee) => {
         cached = fee;
         return fee;
@@ -39,12 +39,12 @@ export function loadShippingFeeKrw(): Promise<number | null> {
  * Falls back to SHIPPING_FEE until settings answers (or if it never does).
  * An explicit 0 is free delivery, not "unset".
  */
-export function useShippingFeeKrw(): number {
+export function useShippingFeeWon(): number {
   const [fee, setFee] = useState(() => resolvedShippingFee(cached ?? undefined));
 
   useEffect(() => {
     let cancelled = false;
-    loadShippingFeeKrw().then((loaded) => {
+    loadShippingFeeWon().then((loaded) => {
       if (!cancelled && loaded !== null) setFee(loaded);
     });
     return () => {

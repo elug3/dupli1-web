@@ -110,16 +110,16 @@ export interface SessionItem {
 export interface CheckoutSession {
   id: string;
   status: "open" | "completed" | "expired";
-  subtotalKrw: number;
-  discountKrw: number;
+  subtotalWon: number;
+  discountWon: number;
   /**
    * Delivery charge the order service quoted for this session, in whole KRW.
    * Authoritative: it is what the backend will actually charge, and it is fixed
    * when the session opens. Prefer it over the SHIPPING_FEE constant, which is
    * only a pre-session display fallback.
    */
-  shippingFeeKrw: number;
-  totalKrw: number;
+  shippingFeeWon: number;
+  totalWon: number;
   couponCode?: string;
   orderId?: string;
 }
@@ -128,8 +128,8 @@ export interface OrderItem {
   sku: string;
   skuId?: string;
   quantity: number;
-  /** Whole KRW won (JSON `unit_price_krw`). */
-  unitPriceKrw: number;
+  /** Whole KRW won (JSON `unit_price_won`). */
+  unitPriceWon: number;
   productName?: string;
   imageUrl?: string;
 }
@@ -138,13 +138,13 @@ export interface Order {
   id: string;
   customerId: string;
   status: string;
-  /** Whole KRW won (JSON `subtotal_krw`). */
-  subtotalKrw: number;
-  /** Whole KRW won (JSON `discount_krw`). Goods only — never delivery. */
-  discountKrw: number;
-  /** Whole KRW won (JSON `shipping_fee_krw`), snapshotted at order creation. */
-  shippingFeeKrw: number;
-  totalKrw: number;
+  /** Whole KRW won (JSON `subtotal_won`). */
+  subtotalWon: number;
+  /** Whole KRW won (JSON `discount_won`). Goods only — never delivery. */
+  discountWon: number;
+  /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
+  shippingFeeWon: number;
+  totalWon: number;
   couponCode?: string;
   items: OrderItem[];
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
@@ -160,9 +160,9 @@ export interface Order {
 /** True when the order JSON carried a pricing breakdown, not only a total. */
 export function orderHasPricingBreakdown(order: Order): boolean {
   return (
-    order.subtotalKrw > 0 ||
-    order.discountKrw > 0 ||
-    order.shippingFeeKrw > 0
+    order.subtotalWon > 0 ||
+    order.discountWon > 0 ||
+    order.shippingFeeWon > 0
   );
 }
 
@@ -197,14 +197,14 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
  * field, so callers fall back to the SHIPPING_FEE display constant rather than
  * silently quoting 0.
  */
-export async function getShippingFeeKrw(): Promise<number | null> {
+export async function getShippingFeeWon(): Promise<number | null> {
   try {
     const res = await fetch("/api/v1/orders/settings");
     if (!res.ok) return null;
     const body = (await res.json()) as {
-      limits?: { shipping_fee_krw?: number };
+      limits?: { shipping_fee_won?: number; shipping_fee_krw?: number };
     };
-    const fee = body.limits?.shipping_fee_krw;
+    const fee = body.limits?.shipping_fee_won ?? body.limits?.shipping_fee_krw;
     return typeof fee === "number" && fee >= 0 ? fee : null;
   } catch {
     return null;
@@ -214,7 +214,7 @@ export async function getShippingFeeKrw(): Promise<number | null> {
 export interface Payment {
   id: string;
   orderId: string;
-  amountKrw: number;
+  amountWon: number;
   status: string;
   method: PaymentMethod | string;
   /** Present for credit_card (NANO checkout bridge). Omitted for bypass. */
@@ -238,10 +238,10 @@ export function shouldOpenNanoCheckout(payment: Payment): boolean {
 interface RawSession {
   id: string;
   status: "open" | "completed" | "expired";
-  subtotal_krw?: number;
-  discount_krw?: number;
-  shipping_fee_krw?: number;
-  total_krw?: number;
+  subtotal_won?: number;
+  discount_won?: number;
+  shipping_fee_won?: number;
+  total_won?: number;
   coupon_code?: string;
   order_id?: string;
 }
@@ -250,7 +250,7 @@ interface RawOrderItem {
   sku: string;
   sku_id?: string;
   quantity: number;
-  unit_price_krw: number;
+  unit_price_won: number;
   product_name?: string;
   image_url?: string;
 }
@@ -259,10 +259,10 @@ interface RawOrder {
   id: string;
   customer_id: string;
   status: string;
-  subtotal_krw?: number;
-  discount_krw?: number;
-  shipping_fee_krw?: number;
-  total_krw?: number;
+  subtotal_won?: number;
+  discount_won?: number;
+  shipping_fee_won?: number;
+  total_won?: number;
   coupon_code?: string;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
@@ -278,11 +278,11 @@ function mapSession(raw: RawSession): CheckoutSession {
   return {
     id: raw.id,
     status: raw.status,
-    subtotalKrw: raw.subtotal_krw ?? 0,
-    discountKrw: raw.discount_krw ?? 0,
+    subtotalWon: raw.subtotal_won ?? 0,
+    discountWon: raw.discount_won ?? 0,
     // Older order services omit the field; 0 (free delivery) is the safe read.
-    shippingFeeKrw: raw.shipping_fee_krw ?? 0,
-    totalKrw: raw.total_krw ?? 0,
+    shippingFeeWon: raw.shipping_fee_won ?? 0,
+    totalWon: raw.total_won ?? 0,
     couponCode: raw.coupon_code,
     orderId: raw.order_id,
   };
@@ -294,16 +294,16 @@ function mapOrder(raw: RawOrder): Order {
     id: raw.id,
     customerId: raw.customer_id,
     status: raw.status,
-    subtotalKrw: raw.subtotal_krw ?? 0,
-    discountKrw: raw.discount_krw ?? 0,
-    shippingFeeKrw: raw.shipping_fee_krw ?? 0,
-    totalKrw: raw.total_krw ?? 0,
+    subtotalWon: raw.subtotal_won ?? 0,
+    discountWon: raw.discount_won ?? 0,
+    shippingFeeWon: raw.shipping_fee_won ?? 0,
+    totalWon: raw.total_won ?? 0,
     couponCode: raw.coupon_code,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
       quantity: item.quantity,
-      unitPriceKrw: item.unit_price_krw,
+      unitPriceWon: item.unit_price_won,
       productName: item.product_name || undefined,
       imageUrl: item.image_url || undefined,
     })),
@@ -497,7 +497,7 @@ export async function createPayment(
   const raw = (await res.json()) as {
     id: string;
     order_id: string;
-    amount_krw: number;
+    amount_won: number;
     status: string;
     method?: string;
     checkout_url?: string;
@@ -505,7 +505,7 @@ export async function createPayment(
   return {
     id: raw.id,
     orderId: raw.order_id,
-    amountKrw: raw.amount_krw,
+    amountWon: raw.amount_won,
     status: raw.status,
     method: raw.method ?? method,
     checkoutUrl: raw.checkout_url || undefined,
@@ -522,7 +522,7 @@ export async function getPayment(paymentId: string): Promise<Payment> {
   const raw = (await res.json()) as {
     id: string;
     order_id: string;
-    amount_krw: number;
+    amount_won: number;
     status: string;
     method?: string;
     checkout_url?: string;
@@ -530,7 +530,7 @@ export async function getPayment(paymentId: string): Promise<Payment> {
   return {
     id: raw.id,
     orderId: raw.order_id,
-    amountKrw: raw.amount_krw,
+    amountWon: raw.amount_won,
     status: raw.status,
     method: raw.method ?? "credit_card",
     checkoutUrl: raw.checkout_url || undefined,
