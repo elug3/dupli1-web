@@ -3,8 +3,10 @@ import {
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   canCustomerCancelOrder,
+  canRespondToDelivery,
   cancelMyOrder,
   cartHasUnpurchasableItems,
+  confirmOrderReceipt,
   formatKRPhoneInput,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
@@ -14,6 +16,7 @@ import {
   findResumableOrder,
   getOrder,
   isUnconfirmedPayment,
+  reportOrderNotReceived,
   shouldPromoteReturnToUnconfirmed,
   isResumableOrder,
   listMyOrders,
@@ -646,6 +649,29 @@ describe("refund policy order mapping", () => {
     expect(mapped.cancelRequestAllowed).toBe(false);
   });
 
+  it("maps delivery/receipt/dispute fields from the order JSON", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ord_1",
+        customer_id: "cust-1",
+        status: "disputed",
+        total_krw: 70000,
+        delivered_at: "2026-09-11T08:00:00Z",
+        disputed_at: "2026-09-12T08:00:00Z",
+        dispute_reason: "box was empty",
+        auto_fulfill_due_at: "2026-09-25T08:00:00Z",
+      }),
+    }));
+    const mapped = await getOrder("ord_1");
+    expect(mapped.deliveredAt).toBe("2026-09-11T08:00:00Z");
+    expect(mapped.disputedAt).toBe("2026-09-12T08:00:00Z");
+    expect(mapped.disputeReason).toBe("box was empty");
+    expect(mapped.autoFulfillDueAtMs).toBe(Date.parse("2026-09-25T08:00:00Z"));
+    expect(mapped.receiptConfirmedAt).toBeUndefined();
+  });
+
   it("cancelMyOrder posts to /cancel with optional reason", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
@@ -669,13 +695,81 @@ describe("refund policy order mapping", () => {
     expect(calls[0]?.init?.method).toBe("POST");
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ reason: "too big" });
   });
+
+  it("confirmOrderReceipt posts to /receipt/confirm", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.url;
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: "ord_1",
+          customer_id: "cust-1",
+          status: "fulfilled",
+          total_krw: 70000,
+          receipt_confirmed_at: "2026-09-20T08:00:00Z",
+        }),
+      };
+    });
+    const updated = await confirmOrderReceipt("ord_1");
+    expect(updated.status).toBe("fulfilled");
+    expect(updated.receiptConfirmedAt).toBe("2026-09-20T08:00:00Z");
+    expect(calls[0]?.url).toContain("/api/v1/orders/ord_1/receipt/confirm");
+    expect(calls[0]?.init?.method).toBe("POST");
+  });
+
+  it("reportOrderNotReceived posts to /receipt/dispute with optional reason", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.url;
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: "ord_1",
+          customer_id: "cust-1",
+          status: "disputed",
+          total_krw: 70000,
+        }),
+      };
+    });
+    const updated = await reportOrderNotReceived("ord_1", "never arrived");
+    expect(updated.status).toBe("disputed");
+    expect(calls[0]?.url).toContain("/api/v1/orders/ord_1/receipt/dispute");
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      reason: "never arrived",
+    });
+  });
+});
+
+describe("canRespondToDelivery", () => {
+  const base = {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "delivered",
+    subtotalKrw: 40000,
+    discountKrw: 0,
+    shippingFeeKrw: 30000,
+    totalKrw: 70000,
+    items: [],
+  };
+
+  it("is true only while the order is delivered", () => {
+    expect(canRespondToDelivery(base)).toBe(true);
+    expect(canRespondToDelivery({ ...base, status: "fulfilled" })).toBe(false);
+    expect(canRespondToDelivery({ ...base, status: "disputed" })).toBe(false);
+  });
 });
 
 describe("shouldShowCancelRequestedBanner", () => {
   const base = {
     id: "ord_1",
     customerId: "cust-1",
-    status: "paid",
+    status: "confirmed",
     subtotalKrw: 40000,
     discountKrw: 0,
     shippingFeeKrw: 30000,
@@ -684,12 +778,14 @@ describe("shouldShowCancelRequestedBanner", () => {
     cancelRequestedAt: "2026-09-11T09:00:00Z",
   };
 
-  it("shows while paid or in_transit with a pending request", () => {
+  it("shows while confirmed, in_transit, or delivered with a pending request", () => {
     expect(shouldShowCancelRequestedBanner(base)).toBe(true);
     expect(shouldShowCancelRequestedBanner({ ...base, status: "in_transit" })).toBe(true);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "delivered" })).toBe(true);
   });
 
-  it("hides after cancel completes or before a request exists", () => {
+  it("hides before confirm, after cancel completes, or before a request exists", () => {
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "paid" })).toBe(false);
     expect(shouldShowCancelRequestedBanner({ ...base, status: "canceled" })).toBe(false);
     expect(shouldShowCancelRequestedBanner({ ...base, cancelRequestedAt: undefined })).toBe(false);
   });

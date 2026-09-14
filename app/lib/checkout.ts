@@ -151,6 +151,15 @@ export interface Order {
   paymentDueAtMs?: number;
   paymentId?: string;
   confirmedAt?: string;
+  /** Set when the carrier/manager hands off the shipment (`in_transit` → `delivered`). */
+  deliveredAt?: string;
+  /** Set once this shopper confirms receipt (`delivered` → `fulfilled`). */
+  receiptConfirmedAt?: string;
+  /** Set once this shopper reports non-receipt (`delivered` → `disputed`). */
+  disputedAt?: string;
+  disputeReason?: string;
+  /** 14 days after `deliveredAt`; the order auto-fulfills if untouched. */
+  autoFulfillDueAtMs?: number;
   cancelRequestedAt?: string;
   cancelRequestReason?: string;
   immediateCancelAllowed?: boolean;
@@ -268,6 +277,11 @@ interface RawOrder {
   payment_due_at?: string;
   payment_id?: string;
   confirmed_at?: string;
+  delivered_at?: string;
+  receipt_confirmed_at?: string;
+  disputed_at?: string;
+  dispute_reason?: string;
+  auto_fulfill_due_at?: string;
   cancel_requested_at?: string;
   cancel_request_reason?: string;
   immediate_cancel_allowed?: boolean;
@@ -290,6 +304,9 @@ function mapSession(raw: RawSession): CheckoutSession {
 
 function mapOrder(raw: RawOrder): Order {
   const dueAt = raw.payment_due_at ? Date.parse(raw.payment_due_at) : NaN;
+  const autoFulfillDueAt = raw.auto_fulfill_due_at
+    ? Date.parse(raw.auto_fulfill_due_at)
+    : NaN;
   return {
     id: raw.id,
     customerId: raw.customer_id,
@@ -310,6 +327,11 @@ function mapOrder(raw: RawOrder): Order {
     paymentDueAtMs: Number.isNaN(dueAt) ? undefined : dueAt,
     paymentId: raw.payment_id || undefined,
     confirmedAt: raw.confirmed_at || undefined,
+    deliveredAt: raw.delivered_at || undefined,
+    receiptConfirmedAt: raw.receipt_confirmed_at || undefined,
+    disputedAt: raw.disputed_at || undefined,
+    disputeReason: raw.dispute_reason || undefined,
+    autoFulfillDueAtMs: Number.isNaN(autoFulfillDueAt) ? undefined : autoFulfillDueAt,
     cancelRequestedAt: raw.cancel_requested_at || undefined,
     cancelRequestReason: raw.cancel_request_reason || undefined,
     immediateCancelAllowed: raw.immediate_cancel_allowed,
@@ -650,7 +672,9 @@ export async function listMyOrders(customerId: string): Promise<Order[]> {
 export function shouldShowCancelRequestedBanner(order: Order): boolean {
   return Boolean(
     order.cancelRequestedAt &&
-      (order.status === "paid" || order.status === "in_transit")
+      (order.status === "confirmed" ||
+        order.status === "in_transit" ||
+        order.status === "delivered")
   );
 }
 
@@ -665,6 +689,35 @@ export async function cancelMyOrder(orderId: string, reason?: string): Promise<O
     method: "POST",
     body: JSON.stringify({ reason: reason ?? "" }),
   });
+  return mapOrder(await res.json());
+}
+
+/** True while a delivered order is still waiting on the shopper's own response. */
+export function canRespondToDelivery(order: Order): boolean {
+  return order.status === "delivered";
+}
+
+/** Shopper confirms they received the order (`delivered` → `fulfilled`). */
+export async function confirmOrderReceipt(orderId: string): Promise<Order> {
+  const res = await request(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/receipt/confirm`,
+    { method: "POST" }
+  );
+  return mapOrder(await res.json());
+}
+
+/**
+ * Shopper reports a delivered order never arrived (`delivered` → `disputed`).
+ * A manager reviews and resolves it from there — this cannot itself refund.
+ */
+export async function reportOrderNotReceived(
+  orderId: string,
+  reason?: string
+): Promise<Order> {
+  const res = await request(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/receipt/dispute`,
+    { method: "POST", body: JSON.stringify({ reason: reason ?? "" }) }
+  );
   return mapOrder(await res.json());
 }
 

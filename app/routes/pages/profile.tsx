@@ -13,8 +13,11 @@ import {
   type Order,
   cancelMyOrder,
   canCustomerCancelOrder,
+  canRespondToDelivery,
+  confirmOrderReceipt,
   isValidKRPhone,
   listMyOrders,
+  reportOrderNotReceived,
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
@@ -483,8 +486,11 @@ function CouponCard({
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
   paid: "bg-blue-50 text-blue-700",
+  confirmed: "bg-sky-50 text-sky-700",
   in_transit: "bg-indigo-50 text-indigo-700",
+  delivered: "bg-teal-50 text-teal-700",
   fulfilled: "bg-emerald-50 text-emerald-700",
+  disputed: "bg-red-50 text-red-700",
   canceled: "bg-zinc-100 text-zinc-500",
 };
 
@@ -495,6 +501,8 @@ function OrdersSection({ user }: { user: User }) {
   const [error, setError] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [respondError, setRespondError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -537,11 +545,45 @@ function OrdersSection({ user }: { user: User }) {
     }
   }
 
+  async function handleConfirmReceipt(order: Order) {
+    setRespondingId(order.id);
+    setRespondError(null);
+    try {
+      const updated = await confirmOrderReceipt(order.id);
+      setOrders((current) =>
+        (current ?? []).map((row) => (row.id === updated.id ? updated : row))
+      );
+    } catch {
+      setRespondError(t("profile.respondFailed"));
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
+  async function handleReportNotReceived(order: Order) {
+    if (!window.confirm(t("profile.confirmReportNotReceived"))) return;
+    setRespondingId(order.id);
+    setRespondError(null);
+    try {
+      const updated = await reportOrderNotReceived(order.id);
+      setOrders((current) =>
+        (current ?? []).map((row) => (row.id === updated.id ? updated : row))
+      );
+    } catch {
+      setRespondError(t("profile.respondFailed"));
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
   return (
     <section>
       <SectionHeader title={t("profile.orders")} count={loading ? undefined : (orders?.length ?? 0)} />
       {cancelError ? (
         <p className="mb-3 text-xs text-red-600">{cancelError}</p>
+      ) : null}
+      {respondError ? (
+        <p className="mb-3 text-xs text-red-600">{respondError}</p>
       ) : null}
 
       {loading ? (
@@ -618,6 +660,11 @@ function OrdersSection({ user }: { user: User }) {
                     {t("profile.cancelRequested")}
                   </p>
                 ) : null}
+                {order.status === "disputed" && (
+                  <p className="mt-3 text-[11px] text-red-700">
+                    {t("profile.disputeUnderReview")}
+                  </p>
+                )}
                 {canCustomerCancelOrder(order) && (
                   <button
                     type="button"
@@ -631,6 +678,35 @@ function OrdersSection({ user }: { user: User }) {
                         ? t("profile.cancelOrder")
                         : t("profile.requestCancel")}
                   </button>
+                )}
+                {canRespondToDelivery(order) && (
+                  <div className="mt-3 space-y-2 border-t border-zinc-50 pt-3">
+                    <p className="text-[11px] text-zinc-500">
+                      {t("profile.deliveredPrompt")}
+                    </p>
+                    <div className="flex flex-wrap gap-4">
+                      <button
+                        type="button"
+                        disabled={respondingId === order.id}
+                        onClick={() => handleConfirmReceipt(order)}
+                        className="text-[11px] uppercase tracking-[0.12em] text-zinc-950 underline-offset-4 hover:underline disabled:opacity-50"
+                      >
+                        {respondingId === order.id
+                          ? t("profile.responding")
+                          : t("profile.confirmReceipt")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={respondingId === order.id}
+                        onClick={() => handleReportNotReceived(order)}
+                        className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                      >
+                        {respondingId === order.id
+                          ? t("profile.responding")
+                          : t("profile.reportNotReceived")}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             );
