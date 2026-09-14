@@ -684,13 +684,17 @@ describe("shouldShowCancelRequestedBanner", () => {
     cancelRequestedAt: "2026-09-11T09:00:00Z",
   };
 
-  it("shows while paid or in_transit with a pending request", () => {
+  it("shows while the order is still awaiting a manager response", () => {
     expect(shouldShowCancelRequestedBanner(base)).toBe(true);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "confirmed" })).toBe(true);
     expect(shouldShowCancelRequestedBanner({ ...base, status: "in_transit" })).toBe(true);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "delivered" })).toBe(true);
   });
 
-  it("hides after cancel completes or before a request exists", () => {
+  it("hides after cancel completes, once disputed, or before a request exists", () => {
     expect(shouldShowCancelRequestedBanner({ ...base, status: "canceled" })).toBe(false);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "disputed" })).toBe(false);
+    expect(shouldShowCancelRequestedBanner({ ...base, status: "fulfilled" })).toBe(false);
     expect(shouldShowCancelRequestedBanner({ ...base, cancelRequestedAt: undefined })).toBe(false);
   });
 });

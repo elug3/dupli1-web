@@ -650,7 +650,10 @@ export async function listMyOrders(customerId: string): Promise<Order[]> {
 export function shouldShowCancelRequestedBanner(order: Order): boolean {
   return Boolean(
     order.cancelRequestedAt &&
-      (order.status === "paid" || order.status === "in_transit")
+      (order.status === "paid" ||
+        order.status === "confirmed" ||
+        order.status === "in_transit" ||
+        order.status === "delivered")
   );
 }
 
