@@ -10,7 +10,7 @@ import {
   type CartStatus,
   type CartTotals,
 } from "./cart";
-import { useShippingFeeKrw } from "./useShippingFee";
+import { useShippingFeeWon } from "./useShippingFee";
 
 interface ProductMeta {
   name: string;
@@ -24,9 +24,9 @@ interface ProductMeta {
 const SERVER_SNAPSHOT: {
   status: CartStatus;
   items: CartLine[];
-  subtotalKrw: number;
+  subtotalWon: number;
   error?: string;
-} = { status: "idle", items: [], subtotalKrw: 0 };
+} = { status: "idle", items: [], subtotalWon: 0 };
 
 function getServerSnapshot() {
   return SERVER_SNAPSHOT;
@@ -82,8 +82,8 @@ export function useCart() {
       ...line,
       name: productMeta?.name ?? line.productId,
       brand: productMeta?.brand ?? "",
-      // unit_price_krw is whole KRW won (zero-decimal); do not ÷100.
-      price: line.unitPriceKrw,
+      // unit_price_won is whole KRW won (zero-decimal); do not ÷100.
+      price: line.unitPriceWon,
       image: line.imageUrl ?? productMeta?.image ?? "",
     };
   });
@@ -92,21 +92,21 @@ export function useCart() {
 
   // Shared with announcement / home / product so every surface quotes the
   // fee GET /api/v1/orders/settings publishes. Until it resolves (or if it
-  // fails), useShippingFeeKrw falls back to SHIPPING_FEE.
-  const serviceShippingFee = useShippingFeeKrw();
+  // fails), useShippingFeeWon falls back to SHIPPING_FEE.
+  const serviceShippingFee = useShippingFeeWon();
 
-  // An explicit shippingFeeKrw wins — pass the checkout session's
-  // `shipping_fee_krw` once a session exists, since that quote is frozen for
+  // An explicit shippingFeeWon wins — pass the checkout session's
+  // `shipping_fee_won` once a session exists, since that quote is frozen for
   // the session and is what the resulting order will carry.
   const totals = useCallback(
-    (discountFraction = 0, shippingFeeKrw?: number): CartTotals =>
+    (discountFraction = 0, shippingFeeWon?: number): CartTotals =>
       computeTotals(
         raw.items,
-        raw.subtotalKrw,
+        raw.subtotalWon,
         discountFraction,
-        shippingFeeKrw ?? serviceShippingFee
+        shippingFeeWon ?? serviceShippingFee
       ),
-    [raw.items, raw.subtotalKrw, serviceShippingFee]
+    [raw.items, raw.subtotalWon, serviceShippingFee]
   );
 
   const refresh = useCallback(() => refreshCart(), []);

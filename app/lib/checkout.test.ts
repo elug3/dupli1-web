@@ -239,10 +239,10 @@ function order(overrides: Partial<Parameters<typeof isResumableOrder>[0]> = {}) 
     id: "ord_1",
     customerId: "cust-1",
     status: "pending",
-    subtotalKrw: 40000,
-    discountKrw: 0,
-    shippingFeeKrw: 30000,
-    totalKrw: 70000,
+    subtotalWon: 40000,
+    discountWon: 0,
+    shippingFeeWon: 30000,
+    totalWon: 70000,
     items: [],
     paymentDueAtMs: NOW + 60_000,
     ...overrides,
@@ -312,7 +312,7 @@ describe("findResumableOrder", () => {
         id: "ord_9",
         customer_id: "cust-1",
         status: "pending",
-        total_krw: 70000,
+        total_won: 70000,
         payment_id: "pay_9",
         payment_due_at: new Date(NOW + 60_000).toISOString(),
       },
@@ -328,7 +328,7 @@ describe("order pricing breakdown", () => {
     vi.unstubAllGlobals();
   });
 
-  it("maps shipping_fee_krw, subtotal, and discount from the order JSON", async () => {
+  it("maps shipping_fee_won, subtotal, and discount from the order JSON", async () => {
     vi.stubGlobal("fetch", async () => ({
       ok: true,
       status: 200,
@@ -338,20 +338,20 @@ describe("order pricing breakdown", () => {
             id: "ord_1",
             customer_id: "cust-1",
             status: "paid",
-            subtotal_krw: 100000,
-            discount_krw: 10000,
-            shipping_fee_krw: 30000,
-            total_krw: 120000,
+            subtotal_won: 100000,
+            discount_won: 10000,
+            shipping_fee_won: 30000,
+            total_won: 120000,
             coupon_code: "SUMMER30",
           },
         ],
       }),
     }));
     const [mapped] = await listMyOrders("cust-1");
-    expect(mapped.subtotalKrw).toBe(100000);
-    expect(mapped.discountKrw).toBe(10000);
-    expect(mapped.shippingFeeKrw).toBe(30000);
-    expect(mapped.totalKrw).toBe(120000);
+    expect(mapped.subtotalWon).toBe(100000);
+    expect(mapped.discountWon).toBe(10000);
+    expect(mapped.shippingFeeWon).toBe(30000);
+    expect(mapped.totalWon).toBe(120000);
     expect(mapped.couponCode).toBe("SUMMER30");
     expect(orderHasPricingBreakdown(mapped)).toBe(true);
   });
@@ -366,22 +366,22 @@ describe("order pricing breakdown", () => {
             id: "ord_legacy",
             customer_id: "cust-1",
             status: "paid",
-            total_krw: 70000,
+            total_won: 70000,
           },
         ],
       }),
     }));
     const [mapped] = await listMyOrders("cust-1");
-    expect(mapped.subtotalKrw).toBe(0);
-    expect(mapped.shippingFeeKrw).toBe(0);
-    expect(mapped.totalKrw).toBe(70000);
+    expect(mapped.subtotalWon).toBe(0);
+    expect(mapped.shippingFeeWon).toBe(0);
+    expect(mapped.totalWon).toBe(70000);
     expect(orderHasPricingBreakdown(mapped)).toBe(false);
   });
 
   it("keeps an explicit zero shipping fee as free delivery, not missing", () => {
     expect(
       orderHasPricingBreakdown(
-        order({ subtotalKrw: 40000, shippingFeeKrw: 0, totalKrw: 40000 })
+        order({ subtotalWon: 40000, shippingFeeWon: 0, totalWon: 40000 })
       )
     ).toBe(true);
   });
@@ -594,7 +594,7 @@ describe("isUnconfirmedPayment", () => {
   const payment = (status: string) => ({
     id: "pay_1",
     orderId: "ord_1",
-    amountKrw: 250000,
+    amountWon: 250000,
     status,
     method: "credit_card",
   });
@@ -630,7 +630,7 @@ describe("refund policy order mapping", () => {
         id: "ord_1",
         customer_id: "cust-1",
         status: "paid",
-        total_krw: 70000,
+        total_won: 70000,
         confirmed_at: "2026-09-11T08:00:00Z",
         cancel_requested_at: "2026-09-11T09:00:00Z",
         cancel_request_reason: "changed mind",
@@ -658,7 +658,7 @@ describe("refund policy order mapping", () => {
           id: "ord_1",
           customer_id: "cust-1",
           status: "canceled",
-          total_krw: 70000,
+          total_won: 70000,
         }),
       };
     });
@@ -676,10 +676,10 @@ describe("shouldShowCancelRequestedBanner", () => {
     id: "ord_1",
     customerId: "cust-1",
     status: "paid",
-    subtotalKrw: 40000,
-    discountKrw: 0,
-    shippingFeeKrw: 30000,
-    totalKrw: 70000,
+    subtotalWon: 40000,
+    discountWon: 0,
+    shippingFeeWon: 30000,
+    totalWon: 70000,
     items: [],
     cancelRequestedAt: "2026-09-11T09:00:00Z",
   };
@@ -700,10 +700,10 @@ describe("canCustomerCancelOrder", () => {
     id: "ord_1",
     customerId: "cust-1",
     status: "paid",
-    subtotalKrw: 40000,
-    discountKrw: 0,
-    shippingFeeKrw: 30000,
-    totalKrw: 70000,
+    subtotalWon: 40000,
+    discountWon: 0,
+    shippingFeeWon: 30000,
+    totalWon: 70000,
     items: [],
   };
 
@@ -727,7 +727,7 @@ describe("shouldOpenNanoCheckout", () => {
   const base = {
     id: "pay_1",
     orderId: "ord_1",
-    amountKrw: 1000,
+    amountWon: 1000,
     status: "requires_payment",
     method: "credit_card",
     checkoutUrl: "https://dupli1.com/api/v1/payments/pay_1/nano/checkout",

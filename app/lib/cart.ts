@@ -9,7 +9,7 @@
  * GET /api/v1/orders/settings has not answered yet, or cannot be reached.
  *
  * It is NOT the charged amount. The order service owns that
- * (DUPLI1_ORDER_SHIPPING_FEE_KRW) and publishes it as `shipping_fee_krw` on
+ * (DUPLI1_ORDER_SHIPPING_FEE_WON) and publishes it as `shipping_fee_won` on
  * settings, the checkout session, and the order. Storefront copy and totals
  * read those; leaving this constant on screen is how the two silently drift.
  */
@@ -36,10 +36,10 @@ export interface CartLine {
   productId: string;
   quantity: number;
   /**
-   * Unit amount in whole KRW won (JSON field `unit_price_krw`).
+   * Unit amount in whole KRW won (JSON field `unit_price_won`).
    * For KRW this is Stripe minor units — do not divide by 100.
    */
-  unitPriceKrw: number;
+  unitPriceWon: number;
   color?: string;
   imageUrl?: string;
   availableQty?: number;
@@ -49,7 +49,7 @@ export interface CartLine {
 export interface CartItem extends CartLine {
   name: string;
   brand: string;
-  /** Display price in KRW won (same unit as unitPriceKrw). */
+  /** Display price in KRW won (same unit as unitPriceWon). */
   price: number;
   image: string;
 }
@@ -68,11 +68,11 @@ export type CartStatus = "idle" | "loading" | "ready" | "guest" | "error";
 interface CartState {
   status: CartStatus;
   items: CartLine[];
-  subtotalKrw: number;
+  subtotalWon: number;
   error?: string;
 }
 
-let state: CartState = { status: "idle", items: [], subtotalKrw: 0 };
+let state: CartState = { status: "idle", items: [], subtotalWon: 0 };
 const listeners = new Set<() => void>();
 
 function setState(next: CartState): void {
@@ -94,7 +94,7 @@ interface RawCartLine {
   sku_id?: string;
   product_id: string;
   quantity: number;
-  unit_price_krw: number;
+  unit_price_won: number;
   color?: string;
   image_url?: string;
   available_qty?: number;
@@ -106,7 +106,7 @@ function mapLine(raw: RawCartLine): CartLine {
     skuId: raw.sku_id || undefined,
     productId: raw.product_id,
     quantity: raw.quantity,
-    unitPriceKrw: raw.unit_price_krw,
+    unitPriceWon: raw.unit_price_won,
     color: raw.color || undefined,
     imageUrl: raw.image_url || undefined,
     availableQty: raw.available_qty,
@@ -155,11 +155,11 @@ async function cartRequest(path: string, init: RequestInit = {}): Promise<Respon
 
 async function applyCartResponse(res: Response): Promise<void> {
   if (!res.ok) throw new Error(`Cart request failed: ${res.status}`);
-  const body = (await res.json()) as { items?: RawCartLine[] | null; subtotal_krw?: number };
+  const body = (await res.json()) as { items?: RawCartLine[] | null; subtotal_won?: number };
   setState({
     status: "ready",
     items: (body.items ?? []).map(mapLine),
-    subtotalKrw: body.subtotal_krw ?? 0,
+    subtotalWon: body.subtotal_won ?? 0,
   });
 }
 
@@ -171,7 +171,7 @@ async function applyCartResponse(res: Response): Promise<void> {
  * bounce /checkout straight back to /login. Call on every session change.
  */
 export function resetCart(): void {
-  setState({ status: "idle", items: [], subtotalKrw: 0 });
+  setState({ status: "idle", items: [], subtotalWon: 0 });
 }
 
 export async function refreshCart(): Promise<void> {
@@ -180,13 +180,13 @@ export async function refreshCart(): Promise<void> {
     await applyCartResponse(await cartRequest("/api/v1/cart"));
   } catch (err) {
     if (err instanceof CartAuthRequiredError) {
-      setState({ status: "guest", items: [], subtotalKrw: 0 });
+      setState({ status: "guest", items: [], subtotalWon: 0 });
       return;
     }
     setState({
       status: "error",
       items: [],
-      subtotalKrw: 0,
+      subtotalWon: 0,
       error: err instanceof Error ? err.message : "Failed to load your bag",
     });
   }
@@ -233,7 +233,7 @@ export async function removeItem(skuOrRef: string | CartItemRef, skuId?: string)
 export async function clearCart(): Promise<void> {
   const res = await cartRequest("/api/v1/cart", { method: "DELETE" });
   if (!res.ok && res.status !== 204) throw new Error(`Failed to clear bag: ${res.status}`);
-  setState({ status: "ready", items: [], subtotalKrw: 0 });
+  setState({ status: "ready", items: [], subtotalWon: 0 });
 }
 
 export function getCartCount(): number {
@@ -242,25 +242,25 @@ export function getCartCount(): number {
 
 export function computeTotals(
   items: CartLine[],
-  /** Subtotal in whole KRW won (`subtotal_krw` from the cart service). */
-  subtotalKrw: number,
+  /** Subtotal in whole KRW won (`subtotal_won` from the cart service). */
+  subtotalWon: number,
   discountFraction: number,
   /**
    * Delivery charge in whole KRW, from the order service — either the checkout
-   * session's `shipping_fee_krw` or the settings endpoint. Defaults to
+   * session's `shipping_fee_won` or the settings endpoint. Defaults to
    * SHIPPING_FEE when the service has not answered yet.
    */
-  shippingFeeKrw: number = SHIPPING_FEE
+  shippingFeeWon: number = SHIPPING_FEE
 ): CartTotals {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  // KRW is zero-decimal: *_krw fields are already whole won.
-  const subtotal = subtotalKrw;
+  // KRW is zero-decimal: *_won fields are already whole won.
+  const subtotal = subtotalWon;
   const promoApplied = discountFraction > 0 && subtotal > 0;
   const discount = promoApplied ? subtotal * discountFraction : 0;
   const afterDiscount = subtotal - discount;
   // An empty bag owes nothing to ship — matches the order service, which quotes
   // a total of 0 for a session with no items rather than a bare delivery charge.
-  const shipping = itemCount === 0 ? 0 : shippingFeeKrw;
+  const shipping = itemCount === 0 ? 0 : shippingFeeWon;
   const total = afterDiscount + shipping;
 
   return { itemCount, subtotal, shipping, discount, total, promoApplied };

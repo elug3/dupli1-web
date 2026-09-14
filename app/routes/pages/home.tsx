@@ -17,7 +17,7 @@ import {
   brandToSlug,
 } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
-import { useShippingFeeKrw } from "~/lib/useShippingFee";
+import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { ProductPrice } from "~/components/product-price";
 
 export function meta() {
@@ -143,14 +143,14 @@ function Hero() {
 
 function ValueStrip() {
   const { t, formatCurrency } = useLanguage();
-  const shippingFeeKrw = useShippingFeeKrw();
+  const shippingFeeWon = useShippingFeeWon();
   const values = [
-    shippingFeeKrw === 0
+    shippingFeeWon === 0
       ? { titleKey: "home.valueShippingFree", icon: ShippingIcon }
       : {
           titleKey: "home.valueShipping",
           icon: ShippingIcon,
-          values: { amount: formatCurrency(shippingFeeKrw) },
+          values: { amount: formatCurrency(shippingFeeWon) },
         },
     { titleKey: "home.valueAuthenticity", icon: ShieldIcon },
     { titleKey: "home.valueCuration", icon: StarIcon },

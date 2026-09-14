@@ -70,8 +70,8 @@ export default function CheckoutConfirmationPage() {
     };
   }, [orderId]);
 
-  // total_krw is whole KRW won (zero-decimal); do not ÷100.
-  const total = order ? order.totalKrw : undefined;
+  // total_won is whole KRW won (zero-decimal); do not ÷100.
+  const total = order ? order.totalWon : undefined;
   const statusMessage =
     order?.status === "pending"
       ? t("confirmation.confirmingPayment")
@@ -126,25 +126,25 @@ export default function CheckoutConfirmationPage() {
                 <div className="flex justify-between gap-8">
                   <dt className="text-zinc-400">{t("cart.subtotal")}</dt>
                   <dd className="font-medium text-zinc-950">
-                    {formatCurrency(order.subtotalKrw)}
+                    {formatCurrency(order.subtotalWon)}
                   </dd>
                 </div>
-                {order.discountKrw > 0 && (
+                {order.discountWon > 0 && (
                   <div className="flex justify-between gap-8 text-emerald-700">
                     <dt>
                       {order.couponCode
                         ? t("cart.promo", { code: order.couponCode })
                         : t("confirmation.discount")}
                     </dt>
-                    <dd>−{formatCurrency(order.discountKrw)}</dd>
+                    <dd>−{formatCurrency(order.discountWon)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-8">
                   <dt className="text-zinc-400">{t("cart.shipping")}</dt>
                   <dd className="font-medium text-zinc-950">
-                    {order.shippingFeeKrw === 0
+                    {order.shippingFeeWon === 0
                       ? t("cart.complimentary")
-                      : formatCurrency(order.shippingFeeKrw)}
+                      : formatCurrency(order.shippingFeeWon)}
                   </dd>
                 </div>
               </>
