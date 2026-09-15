@@ -118,6 +118,7 @@ const desktopNavLinks = [
       { label: "Louis Vuitton", to: "/category/brand/louis-vuitton", image: "/brands/louis-vuitton.svg" },
       { label: "Miu Miu", to: "/category/brand/miu-miu", image: "/brands/miu-miu.svg" },
       { label: "Balenciaga", to: "/category/brand/balenciaga", image: "/brands/balenciaga.svg" },
+      { label: "Bottega Veneta", to: "/category/brand/bottega-veneta", image: "/brands/bottega-veneta.svg" },
       { label: "Chanel", to: "/category/brand/chanel", image: "/brands/chanel.svg" },
       { label: "Hermès", to: "/category/brand/hermes", image: "/brands/hermes.svg" },
       { label: "Loewe", to: "/category/brand/loewe", image: "/brands/loewe.svg" },

@@ -2,6 +2,7 @@ export const BRAND_SLUGS: Record<string, string> = {
   "louis-vuitton": "Louis Vuitton",
   "miu-miu": "Miu Miu",
   balenciaga: "Balenciaga",
+  "bottega-veneta": "Bottega Veneta",
   chanel: "Chanel",
   hermes: "Hermès",
   loewe: "Loewe",
@@ -18,6 +19,7 @@ export const BRAND_API_NAMES: Record<string, string> = {
   "louis-vuitton": "Louis Vuitton",
   "miu-miu": "Miu Miu",
   balenciaga: "Balenciaga",
+  "bottega-veneta": "Bottega Veneta",
   chanel: "Chanel",
   hermes: "Hermes",
   loewe: "Loewe",
@@ -30,6 +32,7 @@ export const FEATURED_BRAND_SLUGS = [
   "louis-vuitton",
   "hermes",
   "prada",
+  "bottega-veneta",
 ] as const;
 
 export type FeaturedBrandSlug = (typeof FEATURED_BRAND_SLUGS)[number];
@@ -38,6 +41,7 @@ export const BRAND_LOGOS: Record<string, string> = {
   "louis-vuitton": "/brands/louis-vuitton.svg",
   "miu-miu": "/brands/miu-miu.svg",
   balenciaga: "/brands/balenciaga.svg",
+  "bottega-veneta": "/brands/bottega-veneta.svg",
   chanel: "/brands/chanel.svg",
   hermes: "/brands/hermes.svg",
   loewe: "/brands/loewe.svg",
