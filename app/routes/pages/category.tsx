@@ -208,7 +208,7 @@ function ProductGrid({ products }: { products: DisplayProduct[] }) {
   );
 }
 
-// ── Featured brand pages (LV / Hermès / Prada) ───────────────────────────────
+// ── Featured brand pages (LV / Hermès / Prada / Bottega Veneta) ──────────────
 
 function FeaturedBrandPage({ slug }: { slug: string }) {
   const { t } = useLanguage();

@@ -585,6 +585,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Quiet craft and enduring silhouettes — Hermès bags selected for form, finish, and presence.",
     "brand.prada.blurb":
       "Architectural lines and nylon heritage — Prada bags with a precise, modern edge.",
+    "brand.bottega-veneta.blurb":
+      "Intrecciato weave and sculptural ease — Bottega Veneta bags with quiet luxury and a distinctive hand.",
 
     "history.metaTitle": "History | Dupli1",
     "history.metaDescription": "View recent browsing history.",
@@ -1175,6 +1177,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "절제된 장인 정신과 오래 남는 실루엣 — 형태와 마감이 돋보이는 에르메스 가방.",
     "brand.prada.blurb":
       "건축적 라인과 나일론 헤리티지 — 정교하고 모던한 프라다 가방.",
+    "brand.bottega-veneta.blurb":
+      "인트레치아토 위브와 조각적인 실루엣 — 절제된 럭셔리와 고유한 손맛이 담긴 보테가 베네타 가방.",
 
     "history.metaTitle": "내역 | Dupli1",
     "history.metaDescription": "최근 탐색 내역을 확인하세요.",
@@ -1747,6 +1751,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "克制的匠心与经久廓形 — 精选形态、工艺与气场兼具的爱马仕包袋。",
     "brand.prada.blurb":
       "建筑感线条与尼龙传承 — 精准而现代的普拉达包袋。",
+    "brand.bottega-veneta.blurb":
+      "编织皮革与雕塑感廓形 — 静奢气质与鲜明手感的葆蝶家精选包袋。",
 
     "history.metaTitle": "历史 | Dupli1",
     "history.metaDescription": "查看最近浏览历史。",

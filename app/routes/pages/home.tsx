@@ -81,6 +81,7 @@ const HOME_BRAND_ORDER = [
   "Hermes",
   "Prada",
   "Balenciaga",
+  "Bottega Veneta",
   "Loewe",
   "Miu Miu",
   "Saint Laurent",
