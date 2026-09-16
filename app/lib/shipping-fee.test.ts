@@ -70,6 +70,17 @@ describe("getShippingFeeWon", () => {
     await expect(getShippingFeeWon()).resolves.toBe(30000);
   });
 
+  // Older gateways still emit shipping_fee_krw during the rename window.
+  it("falls back to legacy shipping_fee_krw when shipping_fee_won is absent", async () => {
+    stubSettings({ limits: { currency: "krw", shipping_fee_krw: 30000 } });
+    await expect(getShippingFeeWon()).resolves.toBe(30000);
+  });
+
+  it("prefers shipping_fee_won over legacy shipping_fee_krw", async () => {
+    stubSettings({ limits: { shipping_fee_won: 4500, shipping_fee_krw: 30000 } });
+    await expect(getShippingFeeWon()).resolves.toBe(4500);
+  });
+
   it("reads an explicit zero as free delivery, not as missing", async () => {
     stubSettings({ limits: { shipping_fee_won: 0 } });
     await expect(getShippingFeeWon()).resolves.toBe(0);
