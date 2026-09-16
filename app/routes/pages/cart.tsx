@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
-import { redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
+import { formatPrice, previewPromotion, promotionPreviewMessageKey, type RedeemedPromotion } from "~/lib/cart";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
@@ -29,7 +29,7 @@ export default function CartPage() {
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(promotion?.discount ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
@@ -40,13 +40,17 @@ export default function CartPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemPromotion(code);
+    // Ask the backend what this code gives for this cart. The amount cannot be
+    // worked out here: a code may be a flat won amount, be capped, or require a
+    // minimum spend. A refusal comes back with a reason so we can say which
+    // rule bit rather than a bare "invalid code".
+    const preview = await previewPromotion(code, items, summary.shipping);
     setApplyingPromo(false);
-    if (redeemed) {
-      setPromotion(redeemed);
+    if (preview.ok) {
+      setPromotion(preview.promotion);
     } else {
       setPromotion(null);
-      setPromoError(t("cart.invalidPromo"));
+      setPromoError(t(promotionPreviewMessageKey(preview.rejection)));
     }
   }
 
@@ -409,7 +413,7 @@ export function OrderSummary({
         )}
         {summary.promoApplied && promotion && (
           <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", { discount: Math.round(promotion.discount * 100) })}
+            {t("cart.discountAppliedWon", { amount: formatPrice(summary.discount) })}
           </p>
         )}
       </div>

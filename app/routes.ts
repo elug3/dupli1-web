@@ -19,6 +19,7 @@ export default [
   route("api/categories", "routes/api/categories.ts"),
   route("api/filters", "routes/api/filters.ts"),
   route("api/promotions/redeem", "routes/api/promotions.redeem.ts"),
+  route("api/promotions/evaluate", "routes/api/promotions.evaluate.ts"),
   // Public catalog: browser hits `/api/v1/products*` so production ALB can
   // forward to the gateway. These BFF handlers cover local `npm run dev` only.
   // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.

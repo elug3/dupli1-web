@@ -340,12 +340,92 @@ export async function replaceSessionItems(
   return mapSession(await res.json());
 }
 
+/**
+ * Why a promotional code was refused. The backend returns these so the copy
+ * lives here rather than in its error strings — "spend 100,000원" instead of a
+ * bare "invalid code".
+ */
+export type PromotionReason =
+  | "invalid_code"
+  | "expired"
+  | "already_used"
+  | "not_eligible"
+  | "campaign_exhausted"
+  | "login_required";
+
+export class PromotionRejected extends Error {
+  constructor(
+    readonly reason: PromotionReason,
+    readonly subReason: string | undefined,
+    message: string
+  ) {
+    super(message);
+    this.name = "PromotionRejected";
+  }
+}
+
+/**
+ * Applies a promotional code to the session.
+ *
+ * The discount comes back computed by the backend against this cart's
+ * server-resolved prices; the storefront never works it out itself. A refusal
+ * throws PromotionRejected carrying the reason.
+ */
 export async function applySessionPromotion(sessionId: string, code: string): Promise<CheckoutSession> {
+  const res = await fetch(
+    `/auth/session/gateway/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    }
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      reason?: PromotionReason;
+      sub_reason?: string;
+    };
+    throw new PromotionRejected(
+      body.reason ?? "not_eligible",
+      body.sub_reason,
+      body.error ?? `Request failed: ${res.status}`
+    );
+  }
+  return mapSession(await res.json());
+}
+
+/** Removes an applied promotional code, returning the session at full price. */
+export async function clearSessionPromotion(sessionId: string): Promise<CheckoutSession> {
   const res = await request(
     `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`,
-    { method: "POST", body: JSON.stringify({ code }) }
+    { method: "DELETE" }
   );
   return mapSession(await res.json());
+}
+
+/**
+ * Maps a rejection to the i18n key for what to tell the customer. Falls back
+ * to the generic invalid-code message for a reason this build does not know,
+ * so a new backend reason degrades rather than rendering a blank.
+ */
+export function promotionMessageKey(err: unknown): string {
+  if (!(err instanceof PromotionRejected)) return "cart.invalidPromo";
+  switch (err.reason) {
+    case "expired":
+      return "cart.promoExpired";
+    case "already_used":
+      return "cart.promoAlreadyUsed";
+    case "campaign_exhausted":
+      return "cart.promoExhausted";
+    case "login_required":
+      return "cart.promoLoginRequired";
+    case "not_eligible":
+      return err.subReason === "min_spend" ? "cart.promoMinSpend" : "cart.promoNotEligible";
+    default:
+      return "cart.invalidPromo";
+  }
 }
 
 export interface CheckoutShippingAddress {

@@ -3,9 +3,10 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { LoadingBadge } from "~/components/loading-badge";
 import { canBypassPayment, getMe, type User } from "~/lib/auth";
-import { clearCart, redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
+import { clearCart, previewPromotion, promotionPreviewMessageKey, type RedeemedPromotion } from "~/lib/cart";
 import {
   applySessionPromotion,
+  promotionMessageKey,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
@@ -390,7 +391,7 @@ export default function CheckoutPage() {
     navigate("/cart");
   }
 
-  const summary = totals(promotion?.discount ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
@@ -422,13 +423,17 @@ export default function CheckoutPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemPromotion(code);
+    // Ask the backend what this code gives for this cart. The amount cannot be
+    // worked out here: a code may be a flat won amount, be capped, or require a
+    // minimum spend. A refusal comes back with a reason so we can say which
+    // rule bit rather than a bare "invalid code".
+    const preview = await previewPromotion(code, items, summary.shipping);
     setApplyingPromo(false);
-    if (redeemed) {
-      setPromotion(redeemed);
+    if (preview.ok) {
+      setPromotion(preview.promotion);
     } else {
       setPromotion(null);
-      setPromoError(t("checkout.invalidPromo"));
+      setPromoError(t(promotionPreviewMessageKey(preview.rejection)));
     }
   }
 
@@ -666,7 +671,18 @@ export default function CheckoutPage() {
       }
       await replaceSessionItems(session.id, sessionItems);
       if (promotion) {
-        await applySessionPromotion(session.id, promotion.code);
+        // The server re-evaluates here against its own prices. A code that
+        // previewed fine can still be refused — it may have expired, or the
+        // cart may have changed — so surface the reason and stop rather than
+        // completing at a price the customer was not shown.
+        try {
+          await applySessionPromotion(session.id, promotion.code);
+        } catch (err) {
+          setPromotion(null);
+          setPromoError(t(promotionMessageKey(err)));
+          setSubmitting(false);
+          return;
+        }
       }
       // Complete → pending order + stock reserved on dupli1-product inventory.
       // Payment then marks paid (card redirect / bypass); ship commits stock.

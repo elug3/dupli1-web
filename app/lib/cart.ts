@@ -244,7 +244,12 @@ export function computeTotals(
   items: CartLine[],
   /** Subtotal in whole KRW won (`subtotal_won` from the cart service). */
   subtotalWon: number,
-  discountFraction: number,
+  /**
+   * Discount in whole KRW won, as computed by the backend for this cart. It is
+   * an absolute amount rather than a fraction because a code may be a flat won
+   * amount, be capped, or draw on only some lines.
+   */
+  discountWon: number,
   /**
    * Delivery charge in whole KRW, from the order service — either the checkout
    * session's `shipping_fee_won` or the settings endpoint. Defaults to
@@ -255,8 +260,10 @@ export function computeTotals(
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   // KRW is zero-decimal: *_won fields are already whole won.
   const subtotal = subtotalWon;
-  const promoApplied = discountFraction > 0 && subtotal > 0;
-  const discount = promoApplied ? subtotal * discountFraction : 0;
+  const promoApplied = discountWon > 0 && subtotal > 0;
+  // Never discount past the goods: the total must stay at or above the
+  // delivery charge, matching the order service's own clamp.
+  const discount = promoApplied ? Math.min(discountWon, subtotal) : 0;
   const afterDiscount = subtotal - discount;
   // An empty bag owes nothing to ship — matches the order service, which quotes
   // a total of 0 for a session with no items rather than a bare delivery charge.
@@ -268,20 +275,90 @@ export function computeTotals(
 
 export interface RedeemedPromotion {
   code: string;
-  discount: number;
+  /** Discount in whole KRW won, computed by the backend against this cart. */
+  discountWon: number;
   description: string;
 }
 
-/** Validates a promotional code against the public product-service redeem endpoint. */
-export async function redeemPromotion(code: string): Promise<RedeemedPromotion | null> {
-  const res = await fetch("/api/promotions/redeem", {
+/** A refused code, with the reason so the caller can pick the right copy. */
+export interface RejectedPromotion {
+  reason: string;
+  subReason?: string;
+}
+
+export type PromotionPreview =
+  | { ok: true; promotion: RedeemedPromotion }
+  | { ok: false; rejection: RejectedPromotion };
+
+/**
+ * Previews a promotional code against the current cart.
+ *
+ * The amount comes from the backend, not from a fraction applied here: a code
+ * may be a flat won amount, be capped, require a minimum spend, or draw on
+ * only some lines, none of which the storefront can work out on its own.
+ *
+ * The preview is advisory — it is computed from the cart as the browser sees
+ * it. Checkout complete re-evaluates against server-resolved prices and is the
+ * authority on what is finally charged.
+ */
+export async function previewPromotion(
+  code: string,
+  items: CartItem[],
+  shippingFeeWon: number
+): Promise<PromotionPreview> {
+  const res = await fetch("/api/promotions/evaluate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: code.trim().toUpperCase() }),
+    body: JSON.stringify({
+      code: code.trim().toUpperCase(),
+      shipping_fee_won: shippingFeeWon,
+      lines: items.map((item) => ({
+        sku_id: item.skuId ?? "",
+        sku: item.sku,
+        product_id: item.productId,
+        quantity: item.quantity,
+        unit_price_won: item.unitPriceWon,
+      })),
+    }),
   });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { code: string; discount: number; description: string };
-  return body;
+  if (!res.ok) {
+    return { ok: false, rejection: { reason: "invalid_code" } };
+  }
+  const body = (await res.json()) as {
+    ok?: boolean;
+    discount_won?: number;
+    reason?: string;
+    sub_reason?: string;
+  };
+  if (!body.ok) {
+    return { ok: false, rejection: { reason: body.reason ?? "not_eligible", subReason: body.sub_reason } };
+  }
+  return {
+    ok: true,
+    promotion: {
+      code: code.trim().toUpperCase(),
+      discountWon: body.discount_won ?? 0,
+      description: "",
+    },
+  };
+}
+
+/** Maps a preview rejection to the i18n key for what to tell the customer. */
+export function promotionPreviewMessageKey(rejection: RejectedPromotion): string {
+  switch (rejection.reason) {
+    case "expired":
+      return "cart.promoExpired";
+    case "already_used":
+      return "cart.promoAlreadyUsed";
+    case "campaign_exhausted":
+      return "cart.promoExhausted";
+    case "login_required":
+      return "cart.promoLoginRequired";
+    case "not_eligible":
+      return rejection.subReason === "min_spend" ? "cart.promoMinSpend" : "cart.promoNotEligible";
+    default:
+      return "cart.invalidPromo";
+  }
 }
 
 export function formatPrice(amount: number): string {

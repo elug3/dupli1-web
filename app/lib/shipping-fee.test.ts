@@ -51,9 +51,19 @@ describe("computeTotals shipping fee", () => {
 
   // total = subtotal - discount + shipping, matching the order service.
   it("applies the discount to goods only, never to delivery", () => {
-    const totals = computeTotals([LINE], 10000, 0.3, 30000);
+    // The discount is an absolute won amount computed by the backend, not a
+    // fraction applied here.
+    const totals = computeTotals([LINE], 10000, 3000, 30000);
     expect(totals.discount).toBe(3000);
     expect(totals.total).toBe(10000 - 3000 + 30000);
+  });
+
+  // A flat code worth more than the cart discounts only what the goods are
+  // worth, so delivery is still paid for. Mirrors the order service's clamp.
+  it("clamps a discount larger than the subtotal", () => {
+    const totals = computeTotals([LINE], 3000, 5000, 30000);
+    expect(totals.discount).toBe(3000);
+    expect(totals.total).toBe(30000);
   });
 });
 
