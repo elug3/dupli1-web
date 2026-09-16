@@ -18,20 +18,17 @@ import {
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { useCart } from "~/lib/useCart";
+import {
+  describeWalletValue,
+  isLapsed,
+  loadWallet,
+  walletReasonKey,
+  type WalletEntry,
+} from "~/lib/promotion-wallet";
 
 type Section = "wishlist" | "promotions" | "orders" | "settings" | "support";
 
-type PromotionStatus = "active" | "expired" | "used";
-
-interface Promotion {
-  code: string;
-  discount: string;
-  description: string;
-  expires: string;
-  status: PromotionStatus;
-}
-
-const PROMOTION_CODES: Promotion[] = [];
 
 const FAQ_ITEMS = [
   {
@@ -310,10 +307,27 @@ function WishlistSection() {
 
 function PromotionsSection() {
   const { t } = useLanguage();
-  const [promotions, setPromotions] = useState<Promotion[]>(PROMOTION_CODES);
+  const { items, totals } = useCart();
+  const [entries, setEntries] = useState<WalletEntry[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const [redeemStatus, setRedeemStatus] = useState<"idle" | "success" | "already" | "invalid">("idle");
+
+  const summary = totals(0);
+
+  // Judged against the cart the customer has right now, so an entry can say
+  // "spend 100,000원" rather than just sitting there looking available.
+  useEffect(() => {
+    let cancelled = false;
+    loadWallet(items, summary.shipping)
+      .then((wallet) => {
+        if (!cancelled) setEntries(wallet);
+      })
+      .catch(() => {
+        if (!cancelled) setEntries([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, summary.shipping]);
 
   function copy(code: string) {
     navigator.clipboard.writeText(code).catch(() => {});
@@ -321,111 +335,44 @@ function PromotionsSection() {
     setTimeout(() => setCopied(null), 2000);
   }
 
-  async function redeem(e: React.FormEvent) {
-    e.preventDefault();
-    const code = input.trim().toUpperCase();
-    if (!code) return;
-
-    if (promotions.some((c) => c.code === code)) {
-      setRedeemStatus("already");
-      setTimeout(() => setRedeemStatus("idle"), 3000);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/promotions/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ code }),
-      });
-
-      if (res.status === 404) {
-        setRedeemStatus("invalid");
-      } else if (!res.ok) {
-        setRedeemStatus("invalid");
-      } else {
-        const data = (await res.json()) as {
-          code: string;
-          discount: number;
-          description: string;
-          expires: string;
-        };
-        setPromotions((prev) => [
-          {
-            code: data.code,
-            discount: `${Math.round(data.discount * 100)}% off`,
-            description: data.description,
-            expires: data.expires,
-            status: "active",
-          },
-          ...prev,
-        ]);
-        setInput("");
-        setRedeemStatus("success");
-      }
-    } catch {
-      setRedeemStatus("invalid");
-    }
-
-    setTimeout(() => setRedeemStatus("idle"), 3000);
-  }
-
-  const active = promotions.filter((c) => c.status === "active");
-  const inactive = promotions.filter((c) => c.status !== "active");
+  const wallet = entries ?? [];
+  // Lapsed and revoked entitlements drop to the bottom rather than vanishing:
+  // a customer who remembers being given a code should see what became of it.
+  const live = wallet.filter((entry) => !isLapsed(entry));
+  const lapsed = wallet.filter((entry) => isLapsed(entry));
 
   return (
     <section>
-      <SectionHeader title={t("profile.promotionCodes")} count={t("profile.active", { count: active.length })} />
+      <SectionHeader
+        title={t("profile.promotionCodes")}
+        count={t("profile.active", { count: live.length })}
+      />
 
-      {/* Redeem form */}
-      <div className="mb-8 border border-zinc-100 p-5">
-        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-          {t("profile.redeemCode")}
-        </p>
-        <form onSubmit={redeem} className="flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => { setInput(e.target.value); setRedeemStatus("idle"); }}
-            placeholder="e.g. SUMMER30"
-            className="flex-1 border border-zinc-200 bg-white px-4 py-2.5 font-mono text-sm uppercase tracking-wider text-zinc-950 outline-none transition focus:border-zinc-400 placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder:text-zinc-300"
-          />
-          <button
-            type="submit"
-            className="bg-zinc-950 px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
-          >
-            {t("profile.redeem")}
-          </button>
-        </form>
-        {redeemStatus === "success" && (
-          <p className="mt-2 text-[11px] text-emerald-600">{t("profile.promotionCodeAdded")}</p>
-        )}
-        {redeemStatus === "already" && (
-          <p className="mt-2 text-[11px] text-zinc-500">{t("profile.promotionCodeAlready")}</p>
-        )}
-        {redeemStatus === "invalid" && (
-          <p className="mt-2 text-[11px] text-red-500">{t("profile.invalidPromotionCode")}</p>
-        )}
-      </div>
-
-      {/* Active promotions */}
-      {active.length === 0 ? (
+      {entries === null ? (
+        <p className="text-[11px] text-zinc-400">{t("profile.loading")}</p>
+      ) : live.length === 0 ? (
         <EmptyState message={t("profile.noActivePromotionCodes")} />
       ) : (
         <div className="space-y-3">
-          {active.map((c) => (
-            <PromotionCard key={c.code} promotion={c} copied={copied === c.code} onCopy={() => copy(c.code)} />
+          {live.map((entry) => (
+            <WalletCard
+              key={entry.id}
+              entry={entry}
+              copied={copied === entry.code}
+              onCopy={() => copy(entry.code)}
+            />
           ))}
         </div>
       )}
 
-      {/* Used / expired */}
-      {inactive.length > 0 && (
+      {lapsed.length > 0 && (
         <>
-          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">{t("profile.usedExpired")}</p>
+          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">
+            {t("profile.usedExpired")}
+          </p>
           <div className="space-y-3 opacity-50">
-            {inactive.map((c) => (
-              <PromotionCard key={c.code} promotion={c} copied={false} onCopy={() => {}} disabled />
+            {lapsed.map((entry) => (
+              <WalletCard key={entry.id} entry={entry} copied={false} onCopy={() => {}} disabled />
             ))}
           </div>
         </>
@@ -434,51 +381,55 @@ function PromotionsSection() {
   );
 }
 
-function PromotionCard({
-  promotion,
+function WalletCard({
+  entry,
   copied,
   onCopy,
   disabled,
 }: {
-  promotion: Promotion;
+  entry: WalletEntry;
   copied: boolean;
   onCopy: () => void;
   disabled?: boolean;
 }) {
   const { t } = useLanguage();
+  const reasonKey = walletReasonKey(entry);
+  const value = describeWalletValue(entry);
 
   return (
-    <div className="flex items-center justify-between border border-zinc-100 px-5 py-4">
-      <div className="flex items-center gap-4">
-        <div className="min-w-[5rem]">
-          <p className="font-mono text-sm font-semibold tracking-wider text-zinc-950">
-            {promotion.code}
-          </p>
-          <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
-            {promotion.discount}
-          </p>
+    <div className="border border-zinc-100 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-sm font-medium tracking-wider text-zinc-950">{entry.code}</p>
+          {entry.terms && <p className="mt-1 text-xs text-zinc-500">{entry.terms}</p>}
+          {!entry.terms && entry.description && (
+            <p className="mt-1 text-xs text-zinc-500">{entry.description}</p>
+          )}
+          {entry.expiresAt && (
+            <p className="mt-1 text-[11px] text-zinc-400">
+              {t("profile.promotionExpiresOn", {
+                date: new Date(entry.expiresAt).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" }),
+              })}
+            </p>
+          )}
+          {reasonKey && <p className="mt-2 text-[11px] text-zinc-500">{t(reasonKey)}</p>}
         </div>
-        <div>
-          <p className="text-xs text-zinc-600">{promotion.description}</p>
-          <p className="mt-0.5 text-[10px] text-zinc-400">
-            {promotion.status === "expired" ? t("profile.expired") : promotion.status === "used" ? t("profile.used") : t("profile.expires")}{" "}
-            {promotion.expires}
-          </p>
+        <div className="shrink-0 text-right">
+          {value && <p className="text-sm font-medium text-zinc-950">{value}</p>}
+          {!disabled && (
+            <button
+              type="button"
+              onClick={onCopy}
+              className="mt-2 text-[10px] uppercase tracking-[0.15em] text-zinc-400 transition hover:text-zinc-950"
+            >
+              {copied ? t("profile.copied") : t("profile.copy")}
+            </button>
+          )}
         </div>
       </div>
-      {!disabled && (
-        <button
-          onClick={onCopy}
-          className="ml-4 shrink-0 text-[10px] uppercase tracking-[0.12em] text-zinc-400 transition hover:text-zinc-950"
-        >
-          {copied ? t("profile.copied") : t("profile.copy")}
-        </button>
-      )}
     </div>
   );
 }
-
-// ── Orders ─────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
