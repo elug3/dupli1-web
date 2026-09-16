@@ -10,6 +10,8 @@ English is supported (along with Korean and Chinese in `app/lib/i18n.tsx`), but 
 
 **Currency is KRW only.** Display and enter all product prices in Korean Won — do not convert to USD or other currencies by language. Cart/order/payment JSON fields named `*_won` are **whole KRW won** (zero-decimal minor units) — never divide by 100 for display.
 
+**Promotional codes, not coupons.** One term on every surface: **프로모션 코드 / "promotional code."** Cart and checkout already say this; the profile section still says 쿠폰 / "Coupons" and is the side that moves. Backend identifiers (`coupon_code`, `/api/v1/coupons/redeem`, `…/sessions/{id}/coupon`) are being renamed to `promotion*` — see [elug3/dupli1 docs/product-promotion-rename.md](https://github.com/elug3/dupli1/blob/master/docs/product-promotion-rename.md). The profile wallet is a **stub** today (an empty list; redeem only writes React state, lost on reload); it gets real account entitlements in Phase 3 of [docs/product-promo-referral-code-plan.md](https://github.com/elug3/dupli1/blob/master/docs/product-promo-referral-code-plan.md). Note `profile.promotions` already means marketing opt-in — pick a distinct key for the wallet.
+
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.
