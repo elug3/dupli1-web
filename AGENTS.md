@@ -10,6 +10,8 @@ English is supported (along with Korean and Chinese in `app/lib/i18n.tsx`), but 
 
 **Currency is KRW only.** Display and enter all product prices in Korean Won — do not convert to USD or other currencies by language. Cart/order/payment JSON fields named `*_won` are **whole KRW won** (zero-decimal minor units) — never divide by 100 for display.
 
+Money fields are `*_won` and nothing else. `*_krw` and `*_cents` are dead names the backend no longer emits — `*_krw` was canonical only between 2026-09-09 and 09-14, so code or docs from that window are stale. The one live exception is the `shipping_fee_won ?? shipping_fee_krw` fallback in `app/lib/checkout.ts`; do not add more.
+
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.
