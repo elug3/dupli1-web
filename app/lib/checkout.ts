@@ -120,7 +120,7 @@ export interface CheckoutSession {
    */
   shippingFeeWon: number;
   totalWon: number;
-  couponCode?: string;
+  promotionCode?: string;
   orderId?: string;
 }
 
@@ -145,7 +145,7 @@ export interface Order {
   /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
   shippingFeeWon: number;
   totalWon: number;
-  couponCode?: string;
+  promotionCode?: string;
   items: OrderItem[];
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
   paymentDueAtMs?: number;
@@ -242,6 +242,8 @@ interface RawSession {
   discount_won?: number;
   shipping_fee_won?: number;
   total_won?: number;
+  promotion_code?: string;
+  /** Pre-rename spelling; order emits both for one release. */
   coupon_code?: string;
   order_id?: string;
 }
@@ -263,6 +265,8 @@ interface RawOrder {
   discount_won?: number;
   shipping_fee_won?: number;
   total_won?: number;
+  promotion_code?: string;
+  /** Pre-rename spelling; order emits both for one release. */
   coupon_code?: string;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
@@ -283,7 +287,7 @@ function mapSession(raw: RawSession): CheckoutSession {
     // Older order services omit the field; 0 (free delivery) is the safe read.
     shippingFeeWon: raw.shipping_fee_won ?? 0,
     totalWon: raw.total_won ?? 0,
-    couponCode: raw.coupon_code,
+    promotionCode: raw.promotion_code ?? raw.coupon_code,
     orderId: raw.order_id,
   };
 }
@@ -298,7 +302,7 @@ function mapOrder(raw: RawOrder): Order {
     discountWon: raw.discount_won ?? 0,
     shippingFeeWon: raw.shipping_fee_won ?? 0,
     totalWon: raw.total_won ?? 0,
-    couponCode: raw.coupon_code,
+    promotionCode: raw.promotion_code ?? raw.coupon_code,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
@@ -336,9 +340,9 @@ export async function replaceSessionItems(
   return mapSession(await res.json());
 }
 
-export async function applySessionCoupon(sessionId: string, code: string): Promise<CheckoutSession> {
+export async function applySessionPromotion(sessionId: string, code: string): Promise<CheckoutSession> {
   const res = await request(
-    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/coupon`,
+    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`,
     { method: "POST", body: JSON.stringify({ code }) }
   );
   return mapSession(await res.json());

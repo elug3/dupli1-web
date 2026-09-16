@@ -132,8 +132,8 @@ export default function CheckoutConfirmationPage() {
                 {order.discountWon > 0 && (
                   <div className="flex justify-between gap-8 text-emerald-700">
                     <dt>
-                      {order.couponCode
-                        ? t("cart.promo", { code: order.couponCode })
+                      {order.promotionCode
+                        ? t("cart.promo", { code: order.promotionCode })
                         : t("confirmation.discount")}
                     </dt>
                     <dd>−{formatCurrency(order.discountWon)}</dd>

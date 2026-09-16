@@ -750,6 +750,8 @@ function serviceForApiPath(path: string): ApiService | null {
   if (path.startsWith("/api/v1/auth")) return "auth";
   if (
     path.startsWith("/api/v1/products") ||
+    path.startsWith("/api/v1/promotions") ||
+    // Pre-rename spelling; see elug3/dupli1 docs/product-promotion-rename.md.
     path.startsWith("/api/v1/coupons") ||
     path.startsWith("/api/v1/catalog") ||
     path.startsWith("/api/v1/variants") ||

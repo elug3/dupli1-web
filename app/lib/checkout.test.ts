@@ -342,6 +342,8 @@ describe("order pricing breakdown", () => {
             discount_won: 10000,
             shipping_fee_won: 30000,
             total_won: 120000,
+            // Pre-rename key: order emits both for one release, and a
+            // storefront deployed ahead of it sees only this one.
             coupon_code: "SUMMER30",
           },
         ],
@@ -352,7 +354,7 @@ describe("order pricing breakdown", () => {
     expect(mapped.discountWon).toBe(10000);
     expect(mapped.shippingFeeWon).toBe(30000);
     expect(mapped.totalWon).toBe(120000);
-    expect(mapped.couponCode).toBe("SUMMER30");
+    expect(mapped.promotionCode).toBe("SUMMER30");
     expect(orderHasPricingBreakdown(mapped)).toBe(true);
   });
 
@@ -746,5 +748,52 @@ describe("shouldOpenNanoCheckout", () => {
       false
     );
     expect(shouldOpenNanoCheckout({ ...base, status: "succeeded" })).toBe(false);
+  });
+});
+
+// The coupon_code → promotion_code rename ships with both keys live for one
+// release, so the storefront must read either.
+// See elug3/dupli1 docs/product-promotion-rename.md.
+describe("promotion code key compatibility", () => {
+  const baseOrder = {
+    id: "ord_1",
+    customer_id: "cust-1",
+    status: "paid",
+    subtotal_won: 100000,
+    discount_won: 10000,
+    shipping_fee_won: 30000,
+    total_won: 120000,
+  };
+
+  it("reads the canonical promotion_code key", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ orders: [{ ...baseOrder, promotion_code: "SUMMER30" }] }),
+    }));
+    const [mapped] = await listMyOrders("cust-1");
+    expect(mapped.promotionCode).toBe("SUMMER30");
+  });
+
+  it("prefers promotion_code when an order carries both keys", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        orders: [{ ...baseOrder, promotion_code: "SUMMER30", coupon_code: "SUMMER30" }],
+      }),
+    }));
+    const [mapped] = await listMyOrders("cust-1");
+    expect(mapped.promotionCode).toBe("SUMMER30");
+  });
+
+  it("falls back to coupon_code from a pre-rename order service", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ orders: [{ ...baseOrder, coupon_code: "SUMMER30" }] }),
+    }));
+    const [mapped] = await listMyOrders("cust-1");
+    expect(mapped.promotionCode).toBe("SUMMER30");
   });
 });

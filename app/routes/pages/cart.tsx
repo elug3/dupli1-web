@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
-import { redeemCoupon, type RedeemedCoupon } from "~/lib/cart";
+import { redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
@@ -23,13 +23,13 @@ export default function CartPage() {
   const { t, formatCurrency, translateProductName } = useLanguage();
   const { items, status, totals } = useCart();
   const mutation = useCartMutation();
-  const [coupon, setCoupon] = useState<RedeemedCoupon | null>(null);
+  const [promotion, setPromotion] = useState<RedeemedPromotion | null>(null);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(coupon?.discount ?? 0);
+  const summary = totals(promotion?.discount ?? 0);
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
@@ -40,12 +40,12 @@ export default function CartPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemCoupon(code);
+    const redeemed = await redeemPromotion(code);
     setApplyingPromo(false);
     if (redeemed) {
-      setCoupon(redeemed);
+      setPromotion(redeemed);
     } else {
-      setCoupon(null);
+      setPromotion(null);
       setPromoError(t("cart.invalidPromo"));
     }
   }
@@ -135,7 +135,7 @@ export default function CartPage() {
             <aside className="lg:sticky lg:top-28 lg:self-start">
               <OrderSummary
                 summary={summary}
-                coupon={coupon}
+                promotion={promotion}
                 promoInput={promoInput}
                 promoError={promoError}
                 applyingPromo={applyingPromo}
@@ -317,7 +317,7 @@ function Recommendations({
 
 export function OrderSummary({
   summary,
-  coupon,
+  promotion,
   promoInput,
   promoError,
   applyingPromo = false,
@@ -328,7 +328,7 @@ export function OrderSummary({
   disabled = false,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
-  coupon: RedeemedCoupon | null;
+  promotion: RedeemedPromotion | null;
   promoInput: string;
   promoError: string;
   applyingPromo?: boolean;
@@ -354,9 +354,9 @@ export function OrderSummary({
             {formatCurrency(summary.subtotal)}
           </dd>
         </div>
-        {summary.promoApplied && coupon && (
+        {summary.promoApplied && promotion && (
           <div className="flex justify-between text-emerald-700">
-            <dt>{t("cart.promo", { code: coupon.code })}</dt>
+            <dt>{t("cart.promo", { code: promotion.code })}</dt>
             <dd className="font-medium">
               −{formatCurrency(summary.discount)}
             </dd>
@@ -407,9 +407,9 @@ export function OrderSummary({
         {promoError && (
           <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
         )}
-        {summary.promoApplied && coupon && (
+        {summary.promoApplied && promotion && (
           <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", { discount: Math.round(coupon.discount * 100) })}
+            {t("cart.discountApplied", { discount: Math.round(promotion.discount * 100) })}
           </p>
         )}
       </div>

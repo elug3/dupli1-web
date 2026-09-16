@@ -460,7 +460,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "signup.welcomeEyebrow": "Welcome",
     "signup.welcomeTitle": "Welcome, {name}",
     "signup.welcomeDescription":
-      "Your Dupli1 account is ready. You can now manage your profile, wishlist, coupons, and orders.",
+      "Your Dupli1 account is ready. You can now manage your profile, wishlist, promotional codes, and orders.",
     "signup.goToAccount": "Go to account",
 
     "profile.metaTitle": "Account | Dupli1",
@@ -472,7 +472,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.account": "Account",
     "profile.signOut": "Sign out",
     "profile.wishlist": "Wishlist",
-    "profile.coupons": "Coupons",
+    "profile.promotionCodes": "Promotional codes",
     "profile.orders": "Orders",
     "profile.accountSettings": "Account Settings",
     "profile.support": "Support",
@@ -481,10 +481,10 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.active": "{count} active",
     "profile.redeemCode": "Redeem a code",
     "profile.redeem": "Redeem",
-    "profile.couponAdded": "Coupon added successfully.",
-    "profile.couponAlready": "This coupon is already in your account.",
-    "profile.invalidCoupon": "Invalid coupon code. Please check and try again.",
-    "profile.noActiveCoupons": "No active coupons.",
+    "profile.promotionCodeAdded": "Promotional code added successfully.",
+    "profile.promotionCodeAlready": "This promotional code is already in your account.",
+    "profile.invalidPromotionCode": "Invalid promotional code. Please check and try again.",
+    "profile.noActivePromotionCodes": "No active promotional codes.",
     "profile.usedExpired": "Used & Expired",
     "profile.expired": "Expired",
     "profile.used": "Used",
@@ -557,9 +557,9 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.faqAuthenticated": "Are all items authenticated?",
     "profile.faqAuthenticatedAnswer":
       "Yes. Every item on Dupli1 undergoes our rigorous 12-point authentication process before listing.",
-    "profile.faqApplyCoupon": "How do I apply a coupon?",
-    "profile.faqApplyCouponAnswer":
-      "Enter your coupon code at checkout in the promo code field. Only one code may be applied per order.",
+    "profile.faqApplyPromotionCode": "How do I apply a promotional code?",
+    "profile.faqApplyPromotionCodeAnswer":
+      "Enter your promotional code at checkout in the promotional code field. Only one code may be applied per order.",
     "profile.faqCancelOrder": "Can I cancel or modify an order?",
     "profile.faqCancelOrderAnswer":
       "You can cancel for an immediate refund until a manager confirms the order (confirmation is required within 2 hours of payment). After confirmation, or while the order is in transit, cancellation goes to a manager and is processed after they confirm — they have 2 hours, after which the refund is approved automatically.",
@@ -1064,7 +1064,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.account": "계정",
     "profile.signOut": "로그아웃",
     "profile.wishlist": "위시리스트",
-    "profile.coupons": "쿠폰",
+    "profile.promotionCodes": "프로모션 코드",
     "profile.orders": "주문",
     "profile.accountSettings": "계정 설정",
     "profile.support": "지원",
@@ -1073,10 +1073,10 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.active": "활성 {count}개",
     "profile.redeemCode": "코드 등록",
     "profile.redeem": "등록",
-    "profile.couponAdded": "쿠폰이 추가되었습니다.",
-    "profile.couponAlready": "이미 계정에 있는 쿠폰입니다.",
-    "profile.invalidCoupon": "유효하지 않은 쿠폰 코드입니다. 다시 확인해 주세요.",
-    "profile.noActiveCoupons": "활성 쿠폰이 없습니다.",
+    "profile.promotionCodeAdded": "프로모션 코드가 추가되었습니다.",
+    "profile.promotionCodeAlready": "이미 계정에 있는 프로모션 코드입니다.",
+    "profile.invalidPromotionCode": "유효하지 않은 프로모션 코드입니다. 다시 확인해 주세요.",
+    "profile.noActivePromotionCodes": "활성 프로모션 코드가 없습니다.",
     "profile.usedExpired": "사용·만료",
     "profile.expired": "만료됨",
     "profile.used": "사용됨",
@@ -1149,8 +1149,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.faqAuthenticated": "모든 상품이 정품 인증되나요?",
     "profile.faqAuthenticatedAnswer":
       "네. Dupli1의 모든 상품은 등록 전 엄격한 12단계 인증 과정을 거칩니다.",
-    "profile.faqApplyCoupon": "쿠폰은 어떻게 적용하나요?",
-    "profile.faqApplyCouponAnswer":
+    "profile.faqApplyPromotionCode": "프로모션 코드는 어떻게 적용하나요?",
+    "profile.faqApplyPromotionCodeAnswer":
       "결제 화면의 프로모션 코드 입력란에 쿠폰 코드를 입력하세요. 주문당 하나의 코드만 적용할 수 있습니다.",
     "profile.faqCancelOrder": "주문을 취소하거나 변경할 수 있나요?",
     "profile.faqCancelOrderAnswer":
@@ -1639,7 +1639,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.account": "账户",
     "profile.signOut": "退出登录",
     "profile.wishlist": "愿望清单",
-    "profile.coupons": "优惠券",
+    "profile.promotionCodes": "促销码",
     "profile.orders": "订单",
     "profile.accountSettings": "账户设置",
     "profile.support": "支持",
@@ -1648,10 +1648,10 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.active": "{count} 张可用",
     "profile.redeemCode": "兑换代码",
     "profile.redeem": "兑换",
-    "profile.couponAdded": "优惠券已成功添加。",
-    "profile.couponAlready": "该优惠券已在您的账户中。",
-    "profile.invalidCoupon": "优惠码无效。请检查后重试。",
-    "profile.noActiveCoupons": "没有可用优惠券。",
+    "profile.promotionCodeAdded": "促销码已成功添加。",
+    "profile.promotionCodeAlready": "该促销码已在您的账户中。",
+    "profile.invalidPromotionCode": "优惠码无效。请检查后重试。",
+    "profile.noActivePromotionCodes": "没有可用促销码。",
     "profile.usedExpired": "已使用和已过期",
     "profile.expired": "已过期",
     "profile.used": "已使用",
@@ -1724,8 +1724,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "profile.faqAuthenticated": "所有商品都经过认证吗？",
     "profile.faqAuthenticatedAnswer":
       "是的。Dupli1 上的每件商品在上架前都会经过严格的 12 点认证流程。",
-    "profile.faqApplyCoupon": "如何使用优惠券？",
-    "profile.faqApplyCouponAnswer":
+    "profile.faqApplyPromotionCode": "如何使用促销码？",
+    "profile.faqApplyPromotionCodeAnswer":
       "在结账时的优惠码输入框中输入您的优惠券代码。每个订单只能使用一个代码。",
     "profile.faqCancelOrder": "可以取消或修改订单吗？",
     "profile.faqCancelOrderAnswer":

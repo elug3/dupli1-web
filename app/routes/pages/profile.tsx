@@ -19,19 +19,19 @@ import {
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
-type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
+type Section = "wishlist" | "promotions" | "orders" | "settings" | "support";
 
-type CouponStatus = "active" | "expired" | "used";
+type PromotionStatus = "active" | "expired" | "used";
 
-interface Coupon {
+interface Promotion {
   code: string;
   discount: string;
   description: string;
   expires: string;
-  status: CouponStatus;
+  status: PromotionStatus;
 }
 
-const COUPONS: Coupon[] = [];
+const PROMOTION_CODES: Promotion[] = [];
 
 const FAQ_ITEMS = [
   {
@@ -47,8 +47,8 @@ const FAQ_ITEMS = [
     aKey: "profile.faqAuthenticatedAnswer",
   },
   {
-    qKey: "profile.faqApplyCoupon",
-    aKey: "profile.faqApplyCouponAnswer",
+    qKey: "profile.faqApplyPromotionCode",
+    aKey: "profile.faqApplyPromotionCodeAnswer",
   },
   {
     qKey: "profile.faqCancelOrder",
@@ -58,7 +58,7 @@ const FAQ_ITEMS = [
 
 const NAV_ITEMS: { id: Section; labelKey: string; icon: React.FC }[] = [
   { id: "wishlist", labelKey: "profile.wishlist", icon: HeartIcon },
-  { id: "coupons", labelKey: "profile.coupons", icon: TagIcon },
+  { id: "promotions", labelKey: "profile.promotionCodes", icon: TagIcon },
   { id: "orders", labelKey: "profile.orders", icon: BoxIcon },
   { id: "settings", labelKey: "profile.accountSettings", icon: SettingsIcon },
   { id: "support", labelKey: "profile.support", icon: SupportIcon },
@@ -198,7 +198,7 @@ export default function Profile() {
         {/* Content */}
         <div className="min-w-0 flex-1">
           {section === "wishlist" && <WishlistSection />}
-          {section === "coupons" && <CouponsSection />}
+          {section === "promotions" && <PromotionsSection />}
           {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
           {section === "support" && <SupportSection />}
@@ -306,11 +306,11 @@ function WishlistSection() {
   );
 }
 
-// ── Coupons ────────────────────────────────────────────────────────────────
+// ── Promotions ────────────────────────────────────────────────────────────────
 
-function CouponsSection() {
+function PromotionsSection() {
   const { t } = useLanguage();
-  const [coupons, setCoupons] = useState<Coupon[]>(COUPONS);
+  const [promotions, setPromotions] = useState<Promotion[]>(PROMOTION_CODES);
   const [copied, setCopied] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [redeemStatus, setRedeemStatus] = useState<"idle" | "success" | "already" | "invalid">("idle");
@@ -326,14 +326,14 @@ function CouponsSection() {
     const code = input.trim().toUpperCase();
     if (!code) return;
 
-    if (coupons.some((c) => c.code === code)) {
+    if (promotions.some((c) => c.code === code)) {
       setRedeemStatus("already");
       setTimeout(() => setRedeemStatus("idle"), 3000);
       return;
     }
 
     try {
-      const res = await fetch("/api/coupons/redeem", {
+      const res = await fetch("/api/promotions/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -351,7 +351,7 @@ function CouponsSection() {
           description: string;
           expires: string;
         };
-        setCoupons((prev) => [
+        setPromotions((prev) => [
           {
             code: data.code,
             discount: `${Math.round(data.discount * 100)}% off`,
@@ -371,12 +371,12 @@ function CouponsSection() {
     setTimeout(() => setRedeemStatus("idle"), 3000);
   }
 
-  const active = coupons.filter((c) => c.status === "active");
-  const inactive = coupons.filter((c) => c.status !== "active");
+  const active = promotions.filter((c) => c.status === "active");
+  const inactive = promotions.filter((c) => c.status !== "active");
 
   return (
     <section>
-      <SectionHeader title={t("profile.coupons")} count={t("profile.active", { count: active.length })} />
+      <SectionHeader title={t("profile.promotionCodes")} count={t("profile.active", { count: active.length })} />
 
       {/* Redeem form */}
       <div className="mb-8 border border-zinc-100 p-5">
@@ -398,23 +398,23 @@ function CouponsSection() {
           </button>
         </form>
         {redeemStatus === "success" && (
-          <p className="mt-2 text-[11px] text-emerald-600">{t("profile.couponAdded")}</p>
+          <p className="mt-2 text-[11px] text-emerald-600">{t("profile.promotionCodeAdded")}</p>
         )}
         {redeemStatus === "already" && (
-          <p className="mt-2 text-[11px] text-zinc-500">{t("profile.couponAlready")}</p>
+          <p className="mt-2 text-[11px] text-zinc-500">{t("profile.promotionCodeAlready")}</p>
         )}
         {redeemStatus === "invalid" && (
-          <p className="mt-2 text-[11px] text-red-500">{t("profile.invalidCoupon")}</p>
+          <p className="mt-2 text-[11px] text-red-500">{t("profile.invalidPromotionCode")}</p>
         )}
       </div>
 
-      {/* Active coupons */}
+      {/* Active promotions */}
       {active.length === 0 ? (
-        <EmptyState message={t("profile.noActiveCoupons")} />
+        <EmptyState message={t("profile.noActivePromotionCodes")} />
       ) : (
         <div className="space-y-3">
           {active.map((c) => (
-            <CouponCard key={c.code} coupon={c} copied={copied === c.code} onCopy={() => copy(c.code)} />
+            <PromotionCard key={c.code} promotion={c} copied={copied === c.code} onCopy={() => copy(c.code)} />
           ))}
         </div>
       )}
@@ -425,7 +425,7 @@ function CouponsSection() {
           <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">{t("profile.usedExpired")}</p>
           <div className="space-y-3 opacity-50">
             {inactive.map((c) => (
-              <CouponCard key={c.code} coupon={c} copied={false} onCopy={() => {}} disabled />
+              <PromotionCard key={c.code} promotion={c} copied={false} onCopy={() => {}} disabled />
             ))}
           </div>
         </>
@@ -434,13 +434,13 @@ function CouponsSection() {
   );
 }
 
-function CouponCard({
-  coupon,
+function PromotionCard({
+  promotion,
   copied,
   onCopy,
   disabled,
 }: {
-  coupon: Coupon;
+  promotion: Promotion;
   copied: boolean;
   onCopy: () => void;
   disabled?: boolean;
@@ -452,17 +452,17 @@ function CouponCard({
       <div className="flex items-center gap-4">
         <div className="min-w-[5rem]">
           <p className="font-mono text-sm font-semibold tracking-wider text-zinc-950">
-            {coupon.code}
+            {promotion.code}
           </p>
           <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
-            {coupon.discount}
+            {promotion.discount}
           </p>
         </div>
         <div>
-          <p className="text-xs text-zinc-600">{coupon.description}</p>
+          <p className="text-xs text-zinc-600">{promotion.description}</p>
           <p className="mt-0.5 text-[10px] text-zinc-400">
-            {coupon.status === "expired" ? t("profile.expired") : coupon.status === "used" ? t("profile.used") : t("profile.expires")}{" "}
-            {coupon.expires}
+            {promotion.status === "expired" ? t("profile.expired") : promotion.status === "used" ? t("profile.used") : t("profile.expires")}{" "}
+            {promotion.expires}
           </p>
         </div>
       </div>
