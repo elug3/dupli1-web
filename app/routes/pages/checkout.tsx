@@ -4,6 +4,7 @@ import { CartLineControls } from "~/components/cart-line-controls";
 import { LoadingBadge } from "~/components/loading-badge";
 import { canBypassPayment, getMe, type User } from "~/lib/auth";
 import { clearCart, previewPromotion, promotionPreviewMessageKey, type RedeemedPromotion } from "~/lib/cart";
+import { loadWallet, type WalletEntry } from "~/lib/promotion-wallet";
 import {
   applySessionPromotion,
   promotionMessageKey,
@@ -155,6 +156,9 @@ export default function CheckoutPage() {
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
+  // Codes this customer already holds, so the auto-issued campaign code can be
+  // picked rather than remembered and retyped.
+  const [wallet, setWallet] = useState<WalletEntry[]>([]);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>(
     {}
   );
@@ -392,6 +396,24 @@ export default function CheckoutPage() {
   }
 
   const summary = totals(promotion?.discountWon ?? 0);
+
+  // The wallet is judged against the cart, so it reloads when the cart does.
+  // A guest gets an empty list — the endpoint needs a session — and the picker
+  // simply does not render.
+  useEffect(() => {
+    let cancelled = false;
+    loadWallet(items, summary.shipping)
+      .then((entries) => {
+        if (!cancelled) setWallet(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setWallet([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, summary.shipping]);
+
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
@@ -418,8 +440,8 @@ export default function CheckoutPage() {
             total: formatCurrency(checkoutTotal),
           });
 
-  async function applyPromo() {
-    const code = promoInput.trim();
+  async function applyPromo(explicitCode?: string) {
+    const code = (explicitCode ?? promoInput).trim();
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
@@ -1319,8 +1341,10 @@ export default function CheckoutPage() {
               promoInput={promoInput}
               promoError={promoError}
               applyingPromo={applyingPromo}
+              wallet={wallet}
               onPromoInputChange={setPromoInput}
-              onApplyPromo={applyPromo}
+              onApplyPromo={() => applyPromo()}
+              onApplyWalletCode={(code) => applyPromo(code)}
               checkoutHref="#"
               checkoutLabel={
                 submitting ? t("checkout.processing") : primaryActionLabel

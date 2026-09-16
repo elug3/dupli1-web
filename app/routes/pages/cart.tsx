@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
 import { formatPrice, previewPromotion, promotionPreviewMessageKey, type RedeemedPromotion } from "~/lib/cart";
+import { loadWallet, walletReasonKey, type WalletEntry } from "~/lib/promotion-wallet";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
@@ -24,6 +25,7 @@ export default function CartPage() {
   const { items, status, totals } = useCart();
   const mutation = useCartMutation();
   const [promotion, setPromotion] = useState<RedeemedPromotion | null>(null);
+  const [wallet, setWallet] = useState<WalletEntry[]>([]);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
@@ -31,12 +33,30 @@ export default function CartPage() {
 
   const summary = totals(promotion?.discountWon ?? 0);
 
+  // The wallet is judged against the cart, so it reloads when the cart does.
+  // A guest gets an empty list — the endpoint needs a session — and the picker
+  // simply does not render.
+  useEffect(() => {
+    let cancelled = false;
+    loadWallet(items, summary.shipping)
+      .then((entries) => {
+        if (!cancelled) setWallet(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setWallet([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, summary.shipping]);
+
+
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
   }, []);
 
-  async function applyPromo() {
-    const code = promoInput.trim();
+  async function applyPromo(explicitCode?: string) {
+    const code = (explicitCode ?? promoInput).trim();
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
@@ -140,6 +160,8 @@ export default function CartPage() {
               <OrderSummary
                 summary={summary}
                 promotion={promotion}
+                wallet={wallet}
+                onApplyWalletCode={(code) => applyPromo(code)}
                 promoInput={promoInput}
                 promoError={promoError}
                 applyingPromo={applyingPromo}
@@ -325,8 +347,10 @@ export function OrderSummary({
   promoInput,
   promoError,
   applyingPromo = false,
+  wallet = [],
   onPromoInputChange,
   onApplyPromo,
+  onApplyWalletCode,
   checkoutHref,
   checkoutLabel,
   disabled = false,
@@ -336,8 +360,15 @@ export function OrderSummary({
   promoInput: string;
   promoError: string;
   applyingPromo?: boolean;
+  /**
+   * The signed-in customer's own promotional codes, already judged against
+   * this cart. Empty for a guest, or before the wallet has loaded.
+   */
+  wallet?: WalletEntry[];
   onPromoInputChange: (value: string) => void;
   onApplyPromo: () => void;
+  /** Apply a code the customer already holds, without them retyping it. */
+  onApplyWalletCode?: (code: string) => void;
   checkoutHref: string;
   checkoutLabel: string;
   disabled?: boolean;
@@ -381,6 +412,49 @@ export function OrderSummary({
           </dd>
         </div>
       </dl>
+
+      {/*
+        Codes the customer already holds come first, so the campaign's
+        auto-issued code is picked rather than remembered and retyped. The
+        typed field below still exists for shared campaign codes, which nobody
+        is issued.
+      */}
+      {wallet.length > 0 && onApplyWalletCode && (
+        <div className="mt-6">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+            {t("cart.yourPromoCodes")}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {wallet.map((entry) => {
+              const applied = promotion?.code === entry.code;
+              return (
+                <li
+                  key={entry.id}
+                  className="flex items-center justify-between gap-3 border border-zinc-200 bg-white px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs tracking-wider text-zinc-950">{entry.code}</p>
+                    {entry.terms && (
+                      <p className="mt-0.5 truncate text-[11px] text-zinc-500">{entry.terms}</p>
+                    )}
+                    {!entry.eligible && walletReasonKey(entry) && (
+                      <p className="mt-0.5 text-[11px] text-zinc-400">{t(walletReasonKey(entry)!)}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onApplyWalletCode(entry.code)}
+                    disabled={!entry.eligible || applyingPromo || applied}
+                    className="shrink-0 border border-zinc-950 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300 disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+                  >
+                    {applied ? t("cart.promoAppliedLabel") : t("cart.apply")}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="mt-6">
         <label
