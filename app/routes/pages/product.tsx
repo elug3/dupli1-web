@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
-import { ProductPrice } from "~/components/product-price";
+import { ProductPrice, isPriceOnRequest } from "~/components/product-price";
 import { brandToSlug } from "~/lib/catalog";
 import {
   type Bag,
@@ -18,6 +18,7 @@ import {
   removeFromWishlist,
 } from "~/lib/api";
 import { getMe } from "~/lib/auth";
+import { conciergeMailto } from "~/lib/inquiry";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
@@ -280,6 +281,19 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
   const inStock = isProductInStock(product, availableStock);
+  // Unpriced style: a manager has not set a price yet. Invite an inquiry
+  // instead of showing ₩0 next to a purchase button we cannot honour.
+  const priceOnRequest = isPriceOnRequest(product.price);
+  const inquiryHref = conciergeMailto(
+    t("product.inquireSubject", {
+      product: translateProductName(product.id, product.name),
+    }),
+    t("product.inquireBody", {
+      product: translateProductName(product.id, product.name),
+      brand: product.brand,
+      sku: product.sku || product.skuId || product.id,
+    })
+  );
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
@@ -308,7 +322,9 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   }, [sellable, product.sku, product.skuId, product.availableQty, product.inStock]);
 
   async function handleAddToBag(): Promise<boolean> {
-    if (adding || !sellable) return false;
+    // priceOnRequest never renders these buttons; belt-and-braces so an
+    // unpriced line can never reach the cart at a zero unit price.
+    if (adding || !sellable || priceOnRequest) return false;
     const ok = await addItem(product.sku, 1, product.skuId);
     if (ok) {
       setAdded(true);
@@ -351,11 +367,15 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           officialPrice={product.officialPrice}
           size="lg"
         />
-        <span
-          className={`text-[10px] font-semibold uppercase tracking-widest ${inStock ? "text-emerald-600" : "text-zinc-400"}`}
-        >
-          {inStock ? t("product.inStock") : t("product.outOfStock")}
-        </span>
+        {/* Stock is meaningless until the style is priced, and pairing
+            "Out of Stock" with an inquiry CTA reads as two answers. */}
+        {!priceOnRequest && (
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-widest ${inStock ? "text-emerald-600" : "text-zinc-400"}`}
+          >
+            {inStock ? t("product.inStock") : t("product.outOfStock")}
+          </span>
+        )}
       </div>
 
       <div className="my-6 h-px bg-zinc-100" />
@@ -383,52 +403,70 @@ function ProductInfo({ product }: { product: ServerProduct }) {
       <div className="my-6 h-px bg-zinc-100" />
 
       {/* CTA — a single dominant "Add to Bag" action, with instant checkout
-          as a lighter secondary link underneath */}
+          as a lighter secondary link underneath. An unpriced style swaps both
+          for a concierge inquiry, carrying the same visual weight so it reads
+          as a way forward rather than a blocked purchase. */}
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleAddToBag()}
-          aria-label={
-            adding
-              ? t("product.addingToBag")
-              : added
-                ? t("product.added")
-                : t("product.addToBag")
-          }
-          aria-busy={adding}
-          className={[
-            "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
-            inStock && !adding
-              ? added
-                ? "bg-emerald-700 text-white"
-                : "bg-zinc-950 text-white hover:bg-zinc-800"
-              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-          ].join(" ")}
-        >
-          {adding ? (
-            <LoadingBadge label={t("product.addingToBag")} size="lg" />
-          ) : added ? (
-            t("product.added")
-          ) : inStock ? (
-            t("product.addToBag")
-          ) : (
-            t("product.outOfStock")
-          )}
-        </button>
+        {priceOnRequest ? (
+          <>
+            <a
+              href={inquiryHref}
+              className="flex h-14 w-full items-center justify-center rounded-md bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            >
+              {t("product.inquirePrice")}
+            </a>
+            <p className="text-center text-[11px] leading-relaxed text-zinc-400">
+              {t("product.inquirePriceHint")}
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={!inStock || adding}
+              onClick={() => void handleAddToBag()}
+              aria-label={
+                adding
+                  ? t("product.addingToBag")
+                  : added
+                    ? t("product.added")
+                    : t("product.addToBag")
+              }
+              aria-busy={adding}
+              className={[
+                "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
+                inStock && !adding
+                  ? added
+                    ? "bg-emerald-700 text-white"
+                    : "bg-zinc-950 text-white hover:bg-zinc-800"
+                  : "cursor-not-allowed bg-zinc-100 text-zinc-400",
+              ].join(" ")}
+            >
+              {adding ? (
+                <LoadingBadge label={t("product.addingToBag")} size="lg" />
+              ) : added ? (
+                t("product.added")
+              ) : inStock ? (
+                t("product.addToBag")
+              ) : (
+                t("product.outOfStock")
+              )}
+            </button>
 
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleBuy()}
-          className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
-        >
-          {t("product.buy")}
-        </button>
-        {cartError && (
-          <p className="text-center text-[11px] text-red-600" role="alert">
-            {cartError}
-          </p>
+            <button
+              type="button"
+              disabled={!inStock || adding}
+              onClick={() => void handleBuy()}
+              className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
+            >
+              {t("product.buy")}
+            </button>
+            {cartError && (
+              <p className="text-center text-[11px] text-red-600" role="alert">
+                {cartError}
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -465,30 +503,41 @@ function ProductInfo({ product }: { product: ServerProduct }) {
             {translateProductName(product.id, product.name)}
           </p>
           <p className="text-sm font-semibold text-zinc-950">
-            {formatCurrency(product.price)}
+            {priceOnRequest
+              ? t("product.priceOnRequest")
+              : formatCurrency(product.price)}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleAddToBag()}
-          className={[
-            "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
-            inStock && !adding
-              ? "bg-zinc-950 text-white hover:bg-zinc-800"
-              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-          ].join(" ")}
-        >
-          {adding ? (
-            <LoadingBadge label={t("product.addingToBag")} />
-          ) : added ? (
-            t("product.added")
-          ) : inStock ? (
-            t("product.addToBag")
-          ) : (
-            t("product.outOfStock")
-          )}
-        </button>
+        {priceOnRequest ? (
+          <a
+            href={inquiryHref}
+            className="flex h-12 shrink-0 items-center justify-center rounded-md bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            {t("product.inquire")}
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled={!inStock || adding}
+            onClick={() => void handleAddToBag()}
+            className={[
+              "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
+              inStock && !adding
+                ? "bg-zinc-950 text-white hover:bg-zinc-800"
+                : "cursor-not-allowed bg-zinc-100 text-zinc-400",
+            ].join(" ")}
+          >
+            {adding ? (
+              <LoadingBadge label={t("product.addingToBag")} />
+            ) : added ? (
+              t("product.added")
+            ) : inStock ? (
+              t("product.addToBag")
+            ) : (
+              t("product.outOfStock")
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

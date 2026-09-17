@@ -229,6 +229,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "New",
     "product.badgeFeatured": "Featured",
     "product.priceLoading": "Loading",
+    "product.priceOnRequest": "Price on Request",
+    "product.inquire": "Inquire",
+    "product.inquirePrice": "Inquire About This Piece",
+    "product.inquirePriceHint":
+      "Pricing for this piece has not been published yet. Our concierge will confirm the price and availability for you.",
+    "product.inquireSubject": "Price inquiry: {product}",
+    "product.inquireBody":
+      "Hello Dupli1 concierge,\n\nI would like to know the price and availability of the following piece.\n\nProduct: {product}\nBrand: {brand}\nSKU: {sku}\n\nThank you.",
     "product.discountPercent": "-{percent}%",
     "product.youMayAlsoLike": "You may also like",
     "product.similarItems": "Similar items",
@@ -823,6 +831,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "신상품",
     "product.badgeFeatured": "추천",
     "product.priceLoading": "불러오는 중",
+    "product.priceOnRequest": "가격 문의",
+    "product.inquire": "문의하기",
+    "product.inquirePrice": "가격 문의하기",
+    "product.inquirePriceHint":
+      "아직 가격이 공개되지 않은 상품입니다. 컨시어지가 가격과 재고를 확인해 안내해 드립니다.",
+    "product.inquireSubject": "가격 문의: {product}",
+    "product.inquireBody":
+      "Dupli1 컨시어지 담당자님께,\n\n아래 상품의 가격과 재고를 문의드립니다.\n\n상품명: {product}\n브랜드: {brand}\nSKU: {sku}\n\n감사합니다.",
     "product.discountPercent": "-{percent}%",
     "product.youMayAlsoLike": "함께 보면 좋은 상품",
     "product.similarItems": "유사 상품",
@@ -1408,6 +1424,14 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.badgeNew": "新品",
     "product.badgeFeatured": "精选",
     "product.priceLoading": "加载中",
+    "product.priceOnRequest": "价格咨询",
+    "product.inquire": "咨询",
+    "product.inquirePrice": "咨询此商品",
+    "product.inquirePriceHint":
+      "此商品尚未公开价格。我们的管家将为您确认价格与库存。",
+    "product.inquireSubject": "价格咨询：{product}",
+    "product.inquireBody":
+      "Dupli1 管家您好：\n\n我想了解以下商品的价格与库存。\n\n商品：{product}\n品牌：{brand}\nSKU：{sku}\n\n谢谢。",
     "product.discountPercent": "-{percent}%",
     "product.youMayAlsoLike": "你可能还喜欢",
     "product.similarItems": "相似商品",

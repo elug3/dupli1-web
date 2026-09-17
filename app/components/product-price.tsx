@@ -14,6 +14,19 @@ export function saleDiscountPercent(
   return percent > 0 ? percent : null;
 }
 
+/**
+ * True when the catalog carries no usable price yet.
+ *
+ * `product` stores price on the parent as `NUMERIC NOT NULL DEFAULT 0`, and
+ * both product mappers coalesce an absent value to 0 — so an unpriced style
+ * and a style priced at zero are the same thing on the wire. Either way the
+ * storefront cannot quote it, and we invite an inquiry rather than render
+ * "₩0" or a dead purchase button.
+ */
+export function isPriceOnRequest(price: number | null | undefined): boolean {
+  return typeof price !== "number" || !Number.isFinite(price) || price <= 0;
+}
+
 export function ProductPrice({
   price,
   officialPrice,
@@ -35,6 +48,12 @@ export function ProductPrice({
 
   if (!ready) {
     return <PriceLoadingBadge label={t("product.priceLoading")} size={size} />;
+  }
+
+  // Before the sale math: against a zero price every officialPrice reads as
+  // "-100%", which is the opposite of the invitation we want here.
+  if (isPriceOnRequest(price)) {
+    return <PriceOnRequestBadge label={t("product.priceOnRequest")} size={size} />;
   }
 
   const showOfficial =
@@ -79,6 +98,27 @@ export function ProductPrice({
         </span>
       )}
     </p>
+  );
+}
+
+/** Price slot for an unpriced style — an invitation, never a disabled state. */
+function PriceOnRequestBadge({
+  label,
+  size,
+}: {
+  label: string;
+  size: "sm" | "lg";
+}) {
+  if (size === "lg") {
+    return (
+      <span className="text-2xl font-light tracking-tight text-zinc-950">
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <p className="mt-1.5 text-sm font-semibold text-[#c8a96e]">{label}</p>
   );
 }
 
