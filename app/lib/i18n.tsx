@@ -588,10 +588,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "brand.bottega-veneta.blurb":
       "Intrecciato weave and sculptural ease — Bottega Veneta bags with quiet luxury and a distinctive hand.",
 
-    "history.metaTitle": "History | Dupli1",
-    "history.metaDescription": "View recent browsing history.",
-    "history.title": "History",
-
     "admin.newProduct": "New product",
     "admin.newProductDescription": "Add a product to the catalogue.",
     "admin.accessDenied": "Access denied",
@@ -1180,10 +1176,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "brand.bottega-veneta.blurb":
       "인트레치아토 위브와 조각적인 실루엣 — 절제된 럭셔리와 고유한 손맛이 담긴 보테가 베네타 가방.",
 
-    "history.metaTitle": "내역 | Dupli1",
-    "history.metaDescription": "최근 탐색 내역을 확인하세요.",
-    "history.title": "내역",
-
     "admin.newProduct": "새 제품",
     "admin.newProductDescription": "카탈로그에 제품을 추가하세요.",
     "admin.accessDenied": "접근 권한 없음",
@@ -1753,10 +1745,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "建筑感线条与尼龙传承 — 精准而现代的普拉达包袋。",
     "brand.bottega-veneta.blurb":
       "编织皮革与雕塑感廓形 — 静奢气质与鲜明手感的葆蝶家精选包袋。",
-
-    "history.metaTitle": "历史 | Dupli1",
-    "history.metaDescription": "查看最近浏览历史。",
-    "history.title": "历史",
 
     "admin.newProduct": "新产品",
     "admin.newProductDescription": "向目录添加产品。",

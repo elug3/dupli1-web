@@ -14,6 +14,7 @@ import {
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
+import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
 import { useShippingFeeWon } from "./lib/useShippingFee";
@@ -458,8 +459,8 @@ function Footer() {
             </p>
             <ul className="space-y-2 text-xs text-zinc-400">
               <li><Link to="/category/product-type/handbags" className="hover:text-zinc-950 transition">{t("footer.styleConsultation")}</Link></li>
-              <li><NavLink to="/history" className="hover:text-zinc-950 transition">{t("footer.orderHistory")}</NavLink></li>
-              <li><NavLink to="/profile" className="hover:text-zinc-950 transition">{t("footer.myAccount")}</NavLink></li>
+              <li><NavLink to={MY_ACCOUNT_ORDERS_PATH} className="hover:text-zinc-950 transition">{t("footer.orderHistory")}</NavLink></li>
+              <li><NavLink to="/profile" end className="hover:text-zinc-950 transition">{t("footer.myAccount")}</NavLink></li>
             </ul>
           </div>
 

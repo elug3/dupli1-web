@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { clearCart } from "~/lib/cart";
 import { getOrder, orderHasPricingBreakdown, type Order } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 
 interface ConfirmationState {
   orderId?: string;
@@ -168,7 +169,7 @@ export default function CheckoutConfirmationPage() {
             {t("cart.continueShopping")}
           </Link>
           <Link
-            to="/history"
+            to={MY_ACCOUNT_ORDERS_PATH}
             className="inline-flex h-12 min-w-[200px] items-center justify-center border border-zinc-200 px-8 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
           >
             {t("confirmation.viewOrders")}
