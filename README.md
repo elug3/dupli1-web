@@ -227,6 +227,16 @@ The storefront supports **English**, Korean, and Chinese via the in-app language
 
 **All prices use KRW (Korean Won) only.** The UI formats every amount as KRW regardless of the selected language — there is no USD conversion.
 
+## Customer Contact
+
+The home and category pages carry a floating **Telegram** chat button
+(`app/components/telegram-float.tsx`). The handle it opens lives in
+`TELEGRAM_CONTACT_HANDLE` (`app/lib/contact.ts`) — change it there; it is a
+constant, not an env var, because the client bundle is baked at image build
+time. Which routes show the button is decided by `isTelegramFloatRoute`, and
+the button is mounted from `root.tsx` so it anchors to the viewport rather
+than to the transformed page-transition wrapper.
+
 ## Content Guidelines
 
 **MUST USE Korean product names.** Product titles shown in the catalog, search results, cart, and checkout must use the Korean product name (for example, `루이비통 익스프레스 MM`), not English-only alternatives.

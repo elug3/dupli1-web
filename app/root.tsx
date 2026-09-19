@@ -14,6 +14,7 @@ import {
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
+import { isTelegramFloatRoute, TelegramFloat } from "./components/telegram-float";
 import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
 import { useCart } from "./lib/useCart";
 import { useShippingFeeWon } from "./lib/useShippingFee";
@@ -62,10 +63,18 @@ export default function App() {
           </PageTransition>
         </div>
         <Footer />
+        <TelegramChat />
         <CookieBanner />
       </div>
     </LanguageProvider>
   );
+}
+
+/** Floating Telegram chat, on the home and category pages only. */
+function TelegramChat() {
+  const { pathname } = useLocation();
+
+  return isTelegramFloatRoute(pathname) ? <TelegramFloat /> : null;
 }
 
 function PageTransition({ children }: { children: React.ReactNode }) {
