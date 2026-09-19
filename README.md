@@ -230,12 +230,24 @@ The storefront supports **English**, Korean, and Chinese via the in-app language
 ## Customer Contact
 
 The home and category pages carry a floating **Telegram** chat button
-(`app/components/telegram-float.tsx`). The handle it opens lives in
-`TELEGRAM_CONTACT_HANDLE` (`app/lib/contact.ts`) — change it there; it is a
-constant, not an env var, because the client bundle is baked at image build
-time. Which routes show the button is decided by `isTelegramFloatRoute`, and
-the button is mounted from `root.tsx` so it anchors to the viewport rather
-than to the transformed page-transition wrapper.
+(`app/components/telegram-float.tsx`) that opens the consultation bot,
+`@dupli1_support_bot`. The handle lives in `TELEGRAM_CONTACT_HANDLE`
+(`app/lib/contact.ts`) — change it there; it is a constant, not an env var,
+because the client bundle is baked at image build time. It is a *bot* handle
+rather than the human `@Dupli1212` account because Telegram requires every bot
+username to end in `bot`.
+
+Which routes show the button is decided by `isTelegramFloatRoute`, and the
+button is mounted from `root.tsx` so it anchors to the viewport rather than to
+the transformed page-transition wrapper.
+
+The link carries where the shopper came from as a Telegram start payload —
+`?start=c_b-louis-vuitton_ko` — built by `storefrontContext` (route → context)
+and `telegramStartPayload` (context → payload). Telegram caps that payload at
+64 characters and accepts only `A-Za-z0-9_-`, so an over-long reference is
+dropped rather than truncated: a cut-off reference points at the wrong product.
+The bot stores it and shows it to staff; it is a hint, never an identity and
+never a permission. Backend contract: [elug3/dupli1 docs/support-telegram-bot.md](../dupli1/docs/support-telegram-bot.md).
 
 ## Content Guidelines
 
