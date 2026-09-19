@@ -7,7 +7,7 @@
  * Dockerfile bakes the client bundle), so a build-time variable would only
  * look configurable at deploy time.
  */
-export const TELEGRAM_CONTACT_HANDLE = "dupli1";
+export const TELEGRAM_CONTACT_HANDLE = "Dupli1212";
 
 /**
  * Builds the `https://t.me/...` deep link for a Telegram handle.
