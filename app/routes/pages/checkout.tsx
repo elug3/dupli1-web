@@ -47,6 +47,7 @@ import {
   formatAddressSummary,
   getCustomerProfile,
 } from "~/lib/profile";
+import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { useLanguage } from "~/lib/i18n";
 import { KR_PROVINCES, districtsForProvince } from "~/lib/kr-regions";
 import { useCart } from "~/lib/useCart";
@@ -1396,7 +1397,7 @@ function UnconfirmedPaymentNotice({
         {t(contactKey, values)}
       </p>
       <Link
-        to="/history"
+        to={MY_ACCOUNT_ORDERS_PATH}
         className="mt-4 inline-flex h-11 items-center justify-center border border-amber-400 px-5 text-[10px] font-semibold uppercase tracking-widest text-amber-900 transition hover:bg-amber-100"
       >
         {t("checkout.unconfirmedViewOrders")}
