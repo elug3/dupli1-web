@@ -18,10 +18,12 @@ import {
 } from "~/lib/profile";
 import {
   type Order,
+  type OrderItem,
   cancelMyOrder,
   canCustomerCancelOrder,
   isValidKRPhone,
   listMyOrders,
+  orderItemProductPath,
   orderStatusLabelKey,
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
@@ -615,27 +617,10 @@ function OrdersSection({ user }: { user: User }) {
                 {order.items.length > 0 && (
                   <ul className="mt-4 space-y-3 border-t border-zinc-50 pt-4">
                     {order.items.slice(0, ORDER_CARD_ITEM_LIMIT).map((item, idx) => (
-                      <li
+                      <OrderCardItem
                         key={item.skuId ?? `${item.sku}-${idx}`}
-                        className="flex items-center gap-3 text-xs text-zinc-600"
-                      >
-                        <OrderItemThumb
-                          src={item.imageUrl}
-                          alt={item.productName ?? item.sku}
-                          className="size-12"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] text-zinc-950">
-                            {item.productName ?? item.sku}
-                          </p>
-                          {item.productName && (
-                            <p className="truncate font-mono text-[10px] tracking-wide text-zinc-400">
-                              {item.sku}
-                            </p>
-                          )}
-                        </div>
-                        <span className="shrink-0">×{item.quantity}</span>
-                      </li>
+                        item={item}
+                      />
                     ))}
                     {order.items.length > ORDER_CARD_ITEM_LIMIT && (
                       <li className="text-[11px] text-zinc-400">
@@ -688,6 +673,51 @@ function OrdersSection({ user }: { user: User }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** One line on an order card: thumbnail + name, both linking to the PDP. */
+function OrderCardItem({ item }: { item: OrderItem }) {
+  const name = item.productName ?? item.sku;
+  const productPath = orderItemProductPath(item);
+  const thumb = (
+    <OrderItemThumb src={item.imageUrl} alt={name} className="size-12" />
+  );
+
+  return (
+    <li className="flex items-center gap-3 text-xs text-zinc-600">
+      {productPath ? (
+        <Link
+          to={productPath}
+          className="shrink-0"
+          // The name beside it links to the same page; one announcement is enough.
+          aria-hidden="true"
+          tabIndex={-1}
+        >
+          {thumb}
+        </Link>
+      ) : (
+        thumb
+      )}
+      <div className="min-w-0 flex-1">
+        {productPath ? (
+          <Link
+            to={productPath}
+            className="block truncate text-[12px] text-zinc-950 underline-offset-4 transition hover:underline"
+          >
+            {name}
+          </Link>
+        ) : (
+          <p className="truncate text-[12px] text-zinc-950">{name}</p>
+        )}
+        {item.productName && (
+          <p className="truncate font-mono text-[10px] tracking-wide text-zinc-400">
+            {item.sku}
+          </p>
+        )}
+      </div>
+      <span className="shrink-0">×{item.quantity}</span>
+    </li>
   );
 }
 

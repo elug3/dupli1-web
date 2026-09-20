@@ -19,6 +19,7 @@ import {
   getOrder,
   isOrderUnavailableError,
   isResumableOrder,
+  orderItemProductPath,
   orderItemTotalWon,
   orderStatusLabelKey,
   orderTimeline,
@@ -528,13 +529,36 @@ function OrderDetail({
 function OrderItemRow({ item }: { item: OrderItem }) {
   const { t, formatCurrency } = useLanguage();
   const name = item.productName ?? item.sku;
+  const productPath = orderItemProductPath(item);
+  const thumb = <OrderItemThumb src={item.imageUrl} alt={name} className="size-20" />;
 
   return (
     <li className="flex gap-4 border-b border-zinc-50 py-4 last:border-b-0">
-      <OrderItemThumb src={item.imageUrl} alt={name} className="size-20" />
+      {productPath ? (
+        <Link
+          to={productPath}
+          className="shrink-0"
+          // The name beside it links to the same page; one announcement is enough.
+          aria-hidden="true"
+          tabIndex={-1}
+        >
+          {thumb}
+        </Link>
+      ) : (
+        thumb
+      )}
       <div className="flex min-w-0 flex-1 flex-col justify-between">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-zinc-950">{name}</p>
+          {productPath ? (
+            <Link
+              to={productPath}
+              className="block truncate text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline"
+            >
+              {name}
+            </Link>
+          ) : (
+            <p className="truncate text-sm font-medium text-zinc-950">{name}</p>
+          )}
           <p className="mt-0.5 truncate font-mono text-[11px] tracking-wide text-zinc-400">
             {item.sku}
           </p>

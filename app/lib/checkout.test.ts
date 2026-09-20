@@ -14,6 +14,7 @@ import {
   disputeOrderReceipt,
   formatOrderShippingAddress,
   isOrderUnavailableError,
+  orderItemProductPath,
   orderItemTotalWon,
   orderStatusLabelKey,
   orderTimeline,
@@ -781,6 +782,16 @@ describe("order detail mapping", () => {
       customer_id: "cust-1",
       status: "delivered",
       total_won: 70000,
+      items: [
+        {
+          sku: "PRADA_GALLERIA_BLACK_M",
+          sku_id: "01J8SKU1",
+          quantity: 1,
+          unit_price_won: 70000,
+          product_id: "prd-galleria",
+          product_name: "Prada Galleria",
+        },
+      ],
       recipient_name: "김민지",
       recipient_phone: "010-1234-5678",
       shipping_address: {
@@ -802,6 +813,7 @@ describe("order detail mapping", () => {
     });
 
     const order = await getOrder("ord_1");
+    expect(order.items[0].productId).toBe("prd-galleria");
     expect(order.recipientName).toBe("김민지");
     expect(order.recipientPhone).toBe("010-1234-5678");
     expect(order.shippingAddress).toEqual({
@@ -1058,6 +1070,27 @@ describe("receipt actions", () => {
     });
     await disputeOrderReceipt("ord_1");
     expect(JSON.parse(bodies[0])).toEqual({ reason: "" });
+  });
+});
+
+describe("orderItemProductPath", () => {
+  const base = { sku: "BAG-001", quantity: 1, unitPriceWon: 1000 };
+
+  it("points at the parent product page", () => {
+    expect(orderItemProductPath({ ...base, productId: "prd-1" })).toBe(
+      "/product/prd-1"
+    );
+  });
+
+  it("returns null for an order placed before product_id was captured", () => {
+    expect(orderItemProductPath(base)).toBeNull();
+    expect(orderItemProductPath({ ...base, productId: "   " })).toBeNull();
+  });
+
+  it("escapes an id that would otherwise break out of the route", () => {
+    expect(orderItemProductPath({ ...base, productId: "a/b?c" })).toBe(
+      "/product/a%2Fb%3Fc"
+    );
   });
 });
 

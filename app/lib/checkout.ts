@@ -154,6 +154,12 @@ export interface OrderItem {
   quantity: number;
   /** Whole KRW won (JSON `unit_price_won`). */
   unitPriceWon: number;
+  /**
+   * Parent product the line links back to, snapshotted at order creation.
+   * Orders placed before order captured it have none — render those lines
+   * without a link rather than guessing a product page.
+   */
+  productId?: string;
   productName?: string;
   imageUrl?: string;
 }
@@ -302,6 +308,7 @@ interface RawOrderItem {
   sku_id?: string;
   quantity: number;
   unit_price_won: number;
+  product_id?: string;
   product_name?: string;
   image_url?: string;
 }
@@ -399,6 +406,7 @@ function mapOrder(raw: RawOrder): Order {
       skuId: item.sku_id || undefined,
       quantity: item.quantity,
       unitPriceWon: item.unit_price_won,
+      productId: item.product_id || undefined,
       productName: item.product_name || undefined,
       imageUrl: item.image_url || undefined,
     })),
@@ -896,6 +904,12 @@ export async function disputeOrderReceipt(
     }
   );
   return mapOrder(await res.json());
+}
+
+/** PDP path for an order line, or null when the order carries no product id. */
+export function orderItemProductPath(item: OrderItem): string | null {
+  const productId = item.productId?.trim();
+  return productId ? `/product/${encodeURIComponent(productId)}` : null;
 }
 
 /** Line total for an order item, in whole KRW won. */
