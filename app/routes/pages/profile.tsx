@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
+  myAccountOrderPath,
   myAccountPath,
   parseAccountSection,
   type AccountSection,
 } from "~/lib/account";
 import { type User, getMe, logout } from "~/lib/auth";
 import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
+import { OrderItemThumb } from "~/components/order-item-thumb";
 import { ProductPrice } from "~/components/product-price";
 import { ShippingAddressBook } from "~/components/shipping-address-book";
 import {
@@ -16,10 +18,13 @@ import {
 } from "~/lib/profile";
 import {
   type Order,
+  type OrderItem,
   cancelMyOrder,
   canCustomerCancelOrder,
   isValidKRPhone,
   listMyOrders,
+  orderItemProductPath,
+  orderStatusLabelKey,
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
@@ -490,11 +495,17 @@ function CouponCard({
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
+/** Lines shown on a list card; the rest are behind the detail link. */
+const ORDER_CARD_ITEM_LIMIT = 3;
+
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
   paid: "bg-blue-50 text-blue-700",
+  confirmed: "bg-blue-50 text-blue-700",
   in_transit: "bg-indigo-50 text-indigo-700",
+  delivered: "bg-emerald-50 text-emerald-700",
   fulfilled: "bg-emerald-50 text-emerald-700",
+  disputed: "bg-red-50 text-red-700",
   canceled: "bg-zinc-100 text-zinc-500",
 };
 
@@ -523,8 +534,8 @@ function OrdersSection({ user }: { user: User }) {
   }, [t]);
 
   function statusLabel(status: string): string {
-    const key = `profile.status${status.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^[a-z]/, (c) => c.toUpperCase())}`;
-    return t(key as Parameters<typeof t>[0]) || status;
+    const key = orderStatusLabelKey(status);
+    return key ? t(key) : status;
   }
 
   async function handleCancel(order: Order) {
@@ -580,10 +591,13 @@ function OrdersSection({ user }: { user: User }) {
             return (
               <div key={order.id} className="border border-zinc-100 p-5">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-mono text-xs font-medium tracking-wide text-zinc-950">
+                  <div className="min-w-0">
+                    <Link
+                      to={myAccountOrderPath(order.id)}
+                      className="block break-all font-mono text-xs font-medium tracking-wide text-zinc-950 underline-offset-4 transition hover:underline"
+                    >
                       {order.id}
-                    </p>
+                    </Link>
                     <p className="mt-0.5 text-[11px] text-zinc-400">
                       {itemCount === 1
                         ? t("profile.orderItems", { count: String(itemCount) })
@@ -601,17 +615,20 @@ function OrdersSection({ user }: { user: User }) {
                 </div>
 
                 {order.items.length > 0 && (
-                  <ul className="mt-4 space-y-1.5 border-t border-zinc-50 pt-4">
-                    {order.items.map((item, idx) => (
-                      <li key={idx} className="flex items-center justify-between text-xs text-zinc-600">
-                        <span className="truncate font-mono text-[11px] tracking-wide text-zinc-400 mr-2">
-                          {item.sku}
-                        </span>
-                        <span className="shrink-0">
-                          ×{item.quantity}
-                        </span>
-                      </li>
+                  <ul className="mt-4 space-y-3 border-t border-zinc-50 pt-4">
+                    {order.items.slice(0, ORDER_CARD_ITEM_LIMIT).map((item, idx) => (
+                      <OrderCardItem
+                        key={item.skuId ?? `${item.sku}-${idx}`}
+                        item={item}
+                      />
                     ))}
+                    {order.items.length > ORDER_CARD_ITEM_LIMIT && (
+                      <li className="text-[11px] text-zinc-400">
+                        {t("profile.orderMoreItems", {
+                          count: String(order.items.length - ORDER_CARD_ITEM_LIMIT),
+                        })}
+                      </li>
+                    )}
                   </ul>
                 )}
 
@@ -628,26 +645,79 @@ function OrdersSection({ user }: { user: User }) {
                     {t("profile.cancelRequested")}
                   </p>
                 ) : null}
-                {canCustomerCancelOrder(order) && (
-                  <button
-                    type="button"
-                    disabled={cancelingId === order.id}
-                    onClick={() => handleCancel(order)}
-                    className="mt-3 text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <Link
+                    to={myAccountOrderPath(order.id)}
+                    className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
                   >
-                    {cancelingId === order.id
-                      ? t("profile.canceling")
-                      : order.immediateCancelAllowed
-                        ? t("profile.cancelOrder")
-                        : t("profile.requestCancel")}
-                  </button>
-                )}
+                    {t("profile.viewOrderDetails")}
+                  </Link>
+                  {canCustomerCancelOrder(order) && (
+                    <button
+                      type="button"
+                      disabled={cancelingId === order.id}
+                      onClick={() => handleCancel(order)}
+                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                    >
+                      {cancelingId === order.id
+                        ? t("profile.canceling")
+                        : order.immediateCancelAllowed
+                          ? t("profile.cancelOrder")
+                          : t("profile.requestCancel")}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
     </section>
+  );
+}
+
+/** One line on an order card: thumbnail + name, both linking to the PDP. */
+function OrderCardItem({ item }: { item: OrderItem }) {
+  const name = item.productName ?? item.sku;
+  const productPath = orderItemProductPath(item);
+  const thumb = (
+    <OrderItemThumb src={item.imageUrl} alt={name} className="size-12" />
+  );
+
+  return (
+    <li className="flex items-center gap-3 text-xs text-zinc-600">
+      {productPath ? (
+        <Link
+          to={productPath}
+          className="shrink-0"
+          // The name beside it links to the same page; one announcement is enough.
+          aria-hidden="true"
+          tabIndex={-1}
+        >
+          {thumb}
+        </Link>
+      ) : (
+        thumb
+      )}
+      <div className="min-w-0 flex-1">
+        {productPath ? (
+          <Link
+            to={productPath}
+            className="block truncate text-[12px] text-zinc-950 underline-offset-4 transition hover:underline"
+          >
+            {name}
+          </Link>
+        ) : (
+          <p className="truncate text-[12px] text-zinc-950">{name}</p>
+        )}
+        {item.productName && (
+          <p className="truncate font-mono text-[10px] tracking-wide text-zinc-400">
+            {item.sku}
+          </p>
+        )}
+      </div>
+      <span className="shrink-0">×{item.quantity}</span>
+    </li>
   );
 }
 
