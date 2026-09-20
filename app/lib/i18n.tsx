@@ -647,6 +647,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "value.analog": "Analog",
     "value.digital": "Digital",
     "value.smart": "Smart",
+
+    "contact.telegram": "Chat with us on Telegram",
   },
   ko: {
     "language.label": "언어",
@@ -1234,6 +1236,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "value.analog": "아날로그",
     "value.digital": "디지털",
     "value.smart": "스마트",
+
+    "contact.telegram": "텔레그램 상담하기",
   },
   zh: {
     "language.label": "语言",
@@ -1803,6 +1807,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "value.analog": "模拟",
     "value.digital": "数字",
     "value.smart": "智能",
+
+    "contact.telegram": "Telegram 在线咨询",
   },
 };
 
