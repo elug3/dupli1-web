@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 
+import { OrderItemThumb } from "~/components/order-item-thumb";
 import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { type User, getMe } from "~/lib/auth";
 import {
@@ -530,15 +531,7 @@ function OrderItemRow({ item }: { item: OrderItem }) {
 
   return (
     <li className="flex gap-4 border-b border-zinc-50 py-4 last:border-b-0">
-      {item.imageUrl ? (
-        <img
-          src={item.imageUrl}
-          alt={name}
-          className="size-20 shrink-0 bg-zinc-50 object-cover"
-        />
-      ) : (
-        <div aria-hidden="true" className="size-20 shrink-0 bg-zinc-50" />
-      )}
+      <OrderItemThumb src={item.imageUrl} alt={name} className="size-20" />
       <div className="flex min-w-0 flex-1 flex-col justify-between">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-zinc-950">{name}</p>

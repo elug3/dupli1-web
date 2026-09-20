@@ -8,6 +8,7 @@ import {
 } from "~/lib/account";
 import { type User, getMe, logout } from "~/lib/auth";
 import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
+import { OrderItemThumb } from "~/components/order-item-thumb";
 import { ProductPrice } from "~/components/product-price";
 import { ShippingAddressBook } from "~/components/shipping-address-book";
 import {
@@ -492,6 +493,9 @@ function CouponCard({
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
+/** Lines shown on a list card; the rest are behind the detail link. */
+const ORDER_CARD_ITEM_LIMIT = 3;
+
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
   paid: "bg-blue-50 text-blue-700",
@@ -609,17 +613,37 @@ function OrdersSection({ user }: { user: User }) {
                 </div>
 
                 {order.items.length > 0 && (
-                  <ul className="mt-4 space-y-1.5 border-t border-zinc-50 pt-4">
-                    {order.items.map((item, idx) => (
-                      <li key={idx} className="flex items-center justify-between text-xs text-zinc-600">
-                        <span className="truncate font-mono text-[11px] tracking-wide text-zinc-400 mr-2">
-                          {item.sku}
-                        </span>
-                        <span className="shrink-0">
-                          ×{item.quantity}
-                        </span>
+                  <ul className="mt-4 space-y-3 border-t border-zinc-50 pt-4">
+                    {order.items.slice(0, ORDER_CARD_ITEM_LIMIT).map((item, idx) => (
+                      <li
+                        key={item.skuId ?? `${item.sku}-${idx}`}
+                        className="flex items-center gap-3 text-xs text-zinc-600"
+                      >
+                        <OrderItemThumb
+                          src={item.imageUrl}
+                          alt={item.productName ?? item.sku}
+                          className="size-12"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12px] text-zinc-950">
+                            {item.productName ?? item.sku}
+                          </p>
+                          {item.productName && (
+                            <p className="truncate font-mono text-[10px] tracking-wide text-zinc-400">
+                              {item.sku}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0">×{item.quantity}</span>
                       </li>
                     ))}
+                    {order.items.length > ORDER_CARD_ITEM_LIMIT && (
+                      <li className="text-[11px] text-zinc-400">
+                        {t("profile.orderMoreItems", {
+                          count: String(order.items.length - ORDER_CARD_ITEM_LIMIT),
+                        })}
+                      </li>
+                    )}
                   </ul>
                 )}
 
