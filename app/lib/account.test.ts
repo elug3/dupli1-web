@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MY_ACCOUNT_ORDERS_PATH,
   MY_ACCOUNT_PATH,
+  myAccountOrderPath,
   myAccountPath,
   parseAccountSection,
 } from "./account";
@@ -16,6 +17,16 @@ describe("myAccountPath", () => {
     expect(myAccountPath("orders")).toBe(MY_ACCOUNT_ORDERS_PATH);
     expect(myAccountPath("orders")).toBe("/profile/orders");
     expect(myAccountPath("coupons")).toBe("/profile/coupons");
+  });
+});
+
+describe("myAccountOrderPath", () => {
+  it("nests one order under the orders section", () => {
+    expect(myAccountOrderPath("01J8ABCD")).toBe("/profile/orders/01J8ABCD");
+  });
+
+  it("escapes an id that would otherwise break out of the route", () => {
+    expect(myAccountOrderPath("a/b?c")).toBe("/profile/orders/a%2Fb%3Fc");
   });
 });
 

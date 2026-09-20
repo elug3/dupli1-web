@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
+  myAccountOrderPath,
   myAccountPath,
   parseAccountSection,
   type AccountSection,
@@ -20,6 +21,7 @@ import {
   canCustomerCancelOrder,
   isValidKRPhone,
   listMyOrders,
+  orderStatusLabelKey,
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
@@ -493,8 +495,11 @@ function CouponCard({
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700",
   paid: "bg-blue-50 text-blue-700",
+  confirmed: "bg-blue-50 text-blue-700",
   in_transit: "bg-indigo-50 text-indigo-700",
+  delivered: "bg-emerald-50 text-emerald-700",
   fulfilled: "bg-emerald-50 text-emerald-700",
+  disputed: "bg-red-50 text-red-700",
   canceled: "bg-zinc-100 text-zinc-500",
 };
 
@@ -523,8 +528,8 @@ function OrdersSection({ user }: { user: User }) {
   }, [t]);
 
   function statusLabel(status: string): string {
-    const key = `profile.status${status.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^[a-z]/, (c) => c.toUpperCase())}`;
-    return t(key as Parameters<typeof t>[0]) || status;
+    const key = orderStatusLabelKey(status);
+    return key ? t(key) : status;
   }
 
   async function handleCancel(order: Order) {
@@ -580,10 +585,13 @@ function OrdersSection({ user }: { user: User }) {
             return (
               <div key={order.id} className="border border-zinc-100 p-5">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-mono text-xs font-medium tracking-wide text-zinc-950">
+                  <div className="min-w-0">
+                    <Link
+                      to={myAccountOrderPath(order.id)}
+                      className="block break-all font-mono text-xs font-medium tracking-wide text-zinc-950 underline-offset-4 transition hover:underline"
+                    >
                       {order.id}
-                    </p>
+                    </Link>
                     <p className="mt-0.5 text-[11px] text-zinc-400">
                       {itemCount === 1
                         ? t("profile.orderItems", { count: String(itemCount) })
@@ -628,20 +636,28 @@ function OrdersSection({ user }: { user: User }) {
                     {t("profile.cancelRequested")}
                   </p>
                 ) : null}
-                {canCustomerCancelOrder(order) && (
-                  <button
-                    type="button"
-                    disabled={cancelingId === order.id}
-                    onClick={() => handleCancel(order)}
-                    className="mt-3 text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <Link
+                    to={myAccountOrderPath(order.id)}
+                    className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
                   >
-                    {cancelingId === order.id
-                      ? t("profile.canceling")
-                      : order.immediateCancelAllowed
-                        ? t("profile.cancelOrder")
-                        : t("profile.requestCancel")}
-                  </button>
-                )}
+                    {t("profile.viewOrderDetails")}
+                  </Link>
+                  {canCustomerCancelOrder(order) && (
+                    <button
+                      type="button"
+                      disabled={cancelingId === order.id}
+                      onClick={() => handleCancel(order)}
+                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 hover:text-zinc-950 hover:underline disabled:opacity-50"
+                    >
+                      {cancelingId === order.id
+                        ? t("profile.canceling")
+                        : order.immediateCancelAllowed
+                          ? t("profile.cancelOrder")
+                          : t("profile.requestCancel")}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

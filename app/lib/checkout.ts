@@ -6,6 +6,30 @@
 // (standalone inventory service removed). Payment does not touch stock;
 // ship commits the reservation.
 
+/**
+ * Carries the upstream status alongside the message, so callers can tell a
+ * missing or someone else's order (404 / 403) from a broken gateway. Extends
+ * Error, so the existing `err instanceof Error ? err.message` handling is
+ * unaffected.
+ */
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
+/** True when the order is missing or belongs to somebody else. */
+export function isOrderUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    (error.status === 404 || error.status === 403)
+  );
+}
+
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
@@ -15,7 +39,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     credentials: "same-origin",
     headers,
   });
-  if (!res.ok) throw new Error(await readError(res));
+  if (!res.ok) throw new ApiRequestError(res.status, await readError(res));
   return res;
 }
 
@@ -134,6 +158,17 @@ export interface OrderItem {
   imageUrl?: string;
 }
 
+/** Immutable recipient + address snapshot taken at checkout complete. */
+export interface OrderShippingAddress {
+  postalCode: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  province: string;
+  /** Korea Personal Customs Clearance Code, when the order clears customs. */
+  pccc?: string;
+}
+
 export interface Order {
   id: string;
   customerId: string;
@@ -150,7 +185,23 @@ export interface Order {
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
   paymentDueAtMs?: number;
   paymentId?: string;
+  /** Fulfillment snapshot — present once checkout completed. */
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingAddress?: OrderShippingAddress;
+  carrier?: string;
+  trackingNumber?: string;
+  createdAt?: string;
+  paidAt?: string;
   confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  /** Set when the customer confirmed receipt, not by the auto-fulfill sweep. */
+  receiptConfirmedAt?: string;
+  disputedAt?: string;
+  disputeReason?: string;
+  /** When a delivered order auto-fulfills with no customer response (14 days). */
+  autoFulfillDueAt?: string;
   cancelRequestedAt?: string;
   cancelRequestReason?: string;
   immediateCancelAllowed?: boolean;
@@ -255,6 +306,15 @@ interface RawOrderItem {
   image_url?: string;
 }
 
+interface RawShippingAddress {
+  postal_code?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  province?: string;
+  pccc?: string;
+}
+
 interface RawOrder {
   id: string;
   customer_id: string;
@@ -263,11 +323,26 @@ interface RawOrder {
   discount_won?: number;
   shipping_fee_won?: number;
   total_won?: number;
+  /** Canonical since the 2026-09-16 rename; `coupon_code` is the pre-rename alias. */
+  promotion_code?: string;
   coupon_code?: string;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
   payment_id?: string;
+  recipient_name?: string;
+  recipient_phone?: string;
+  shipping_address?: RawShippingAddress | null;
+  carrier?: string;
+  tracking_number?: string;
+  created_at?: string;
+  paid_at?: string;
   confirmed_at?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  receipt_confirmed_at?: string;
+  disputed_at?: string;
+  dispute_reason?: string;
+  auto_fulfill_due_at?: string;
   cancel_requested_at?: string;
   cancel_request_reason?: string;
   immediate_cancel_allowed?: boolean;
@@ -288,6 +363,24 @@ function mapSession(raw: RawSession): CheckoutSession {
   };
 }
 
+/** Empty when the order carries no address (pre-fulfillment-snapshot orders). */
+function mapShippingAddress(
+  raw: RawShippingAddress | null | undefined
+): OrderShippingAddress | undefined {
+  if (!raw) return undefined;
+  const line1 = raw.address_line1?.trim() ?? "";
+  const postalCode = raw.postal_code?.trim() ?? "";
+  if (!line1 && !postalCode) return undefined;
+  return {
+    postalCode,
+    addressLine1: line1,
+    addressLine2: raw.address_line2?.trim() || undefined,
+    city: raw.city?.trim() ?? "",
+    province: raw.province?.trim() ?? "",
+    pccc: raw.pccc?.trim() || undefined,
+  };
+}
+
 function mapOrder(raw: RawOrder): Order {
   const dueAt = raw.payment_due_at ? Date.parse(raw.payment_due_at) : NaN;
   return {
@@ -298,7 +391,9 @@ function mapOrder(raw: RawOrder): Order {
     discountWon: raw.discount_won ?? 0,
     shippingFeeWon: raw.shipping_fee_won ?? 0,
     totalWon: raw.total_won ?? 0,
-    couponCode: raw.coupon_code,
+    // promotion_code is canonical; coupon_code is the pre-rename alias order
+    // still emits for one release (dupli1 docs/product-promotion-rename.md).
+    couponCode: raw.promotion_code || raw.coupon_code || undefined,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
@@ -309,7 +404,20 @@ function mapOrder(raw: RawOrder): Order {
     })),
     paymentDueAtMs: Number.isNaN(dueAt) ? undefined : dueAt,
     paymentId: raw.payment_id || undefined,
+    recipientName: raw.recipient_name || undefined,
+    recipientPhone: raw.recipient_phone || undefined,
+    shippingAddress: mapShippingAddress(raw.shipping_address),
+    carrier: raw.carrier || undefined,
+    trackingNumber: raw.tracking_number || undefined,
+    createdAt: raw.created_at || undefined,
+    paidAt: raw.paid_at || undefined,
     confirmedAt: raw.confirmed_at || undefined,
+    shippedAt: raw.shipped_at || undefined,
+    deliveredAt: raw.delivered_at || undefined,
+    receiptConfirmedAt: raw.receipt_confirmed_at || undefined,
+    disputedAt: raw.disputed_at || undefined,
+    disputeReason: raw.dispute_reason || undefined,
+    autoFulfillDueAt: raw.auto_fulfill_due_at || undefined,
     cancelRequestedAt: raw.cancel_requested_at || undefined,
     cancelRequestReason: raw.cancel_request_reason || undefined,
     immediateCancelAllowed: raw.immediate_cancel_allowed,
@@ -660,6 +768,155 @@ export function shouldShowCancelRequestedBanner(order: Order): boolean {
 /** True when the profile page should offer cancel / request-cancel actions. */
 export function canCustomerCancelOrder(order: Order): boolean {
   return Boolean(order.immediateCancelAllowed || order.cancelRequestAllowed);
+}
+
+/**
+ * i18n keys for each order status the backend can report.
+ *
+ * Keyed explicitly rather than derived from the status string: `t()` returns
+ * the key itself when a translation is missing, so a derived key for a status
+ * nobody translated (confirmed, delivered, disputed) rendered the literal
+ * "profile.statusConfirmed" in the UI instead of falling back.
+ */
+const ORDER_STATUS_LABEL_KEYS: Record<string, string> = {
+  pending: "profile.statusPending",
+  paid: "profile.statusPaid",
+  confirmed: "profile.statusConfirmed",
+  in_transit: "profile.statusInTransit",
+  delivered: "profile.statusDelivered",
+  fulfilled: "profile.statusFulfilled",
+  disputed: "profile.statusDisputed",
+  canceled: "profile.statusCanceled",
+};
+
+/** Null for a status this storefront has no copy for — render it raw. */
+export function orderStatusLabelKey(status: string): string | null {
+  return ORDER_STATUS_LABEL_KEYS[status] ?? null;
+}
+
+export type OrderTimelineStepKey =
+  | "placed"
+  | "paid"
+  | "confirmed"
+  | "shipped"
+  | "delivered"
+  | "fulfilled"
+  | "disputed"
+  | "canceled";
+
+export interface OrderTimelineStep {
+  key: OrderTimelineStepKey;
+  /** ISO timestamp when the order carries one for this step. */
+  at?: string;
+  /** The order has reached this step. */
+  done: boolean;
+  /** Where the order stands right now. */
+  current: boolean;
+}
+
+/** The happy path, in order; index doubles as progress depth. */
+const ORDER_PROGRESS: {
+  key: OrderTimelineStepKey;
+  status: string;
+  at: (order: Order) => string | undefined;
+}[] = [
+  { key: "placed", status: "pending", at: (order) => order.createdAt },
+  { key: "paid", status: "paid", at: (order) => order.paidAt },
+  { key: "confirmed", status: "confirmed", at: (order) => order.confirmedAt },
+  { key: "shipped", status: "in_transit", at: (order) => order.shippedAt },
+  { key: "delivered", status: "delivered", at: (order) => order.deliveredAt },
+  // Auto-fulfilled and manager-overridden orders have no receipt timestamp;
+  // the status alone marks the step reached.
+  { key: "fulfilled", status: "fulfilled", at: (order) => order.receiptConfirmedAt },
+];
+
+/**
+ * Progress steps for the order detail page.
+ *
+ * `canceled` and `disputed` are off the happy path, so depth comes from the
+ * timestamps the order actually carries rather than from its status: a canceled
+ * order still shows how far it got before the refund.
+ */
+export function orderTimeline(order: Order): OrderTimelineStep[] {
+  const depth = ORDER_PROGRESS.findIndex((step) => step.status === order.status);
+  const steps: OrderTimelineStep[] = ORDER_PROGRESS.map((step, index) => {
+    const at = step.at(order);
+    return {
+      key: step.key,
+      at,
+      done: Boolean(at) || (depth >= 0 && index <= depth),
+      current: depth === index,
+    };
+  });
+
+  if (order.status === "disputed") {
+    steps.push({ key: "disputed", at: order.disputedAt, done: true, current: true });
+  }
+  if (order.status === "canceled") {
+    // Order carries no canceled_at; the step stands without a timestamp.
+    steps.push({ key: "canceled", done: true, current: true });
+  }
+  return steps;
+}
+
+/** A delivered order is the customer's to confirm (delivered → fulfilled). */
+export function canConfirmOrderReceipt(order: Order): boolean {
+  return order.status === "delivered";
+}
+
+/** A delivered order is also the customer's to dispute (delivered → disputed). */
+export function canDisputeOrderReceipt(order: Order): boolean {
+  return order.status === "delivered";
+}
+
+/** Backend caps the note at 500 chars (dupli1 domain.MaxDisputeReasonLen). */
+export const MAX_DISPUTE_REASON_LENGTH = 500;
+
+/** Customer acknowledging a delivered order arrived (delivered → fulfilled). */
+export async function confirmOrderReceipt(orderId: string): Promise<Order> {
+  const res = await request(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/receipt/confirm`,
+    { method: "POST" }
+  );
+  return mapOrder(await res.json());
+}
+
+/** Customer reporting a delivered order never arrived (delivered → disputed). */
+export async function disputeOrderReceipt(
+  orderId: string,
+  reason?: string
+): Promise<Order> {
+  const res = await request(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/receipt/dispute`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reason: (reason ?? "").slice(0, MAX_DISPUTE_REASON_LENGTH),
+      }),
+    }
+  );
+  return mapOrder(await res.json());
+}
+
+/** Line total for an order item, in whole KRW won. */
+export function orderItemTotalWon(item: OrderItem): number {
+  return item.unitPriceWon * item.quantity;
+}
+
+/** Address as one line, skipping the parts the snapshot left empty. */
+export function formatOrderShippingAddress(
+  address: OrderShippingAddress
+): string {
+  return [
+    address.addressLine1,
+    address.addressLine2,
+    address.city,
+    address.province,
+    address.postalCode,
+  ]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join(", ");
 }
 
 /** Customer cancel: immediate refund before confirm, else a manager-approval request. */

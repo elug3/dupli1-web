@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  MAX_DISPUTE_REASON_LENGTH,
+  type Order,
+  ApiRequestError,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   canCustomerCancelOrder,
   cancelMyOrder,
+  canConfirmOrderReceipt,
+  canDisputeOrderReceipt,
   cartHasUnpurchasableItems,
+  confirmOrderReceipt,
+  disputeOrderReceipt,
+  formatOrderShippingAddress,
+  isOrderUnavailableError,
+  orderItemTotalWon,
+  orderStatusLabelKey,
+  orderTimeline,
   formatKRPhoneInput,
   getUnpurchasableCartItems,
   isCheckoutLineUnpurchasable,
@@ -746,5 +758,324 @@ describe("shouldOpenNanoCheckout", () => {
       false
     );
     expect(shouldOpenNanoCheckout({ ...base, status: "succeeded" })).toBe(false);
+  });
+});
+
+
+describe("order detail mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubOrder(raw: Record<string, unknown>) {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      status: 200,
+      json: async () => raw,
+    }));
+  }
+
+  it("maps the fulfillment snapshot, carrier and lifecycle timestamps", async () => {
+    stubOrder({
+      id: "ord_1",
+      customer_id: "cust-1",
+      status: "delivered",
+      total_won: 70000,
+      recipient_name: "김민지",
+      recipient_phone: "010-1234-5678",
+      shipping_address: {
+        postal_code: "06236",
+        address_line1: "테헤란로 1",
+        address_line2: "5층",
+        city: "서울",
+        province: "서울특별시",
+        pccc: "P123456789012",
+      },
+      carrier: "CJ대한통운",
+      tracking_number: "1234567890",
+      created_at: "2026-09-10T01:00:00Z",
+      paid_at: "2026-09-10T01:05:00Z",
+      confirmed_at: "2026-09-10T02:00:00Z",
+      shipped_at: "2026-09-11T02:00:00Z",
+      delivered_at: "2026-09-12T02:00:00Z",
+      auto_fulfill_due_at: "2026-09-26T02:00:00Z",
+    });
+
+    const order = await getOrder("ord_1");
+    expect(order.recipientName).toBe("김민지");
+    expect(order.recipientPhone).toBe("010-1234-5678");
+    expect(order.shippingAddress).toEqual({
+      postalCode: "06236",
+      addressLine1: "테헤란로 1",
+      addressLine2: "5층",
+      city: "서울",
+      province: "서울특별시",
+      pccc: "P123456789012",
+    });
+    expect(order.carrier).toBe("CJ대한통운");
+    expect(order.trackingNumber).toBe("1234567890");
+    expect(order.createdAt).toBe("2026-09-10T01:00:00Z");
+    expect(order.paidAt).toBe("2026-09-10T01:05:00Z");
+    expect(order.shippedAt).toBe("2026-09-11T02:00:00Z");
+    expect(order.deliveredAt).toBe("2026-09-12T02:00:00Z");
+    expect(order.autoFulfillDueAt).toBe("2026-09-26T02:00:00Z");
+  });
+
+  it("leaves the address undefined when the order carries no snapshot", async () => {
+    stubOrder({ id: "ord_1", customer_id: "cust-1", status: "pending", total_won: 1000 });
+    const order = await getOrder("ord_1");
+    expect(order.shippingAddress).toBeUndefined();
+    expect(order.recipientName).toBeUndefined();
+  });
+
+  it("prefers promotion_code over the pre-rename coupon_code alias", async () => {
+    stubOrder({
+      id: "ord_1",
+      customer_id: "cust-1",
+      status: "paid",
+      total_won: 1000,
+      promotion_code: "WELCOME50",
+      coupon_code: "WELCOME50",
+    });
+    expect((await getOrder("ord_1")).couponCode).toBe("WELCOME50");
+  });
+
+  it("still reads coupon_code from an order that only emits the old name", async () => {
+    stubOrder({
+      id: "ord_1",
+      customer_id: "cust-1",
+      status: "paid",
+      total_won: 1000,
+      coupon_code: "LEGACY10",
+    });
+    expect((await getOrder("ord_1")).couponCode).toBe("LEGACY10");
+  });
+
+  it("surfaces the upstream status on a failed request", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "not found" }),
+    }));
+    await expect(getOrder("ord_missing")).rejects.toThrow("not found");
+    const error = await getOrder("ord_missing").catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(isOrderUnavailableError(error)).toBe(true);
+  });
+
+  it("treats a gateway failure as something other than a missing order", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: "upstream_unauthorized" }),
+    }));
+    const error = await getOrder("ord_1").catch((err: unknown) => err);
+    expect(isOrderUnavailableError(error)).toBe(false);
+  });
+});
+
+describe("orderStatusLabelKey", () => {
+  it("maps every status the order service reports", () => {
+    expect(orderStatusLabelKey("pending")).toBe("profile.statusPending");
+    expect(orderStatusLabelKey("confirmed")).toBe("profile.statusConfirmed");
+    expect(orderStatusLabelKey("in_transit")).toBe("profile.statusInTransit");
+    expect(orderStatusLabelKey("delivered")).toBe("profile.statusDelivered");
+    expect(orderStatusLabelKey("fulfilled")).toBe("profile.statusFulfilled");
+    expect(orderStatusLabelKey("disputed")).toBe("profile.statusDisputed");
+    expect(orderStatusLabelKey("canceled")).toBe("profile.statusCanceled");
+  });
+
+  it("returns null for an unknown status so the caller can show it raw", () => {
+    expect(orderStatusLabelKey("teleported")).toBeNull();
+  });
+});
+
+describe("orderTimeline", () => {
+  const base: Order = {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "pending",
+    subtotalWon: 1000,
+    discountWon: 0,
+    shippingFeeWon: 0,
+    totalWon: 1000,
+    items: [],
+    createdAt: "2026-09-10T01:00:00Z",
+  };
+
+  function step(order: Order, key: string) {
+    const found = orderTimeline(order).find((entry) => entry.key === key);
+    if (!found) throw new Error(`no ${key} step`);
+    return found;
+  }
+
+  it("marks only placed as reached on a pending order", () => {
+    const timeline = orderTimeline(base);
+    expect(timeline.map((entry) => entry.key)).toEqual([
+      "placed",
+      "paid",
+      "confirmed",
+      "shipped",
+      "delivered",
+      "fulfilled",
+    ]);
+    expect(step(base, "placed")).toMatchObject({
+      done: true,
+      current: true,
+      at: "2026-09-10T01:00:00Z",
+    });
+    expect(step(base, "paid").done).toBe(false);
+  });
+
+  it("fills earlier steps from the status even without their timestamps", () => {
+    const shipped: Order = { ...base, status: "in_transit" };
+    expect(step(shipped, "paid").done).toBe(true);
+    expect(step(shipped, "confirmed").done).toBe(true);
+    expect(step(shipped, "shipped")).toMatchObject({ done: true, current: true });
+    expect(step(shipped, "delivered").done).toBe(false);
+  });
+
+  it("counts a fulfilled order complete even when the sweep auto-fulfilled it", () => {
+    const auto: Order = { ...base, status: "fulfilled" };
+    expect(step(auto, "fulfilled")).toMatchObject({ done: true, current: true, at: undefined });
+  });
+
+  it("keeps the progress a canceled order made, and adds the canceled step", () => {
+    const canceled: Order = {
+      ...base,
+      status: "canceled",
+      paidAt: "2026-09-10T01:05:00Z",
+    };
+    expect(step(canceled, "paid").done).toBe(true);
+    expect(step(canceled, "confirmed").done).toBe(false);
+    expect(step(canceled, "fulfilled").done).toBe(false);
+    expect(step(canceled, "canceled")).toMatchObject({ done: true, current: true });
+  });
+
+  it("appends the dispute step with its timestamp", () => {
+    const disputed: Order = {
+      ...base,
+      status: "disputed",
+      paidAt: "2026-09-10T01:05:00Z",
+      deliveredAt: "2026-09-12T02:00:00Z",
+      disputedAt: "2026-09-13T02:00:00Z",
+    };
+    expect(step(disputed, "delivered").done).toBe(true);
+    expect(step(disputed, "disputed")).toMatchObject({
+      done: true,
+      current: true,
+      at: "2026-09-13T02:00:00Z",
+    });
+    expect(step(disputed, "fulfilled").done).toBe(false);
+  });
+});
+
+describe("receipt actions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const delivered: Order = {
+    id: "ord_1",
+    customerId: "cust-1",
+    status: "delivered",
+    subtotalWon: 1000,
+    discountWon: 0,
+    shippingFeeWon: 0,
+    totalWon: 1000,
+    items: [],
+  };
+
+  it("offers confirm and dispute only on a delivered order", () => {
+    expect(canConfirmOrderReceipt(delivered)).toBe(true);
+    expect(canDisputeOrderReceipt(delivered)).toBe(true);
+    for (const status of ["pending", "paid", "confirmed", "in_transit", "fulfilled", "disputed"]) {
+      expect(canConfirmOrderReceipt({ ...delivered, status })).toBe(false);
+      expect(canDisputeOrderReceipt({ ...delivered, status })).toBe(false);
+    }
+  });
+
+  it("posts the receipt confirmation and maps the returned order", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${typeof input === "string" ? input : input.url}`);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: "ord_1",
+          customer_id: "cust-1",
+          status: "fulfilled",
+          total_won: 1000,
+          receipt_confirmed_at: "2026-09-13T02:00:00Z",
+        }),
+      };
+    });
+
+    const updated = await confirmOrderReceipt("ord_1");
+    expect(calls).toEqual([
+      "POST /auth/session/gateway/api/v1/orders/ord_1/receipt/confirm",
+    ]);
+    expect(updated.status).toBe("fulfilled");
+    expect(updated.receiptConfirmedAt).toBe("2026-09-13T02:00:00Z");
+  });
+
+  it("posts the dispute with its reason, capped at the backend limit", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal("fetch", async (_input: RequestInfo, init?: RequestInit) => {
+      bodies.push(String(init?.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: "ord_1",
+          customer_id: "cust-1",
+          status: "disputed",
+          total_won: 1000,
+          dispute_reason: "never arrived",
+        }),
+      };
+    });
+
+    const updated = await disputeOrderReceipt("ord_1", "never arrived");
+    expect(JSON.parse(bodies[0])).toEqual({ reason: "never arrived" });
+    expect(updated.status).toBe("disputed");
+    expect(updated.disputeReason).toBe("never arrived");
+
+    await disputeOrderReceipt("ord_1", "x".repeat(MAX_DISPUTE_REASON_LENGTH + 50));
+    expect(JSON.parse(bodies[1]).reason).toHaveLength(MAX_DISPUTE_REASON_LENGTH);
+  });
+
+  it("sends an empty reason rather than undefined when none was given", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal("fetch", async (_input: RequestInfo, init?: RequestInit) => {
+      bodies.push(String(init?.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: "ord_1", customer_id: "cust-1", status: "disputed" }),
+      };
+    });
+    await disputeOrderReceipt("ord_1");
+    expect(JSON.parse(bodies[0])).toEqual({ reason: "" });
+  });
+});
+
+describe("order line formatting", () => {
+  it("multiplies the unit price by quantity, in whole won", () => {
+    expect(
+      orderItemTotalWon({ sku: "A", quantity: 3, unitPriceWon: 12000 })
+    ).toBe(36000);
+  });
+
+  it("joins only the address parts the snapshot filled in", () => {
+    expect(
+      formatOrderShippingAddress({
+        postalCode: "06236",
+        addressLine1: "테헤란로 1",
+        city: "서울",
+        province: "",
+      })
+    ).toBe("테헤란로 1, 서울, 06236");
   });
 });
