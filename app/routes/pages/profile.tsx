@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
+import {
+  myAccountPath,
+  parseAccountSection,
+  type AccountSection,
+} from "~/lib/account";
 import { type User, getMe, logout } from "~/lib/auth";
 import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
 import { ProductPrice } from "~/components/product-price";
@@ -19,7 +24,7 @@ import {
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
 
-type Section = "wishlist" | "coupons" | "orders" | "settings" | "support";
+type Section = AccountSection;
 
 type CouponStatus = "active" | "expired" | "used";
 
@@ -74,8 +79,13 @@ export function meta() {
 export default function Profile() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { section: sectionParam } = useParams();
+  const section = parseAccountSection(sectionParam);
   const [user, setUser] = useState<User | null | undefined>(undefined);
-  const [section, setSection] = useState<Section>("wishlist");
+  const encodedNext = encodeURIComponent(location.pathname);
+  const loginNext = `/login?next=${encodedNext}`;
+  const registerNext = `/login?mode=register&next=${encodedNext}`;
 
   useEffect(() => {
     getMe().then(setUser);
@@ -112,13 +122,13 @@ export default function Profile() {
         </p>
         <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link
-            to="/login"
+            to={loginNext}
             className="inline-flex h-12 items-center bg-zinc-950 px-8 text-sm font-semibold text-white transition hover:bg-zinc-800"
           >
             {t("profile.signIn")}
           </Link>
           <Link
-            to="/login?mode=register"
+            to={registerNext}
             className="inline-flex h-12 items-center border border-zinc-200 bg-white px-8 text-sm font-semibold text-zinc-950 transition hover:border-zinc-400"
           >
             {t("login.createAccount")}
@@ -151,9 +161,9 @@ export default function Profile() {
         <aside className="hidden w-52 shrink-0 md:block">
           <nav className="space-y-0.5">
             {NAV_ITEMS.map(({ id, labelKey, icon: Icon }) => (
-              <button
+              <Link
                 key={id}
-                onClick={() => setSection(id)}
+                to={myAccountPath(id)}
                 className={[
                   "flex w-full items-center gap-3 px-3 py-2.5 text-left text-[11px] uppercase tracking-[0.12em] transition",
                   section === id
@@ -163,7 +173,7 @@ export default function Profile() {
               >
                 <Icon />
                 {t(labelKey)}
-              </button>
+              </Link>
             ))}
           </nav>
           <div className="mt-6 border-t border-zinc-100 pt-6">
@@ -180,9 +190,9 @@ export default function Profile() {
         {/* Mobile tab bar */}
         <div className="flex gap-1 overflow-x-auto pb-1 md:hidden">
           {NAV_ITEMS.map(({ id, labelKey }) => (
-            <button
+            <Link
               key={id}
-              onClick={() => setSection(id)}
+              to={myAccountPath(id)}
               className={[
                 "shrink-0 px-4 py-2 text-[10px] uppercase tracking-[0.12em] transition",
                 section === id
@@ -191,7 +201,7 @@ export default function Profile() {
               ].join(" ")}
             >
               {t(labelKey)}
-            </button>
+            </Link>
           ))}
         </div>
 
