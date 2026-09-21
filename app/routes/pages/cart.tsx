@@ -77,6 +77,12 @@ export default function CartPage() {
     }
   }
 
+  function removePromo() {
+    setPromotion(null);
+    setPromoError("");
+    setPromoInput("");
+  }
+
   // The bag can change under an applied code — a removed line can drop it
   // below a minimum spend, and the discount itself may be a share of the
   // lines. Re-price rather than leave a number the service would not agree to.
@@ -195,6 +201,7 @@ export default function CartPage() {
                 applyingPromo={applyingPromo}
                 onPromoInputChange={setPromoInput}
                 onApplyPromo={applyPromo}
+                onRemovePromo={removePromo}
                 checkoutHref="/checkout"
                 checkoutLabel={t("cart.proceedToCheckout")}
                 disabled={mutation.pendingKey !== null}
@@ -377,6 +384,7 @@ export function OrderSummary({
   applyingPromo = false,
   onPromoInputChange,
   onApplyPromo,
+  onRemovePromo,
   checkoutHref,
   checkoutLabel,
   disabled = false,
@@ -388,6 +396,7 @@ export function OrderSummary({
   applyingPromo?: boolean;
   onPromoInputChange: (value: string) => void;
   onApplyPromo: () => void;
+  onRemovePromo: () => void;
   checkoutHref: string;
   checkoutLabel: string;
   disabled?: boolean;
@@ -462,10 +471,19 @@ export function OrderSummary({
           <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
         )}
         {summary.promoApplied && promotion && (
-          <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", {
-              amount: formatCurrency(summary.discount),
-            })}
+          <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
+            <span>
+              {t("cart.discountApplied", {
+                amount: formatCurrency(summary.discount),
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={onRemovePromo}
+              className="text-[10px] uppercase tracking-[0.12em] text-zinc-400 underline transition hover:text-zinc-950"
+            >
+              {t("cart.removePromo")}
+            </button>
           </p>
         )}
       </div>

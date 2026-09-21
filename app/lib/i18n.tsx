@@ -264,6 +264,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.complimentary": "Complimentary",
     "cart.promoCode": "Promotional code",
     "cart.apply": "Apply",
+    "cart.removePromo": "Remove",
     "cart.invalidPromo": "Invalid promotional code",
     "cart.discountApplied": "{amount} off applied.",
 
@@ -923,6 +924,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.complimentary": "무료",
     "cart.promoCode": "프로모션 코드",
     "cart.apply": "적용",
+    "cart.removePromo": "삭제",
     "cart.invalidPromo": "유효하지 않은 프로모션 코드",
     "cart.discountApplied": "{amount} 할인이 적용되었습니다.",
 
@@ -1569,6 +1571,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "cart.complimentary": "免费",
     "cart.promoCode": "促销码",
     "cart.apply": "应用",
+    "cart.removePromo": "移除",
     "cart.invalidPromo": "促销码无效",
     "cart.discountApplied": "已优惠 {amount}。",
 

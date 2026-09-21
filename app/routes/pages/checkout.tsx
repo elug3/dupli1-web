@@ -443,6 +443,12 @@ export default function CheckoutPage() {
     }
   }
 
+  function removePromo() {
+    setPromotion(null);
+    setPromoError("");
+    setPromoInput("");
+  }
+
   // The bag is editable on this page too, so an applied code is re-priced
   // whenever it changes rather than left showing a number the service would
   // no longer agree to.
@@ -1358,6 +1364,7 @@ export default function CheckoutPage() {
               applyingPromo={applyingPromo}
               onPromoInputChange={setPromoInput}
               onApplyPromo={applyPromo}
+              onRemovePromo={removePromo}
               checkoutHref="#"
               checkoutLabel={
                 submitting ? t("checkout.processing") : primaryActionLabel
