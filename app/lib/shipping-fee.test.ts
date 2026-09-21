@@ -50,10 +50,26 @@ describe("computeTotals shipping fee", () => {
   });
 
   // total = subtotal - discount + shipping, matching the order service.
+  // The discount arrives in whole won from POST /promotions/evaluate; it used
+  // to be a fraction the storefront multiplied out, which read 0 for exactly
+  // the fixed-₩ benefits the sign-up campaign uses.
   it("applies the discount to goods only, never to delivery", () => {
-    const totals = computeTotals([LINE], 10000, 0.3, 30000);
+    const totals = computeTotals([LINE], 10000, 3000, 30000);
     expect(totals.discount).toBe(3000);
     expect(totals.total).toBe(10000 - 3000 + 30000);
+  });
+
+  it("never discounts more than the bag is worth", () => {
+    // A 50,000원 code on a 10,000원 bag: the service clamps to the eligible
+    // base, so the storefront must not render a negative goods total.
+    const totals = computeTotals([LINE], 10000, 50000, 30000);
+    expect(totals.discount).toBe(10000);
+    expect(totals.total).toBe(30000);
+  });
+
+  it("treats a zero discount as no promotion applied", () => {
+    expect(computeTotals([LINE], 10000, 0, 30000).promoApplied).toBe(false);
+    expect(computeTotals([LINE], 10000, 1, 30000).promoApplied).toBe(true);
   });
 });
 

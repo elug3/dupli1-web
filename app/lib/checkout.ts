@@ -12,6 +12,8 @@
  * Error, so the existing `err instanceof Error ? err.message` handling is
  * unaffected.
  */
+import { PromotionRejectedError, rejectionFromBody } from "./promotions";
+
 export class ApiRequestError extends Error {
   readonly status: number;
 
@@ -456,14 +458,33 @@ export async function replaceSessionItems(
   return mapSession(await res.json());
 }
 
+/**
+ * Applies a code to the session. Order re-evaluates it server-side, so this —
+ * not the storefront preview — decides whether the discount is real.
+ *
+ * A refusal comes back `422` with a machine-readable `reason` (and sometimes a
+ * `sub_reason`), which becomes a PromotionRejectedError so the page can say
+ * which rule bit instead of showing a generic checkout failure.
+ */
 export async function applySessionPromotion(
   sessionId: string,
   code: string
 ): Promise<CheckoutSession> {
-  const res = await request(
-    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`,
-    { method: "POST", body: JSON.stringify({ code }) }
-  );
+  const path = `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`;
+  const res = await fetch(`/auth/session/gateway${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const rejection = rejectionFromBody(body);
+    const message =
+      (body as { error?: string } | null)?.error ?? `Request failed: ${res.status}`;
+    if (rejection) throw new PromotionRejectedError(rejection, message);
+    throw new ApiRequestError(res.status, message);
+  }
   return mapSession(await res.json());
 }
 

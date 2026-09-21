@@ -3,7 +3,13 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { LoadingBadge } from "~/components/loading-badge";
 import { canBypassPayment, getMe, type User } from "~/lib/auth";
-import { clearCart, redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
+import { clearCart } from "~/lib/cart";
+import {
+  type AppliedPromotion,
+  evaluatePromotion,
+  promotionMessageKey,
+  PromotionRejectedError,
+} from "~/lib/promotions";
 import {
   applySessionPromotion,
   buildCheckoutFulfillment,
@@ -151,7 +157,7 @@ export default function CheckoutPage() {
   const { items, status, totals } = useCart();
   const mutation = useCartMutation();
   const [form, setForm] = useState<FormState>(initialForm);
-  const [promotion, setPromotion] = useState<RedeemedPromotion | null>(null);
+  const [promotion, setPromotion] = useState<AppliedPromotion | null>(null);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
@@ -391,7 +397,7 @@ export default function CheckoutPage() {
     navigate("/cart");
   }
 
-  const summary = totals(promotion?.discount ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
@@ -423,15 +429,50 @@ export default function CheckoutPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemPromotion(code);
+    const result = await evaluatePromotion(code, {
+      items,
+      shippingFeeWon: summary.shipping,
+      customerId: sessionUser?.user_id,
+    });
     setApplyingPromo(false);
-    if (redeemed) {
-      setPromotion(redeemed);
+    if (result.ok) {
+      setPromotion(result.promotion);
     } else {
       setPromotion(null);
-      setPromoError(t("checkout.invalidPromo"));
+      setPromoError(t(promotionMessageKey(result.rejection)));
     }
   }
+
+  // The bag is editable on this page too, so an applied code is re-priced
+  // whenever it changes rather than left showing a number the service would
+  // no longer agree to.
+  useEffect(() => {
+    if (!promotion) return;
+    let cancelled = false;
+    evaluatePromotion(promotion.code, {
+      items,
+      shippingFeeWon: summary.shipping,
+      customerId: sessionUser?.user_id,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setPromotion(result.promotion);
+          return;
+        }
+        // A check we could not make says nothing about the code, so keep the
+        // one the shopper applied; checkout re-evaluates authoritatively.
+        if (result.rejection.reason === "unavailable") return;
+        setPromotion(null);
+        setPromoError(t(promotionMessageKey(result.rejection)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on the priced bag, not the promotion, so re-pricing cannot loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary.subtotal, summary.itemCount, summary.shipping, sessionUser?.user_id]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -667,6 +708,9 @@ export default function CheckoutPage() {
       }
       await replaceSessionItems(session.id, sessionItems);
       if (promotion) {
+        // Authoritative: the service re-prices the code against the session's
+        // own lines, so a preview that has since gone stale is refused here
+        // rather than carried into the order.
         await applySessionPromotion(session.id, promotion.code);
       }
       // Complete → pending order + stock reserved on dupli1-product inventory.
@@ -708,6 +752,14 @@ export default function CheckoutPage() {
         window.location.assign(storefrontNanoCheckoutPath(payment.id));
       }
     } catch (err) {
+      if (err instanceof PromotionRejectedError) {
+        // The code went stale between the preview and here — say which rule
+        // refused it, next to the field, and let the shopper try again.
+        setPromotion(null);
+        setPromoError(t(promotionMessageKey(err.rejection)));
+        setSubmitting(false);
+        return;
+      }
       const message =
         err instanceof Error ? err.message : t("login.somethingWentWrong");
       if (isUnpurchasableVariantError(message)) {

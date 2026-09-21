@@ -244,7 +244,15 @@ export function computeTotals(
   items: CartLine[],
   /** Subtotal in whole KRW won (`subtotal_won` from the cart service). */
   subtotalWon: number,
-  discountFraction: number,
+  /**
+   * Discount in whole KRW, as the promotion service priced it.
+   *
+   * Was a fraction the storefront multiplied out, which could only ever be
+   * right for a percentage: a fixed-₩ benefit reads 0 there, and a capped or
+   * eligible-lines-only percentage reads too high. The number now comes from
+   * `POST /promotions/evaluate` — see lib/promotions.ts.
+   */
+  discountWon: number,
   /**
    * Delivery charge in whole KRW, from the order service — either the checkout
    * session's `shipping_fee_won` or the settings endpoint. Defaults to
@@ -255,8 +263,10 @@ export function computeTotals(
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   // KRW is zero-decimal: *_won fields are already whole won.
   const subtotal = subtotalWon;
-  const promoApplied = discountFraction > 0 && subtotal > 0;
-  const discount = promoApplied ? subtotal * discountFraction : 0;
+  // Never discount more than the bag is worth; the service clamps the same
+  // way, so the two agree even on a fixed-₩ code bigger than the cart.
+  const discount = Math.max(0, Math.min(discountWon, subtotal));
+  const promoApplied = discount > 0;
   const afterDiscount = subtotal - discount;
   // An empty bag owes nothing to ship — matches the order service, which quotes
   // a total of 0 for a session with no items rather than a bare delivery charge.
@@ -264,30 +274,6 @@ export function computeTotals(
   const total = afterDiscount + shipping;
 
   return { itemCount, subtotal, shipping, discount, total, promoApplied };
-}
-
-export interface RedeemedPromotion {
-  code: string;
-  discount: number;
-  description: string;
-}
-
-/**
- * Validates a promotional code against the public product-service redeem
- * endpoint. Renamed from `redeemCoupon` on 2026-09-16 (dupli1
- * docs/product-promotion-rename.md).
- */
-export async function redeemPromotion(
-  code: string
-): Promise<RedeemedPromotion | null> {
-  const res = await fetch("/api/promotions/redeem", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: code.trim().toUpperCase() }),
-  });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { code: string; discount: number; description: string };
-  return body;
 }
 
 export function formatPrice(amount: number): string {

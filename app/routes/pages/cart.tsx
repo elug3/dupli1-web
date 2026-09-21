@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
-import { redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
+import { getMe } from "~/lib/auth";
+import {
+  type AppliedPromotion,
+  evaluatePromotion,
+  promotionMessageKey,
+} from "~/lib/promotions";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
@@ -22,17 +27,35 @@ export function meta() {
 export default function CartPage() {
   const { t, formatCurrency, translateProductName } = useLanguage();
   const { items, status, totals } = useCart();
+  // Same quote the summary renders; the evaluator is given the shipping fee so
+  // a shipping-sensitive condition reads the number the shopper is seeing.
+  const shippingFeeWon = useShippingFeeWon();
   const mutation = useCartMutation();
-  const [promotion, setPromotion] = useState<RedeemedPromotion | null>(null);
+  const [promotion, setPromotion] = useState<AppliedPromotion | null>(null);
+  const [customerId, setCustomerId] = useState<string | undefined>(undefined);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(promotion?.discount ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
+  }, []);
+
+  // An account-scoped code, and a code this shopper has already spent, can
+  // only be judged against a customer. The bag needs a session anyway.
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((user) => {
+        if (!cancelled) setCustomerId(user?.user_id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function applyPromo() {
@@ -40,15 +63,46 @@ export default function CartPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemPromotion(code);
+    const result = await evaluatePromotion(code, {
+      items,
+      shippingFeeWon,
+      customerId,
+    });
     setApplyingPromo(false);
-    if (redeemed) {
-      setPromotion(redeemed);
+    if (result.ok) {
+      setPromotion(result.promotion);
     } else {
       setPromotion(null);
-      setPromoError(t("cart.invalidPromo"));
+      setPromoError(t(promotionMessageKey(result.rejection)));
     }
   }
+
+  // The bag can change under an applied code — a removed line can drop it
+  // below a minimum spend, and the discount itself may be a share of the
+  // lines. Re-price rather than leave a number the service would not agree to.
+  useEffect(() => {
+    if (!promotion) return;
+    let cancelled = false;
+    evaluatePromotion(promotion.code, { items, shippingFeeWon, customerId })
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setPromotion(result.promotion);
+          return;
+        }
+        // A check we could not make says nothing about the code, so keep the
+        // one the shopper applied; checkout re-evaluates authoritatively.
+        if (result.rejection.reason === "unavailable") return;
+        setPromotion(null);
+        setPromoError(t(promotionMessageKey(result.rejection)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on the priced bag, not the promotion, so re-pricing cannot loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary.subtotal, summary.itemCount, shippingFeeWon, customerId]);
 
   return (
     <main className="bg-white">
@@ -328,7 +382,7 @@ export function OrderSummary({
   disabled = false,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
-  promotion: RedeemedPromotion | null;
+  promotion: AppliedPromotion | null;
   promoInput: string;
   promoError: string;
   applyingPromo?: boolean;
@@ -409,7 +463,9 @@ export function OrderSummary({
         )}
         {summary.promoApplied && promotion && (
           <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", { discount: Math.round(promotion.discount * 100) })}
+            {t("cart.discountApplied", {
+              amount: formatCurrency(summary.discount),
+            })}
           </p>
         )}
       </div>

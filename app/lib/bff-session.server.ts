@@ -680,6 +680,13 @@ export async function proxyBackendApi(
   const contentType = request.headers.get("Content-Type");
   if (contentType) headers.set("Content-Type", contentType);
 
+  // Rate limits on the public product endpoints key on the left-most
+  // X-Forwarded-For (dupli1 `product/pkg/infra/ratelimit`.ClientIP). These
+  // headers are built from scratch, so without this every shopper would arrive
+  // as this task's address and share one 20-per-minute bucket.
+  const forwardedFor = request.headers.get("X-Forwarded-For");
+  if (forwardedFor) headers.set("X-Forwarded-For", forwardedFor);
+
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   // Buffer once so a post-refresh retry can resend the same payload.
   const body = hasBody ? await request.arrayBuffer() : undefined;
