@@ -3,7 +3,12 @@ import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
 import { getMe } from "~/lib/auth";
 import {
+  PromotionWallet,
+  usePromotionWallet,
+} from "~/components/promotion-wallet";
+import {
   type AppliedPromotion,
+  type WalletEntry,
   evaluatePromotion,
   promotionMessageKey,
 } from "~/lib/promotions";
@@ -58,8 +63,12 @@ export default function CartPage() {
     };
   }, []);
 
-  async function applyPromo() {
-    const code = promoInput.trim();
+  // The shopper's own codes, so an issued one is discoverable where it is
+  // used. Account-scoped codes are never typed from ad creative.
+  const wallet = usePromotionWallet(items, shippingFeeWon);
+
+  async function applyPromo(fromWallet?: string) {
+    const code = (fromWallet ?? promoInput).trim();
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
@@ -200,8 +209,9 @@ export default function CartPage() {
                 promoError={promoError}
                 applyingPromo={applyingPromo}
                 onPromoInputChange={setPromoInput}
-                onApplyPromo={applyPromo}
+                onApplyPromo={() => applyPromo()}
                 onRemovePromo={removePromo}
+                walletEntries={wallet.entries}
                 checkoutHref="/checkout"
                 checkoutLabel={t("cart.proceedToCheckout")}
                 disabled={mutation.pendingKey !== null}
@@ -385,6 +395,7 @@ export function OrderSummary({
   onPromoInputChange,
   onApplyPromo,
   onRemovePromo,
+  walletEntries,
   checkoutHref,
   checkoutLabel,
   disabled = false,
@@ -395,8 +406,9 @@ export function OrderSummary({
   promoError: string;
   applyingPromo?: boolean;
   onPromoInputChange: (value: string) => void;
-  onApplyPromo: () => void;
+  onApplyPromo: (code?: string) => void;
   onRemovePromo: () => void;
+  walletEntries: WalletEntry[];
   checkoutHref: string;
   checkoutLabel: string;
   disabled?: boolean;
@@ -460,7 +472,7 @@ export function OrderSummary({
           />
           <button
             type="button"
-            onClick={onApplyPromo}
+            onClick={() => onApplyPromo()}
             disabled={applyingPromo}
             className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
@@ -470,6 +482,12 @@ export function OrderSummary({
         {promoError && (
           <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
         )}
+        <PromotionWallet
+          entries={walletEntries}
+          appliedCode={promotion?.code}
+          onApply={(code) => onApplyPromo(code)}
+          formatCurrency={formatCurrency}
+        />
         {summary.promoApplied && promotion && (
           <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
             <span>

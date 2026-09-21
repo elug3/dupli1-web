@@ -28,23 +28,12 @@ import {
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { useCart } from "~/lib/useCart";
+import { useShippingFeeWon } from "~/lib/useShippingFee";
+import { usePromotionWallet } from "~/components/promotion-wallet";
+import { type WalletEntry, promotionMessageKey } from "~/lib/promotions";
 
 type Section = AccountSection;
-
-type PromotionStatus = "active" | "expired" | "used";
-
-interface Promotion {
-  code: string;
-  discount: string;
-  description: string;
-  expires: string;
-  status: PromotionStatus;
-}
-
-// Still a stub: the real wallet reads entitlements from
-// GET /api/v1/products/promotions/me, which is Phase 3 of
-// dupli1 docs/product-promo-referral-code-plan.md.
-const PROMOTIONS: Promotion[] = [];
 
 const FAQ_ITEMS = [
   {
@@ -326,12 +315,24 @@ function WishlistSection() {
 
 // ── Promotional codes ──────────────────────────────────────────────────────
 
+/**
+ * The customer's wallet: the codes issued to this account.
+ *
+ * Account-scoped codes are issued rather than typed — the sign-up campaign
+ * mints one on registration, a manager can grant one as goodwill — so this
+ * list is how a customer learns they hold one. It replaces a stub that kept
+ * redeemed codes in React state and lost them on reload.
+ *
+ * There is no "redeem into my wallet" step: a single-user code arrives on its
+ * own, and a shared campaign code is typed at checkout. Claiming a shared code
+ * into the wallet is Phase 4 of the promotional-code plan.
+ */
 function PromotionsSection() {
-  const { t } = useLanguage();
-  const [promotions, setPromotions] = useState<Promotion[]>(PROMOTIONS);
+  const { t, formatCurrency } = useLanguage();
+  const { items, status } = useCart();
+  const shippingFeeWon = useShippingFeeWon();
+  const { entries, loaded } = usePromotionWallet(items, shippingFeeWon);
   const [copied, setCopied] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const [redeemStatus, setRedeemStatus] = useState<"idle" | "success" | "already" | "invalid">("idle");
 
   function copy(code: string) {
     navigator.clipboard.writeText(code).catch(() => {});
@@ -339,152 +340,120 @@ function PromotionsSection() {
     setTimeout(() => setCopied(null), 2000);
   }
 
-  async function redeem(e: React.FormEvent) {
-    e.preventDefault();
-    const code = input.trim().toUpperCase();
-    if (!code) return;
+  // With an empty bag there is nothing to judge a code against, so the
+  // verdicts are suppressed rather than reported as "nothing qualifies".
+  const hasBag = status === "ready" && items.length > 0;
+  const usable = entries.filter((entry) => !hasBag || entry.eligible);
+  const unusable = hasBag ? entries.filter((entry) => !entry.eligible) : [];
 
-    if (promotions.some((p) => p.code === code)) {
-      setRedeemStatus("already");
-      setTimeout(() => setRedeemStatus("idle"), 3000);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/promotions/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ code }),
-      });
-
-      if (res.status === 404) {
-        setRedeemStatus("invalid");
-      } else if (!res.ok) {
-        setRedeemStatus("invalid");
-      } else {
-        const data = (await res.json()) as {
-          code: string;
-          discount: number;
-          description: string;
-          expires: string;
-        };
-        setPromotions((prev) => [
-          {
-            code: data.code,
-            discount: `${Math.round(data.discount * 100)}% off`,
-            description: data.description,
-            expires: data.expires,
-            status: "active",
-          },
-          ...prev,
-        ]);
-        setInput("");
-        setRedeemStatus("success");
-      }
-    } catch {
-      setRedeemStatus("invalid");
-    }
-
-    setTimeout(() => setRedeemStatus("idle"), 3000);
+  if (!loaded) {
+    return (
+      <section>
+        <SectionHeader title={t("profile.promotionCodes")} count="" />
+        <div className="h-20 animate-pulse border border-zinc-100" />
+      </section>
+    );
   }
-
-  const active = promotions.filter((p) => p.status === "active");
-  const inactive = promotions.filter((p) => p.status !== "active");
 
   return (
     <section>
-      <SectionHeader title={t("profile.promotionCodes")} count={t("profile.active", { count: active.length })} />
+      <SectionHeader
+        title={t("profile.promotionCodes")}
+        count={t("profile.active", { count: usable.length })}
+      />
 
-      {/* Redeem form */}
-      <div className="mb-8 border border-zinc-100 p-5">
-        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-          {t("profile.redeemCode")}
-        </p>
-        <form onSubmit={redeem} className="flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => { setInput(e.target.value); setRedeemStatus("idle"); }}
-            placeholder="e.g. SUMMER30"
-            className="flex-1 border border-zinc-200 bg-white px-4 py-2.5 font-mono text-sm uppercase tracking-wider text-zinc-950 outline-none transition focus:border-zinc-400 placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder:text-zinc-300"
-          />
-          <button
-            type="submit"
-            className="bg-zinc-950 px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
-          >
-            {t("profile.redeem")}
-          </button>
-        </form>
-        {redeemStatus === "success" && (
-          <p className="mt-2 text-[11px] text-emerald-600">{t("profile.promotionCodeAdded")}</p>
-        )}
-        {redeemStatus === "already" && (
-          <p className="mt-2 text-[11px] text-zinc-500">{t("profile.promotionCodeAlready")}</p>
-        )}
-        {redeemStatus === "invalid" && (
-          <p className="mt-2 text-[11px] text-red-500">{t("profile.invalidPromotionCode")}</p>
-        )}
-      </div>
-
-      {/* Active promotional codes */}
-      {active.length === 0 ? (
+      {entries.length === 0 ? (
         <EmptyState message={t("profile.noActivePromotionCodes")} />
       ) : (
         <div className="space-y-3">
-          {active.map((p) => (
-            <PromotionCard key={p.code} promotion={p} copied={copied === p.code} onCopy={() => copy(p.code)} />
+          {usable.map((entry) => (
+            <PromotionCard
+              key={entry.entitlementId}
+              entry={entry}
+              showVerdict={hasBag}
+              formatCurrency={formatCurrency}
+              copied={copied === entry.code}
+              onCopy={() => copy(entry.code)}
+            />
           ))}
         </div>
       )}
 
-      {/* Used / expired */}
-      {inactive.length > 0 && (
+      {unusable.length > 0 && (
         <>
-          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">{t("profile.usedExpired")}</p>
-          <div className="space-y-3 opacity-50">
-            {inactive.map((p) => (
-              <PromotionCard key={p.code} promotion={p} copied={false} onCopy={() => {}} disabled />
+          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">
+            {t("profile.notUsableWithBag")}
+          </p>
+          <div className="space-y-3">
+            {unusable.map((entry) => (
+              <PromotionCard
+                key={entry.entitlementId}
+                entry={entry}
+                showVerdict
+                formatCurrency={formatCurrency}
+                copied={false}
+                onCopy={() => {}}
+                muted
+              />
             ))}
           </div>
         </>
       )}
+
+      <p className="mt-6 text-[11px] text-zinc-400">{t("profile.walletHint")}</p>
     </section>
   );
 }
 
 function PromotionCard({
-  promotion,
+  entry,
+  showVerdict,
+  formatCurrency,
   copied,
   onCopy,
-  disabled,
+  muted,
 }: {
-  promotion: Promotion;
+  entry: WalletEntry;
+  showVerdict: boolean;
+  formatCurrency: (amount: number) => string;
   copied: boolean;
   onCopy: () => void;
-  disabled?: boolean;
+  muted?: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, formatDateTime } = useLanguage();
 
   return (
-    <div className="flex items-center justify-between border border-zinc-100 px-5 py-4">
+    <div
+      className={[
+        "flex items-center justify-between border border-zinc-100 px-5 py-4",
+        muted ? "opacity-60" : "",
+      ].join(" ")}
+    >
       <div className="flex items-center gap-4">
         <div className="min-w-[5rem]">
           <p className="font-mono text-sm font-semibold tracking-wider text-zinc-950">
-            {promotion.code}
+            {entry.code}
           </p>
-          <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
-            {promotion.discount}
-          </p>
+          {showVerdict && entry.eligible && (
+            <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
+              {formatCurrency(entry.discountWon)}
+            </p>
+          )}
         </div>
         <div>
-          <p className="text-xs text-zinc-600">{promotion.description}</p>
+          <p className="text-xs text-zinc-600">
+            {entry.terms || entry.description}
+          </p>
           <p className="mt-0.5 text-[10px] text-zinc-400">
-            {promotion.status === "expired" ? t("profile.expired") : promotion.status === "used" ? t("profile.used") : t("profile.expires")}{" "}
-            {promotion.expires}
+            {showVerdict && !entry.eligible && entry.rejection
+              ? t(promotionMessageKey(entry.rejection))
+              : entry.expiresAt
+                ? `${t("profile.expires")} ${formatDateTime(entry.expiresAt)}`
+                : ""}
           </p>
         </div>
       </div>
-      {!disabled && (
+      {!muted && (
         <button
           onClick={onCopy}
           className="ml-4 shrink-0 text-[10px] uppercase tracking-[0.12em] text-zinc-400 transition hover:text-zinc-950"

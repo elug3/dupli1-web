@@ -10,6 +10,7 @@ import {
   promotionMessageKey,
   PromotionRejectedError,
 } from "~/lib/promotions";
+import { usePromotionWallet } from "~/components/promotion-wallet";
 import {
   applySessionPromotion,
   buildCheckoutFulfillment,
@@ -424,8 +425,12 @@ export default function CheckoutPage() {
             total: formatCurrency(checkoutTotal),
           });
 
-  async function applyPromo() {
-    const code = promoInput.trim();
+  // Same wallet the bag shows, so a code the shopper did not apply earlier is
+  // still in front of them at the last step.
+  const wallet = usePromotionWallet(items, summary.shipping);
+
+  async function applyPromo(fromWallet?: string) {
+    const code = (fromWallet ?? promoInput).trim();
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
@@ -1363,8 +1368,9 @@ export default function CheckoutPage() {
               promoError={promoError}
               applyingPromo={applyingPromo}
               onPromoInputChange={setPromoInput}
-              onApplyPromo={applyPromo}
+              onApplyPromo={(code) => applyPromo(code)}
               onRemovePromo={removePromo}
+              walletEntries={wallet.entries}
               checkoutHref="#"
               checkoutLabel={
                 submitting ? t("checkout.processing") : primaryActionLabel

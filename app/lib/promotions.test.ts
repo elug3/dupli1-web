@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CartItem } from "./cart";
 import {
   evaluatePromotion,
+  fetchWallet,
   promotionLines,
   promotionMessageKey,
   rejectionFromBody,
@@ -182,5 +183,88 @@ describe("rejectionFromBody", () => {
   it("is null for a body that carries no reason", () => {
     expect(rejectionFromBody({ error: "boom" })).toBeNull();
     expect(rejectionFromBody(null)).toBeNull();
+  });
+});
+
+describe("fetchWallet", () => {
+  it("maps entitlements with the verdict the service reached", async () => {
+    stubFetch({
+      total: 2,
+      results: [
+        {
+          entitlement: {
+            id: "ent-1",
+            code: "WELCOME50",
+            expires_at: "2026-10-31T14:59:59Z",
+          },
+          promotion: { description: "First-purchase discount", terms: "100,000원 이상" },
+          eligible: true,
+          discount_won: 50000,
+        },
+        {
+          entitlement: { id: "ent-2", code: "VIP10" },
+          promotion: { description: "VIP", terms: "" },
+          eligible: false,
+          discount_won: 0,
+          reason: "not_eligible",
+          sub_reason: "min_spend",
+        },
+      ],
+    });
+
+    const wallet = await fetchWallet({ items: [ITEM], shippingFeeWon: 30000 });
+    expect(wallet).toEqual([
+      {
+        entitlementId: "ent-1",
+        code: "WELCOME50",
+        description: "First-purchase discount",
+        terms: "100,000원 이상",
+        expiresAt: "2026-10-31T14:59:59Z",
+        eligible: true,
+        discountWon: 50000,
+        rejection: undefined,
+      },
+      {
+        entitlementId: "ent-2",
+        code: "VIP10",
+        description: "VIP",
+        terms: "",
+        expiresAt: undefined,
+        eligible: false,
+        discountWon: 0,
+        rejection: { reason: "not_eligible", subReason: "min_spend" },
+      },
+    ]);
+  });
+
+  it("sends the bag so each code is judged against it", async () => {
+    const fetchStub = stubFetch({ results: [] });
+    await fetchWallet({ items: [ITEM], shippingFeeWon: 30000 });
+    const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    // The customer comes from the session token, so this goes through the
+    // session gateway and the body carries no customer id.
+    expect(url).toBe("/auth/session/gateway/api/v1/products/promotions/me");
+    expect(JSON.parse(String(init.body))).toEqual({
+      shipping_fee_won: 30000,
+      lines: promotionLines([ITEM]),
+    });
+  });
+
+  // A withdrawn entitlement has no business on a customer's shelf.
+  it("drops revoked entitlements", async () => {
+    stubFetch({
+      results: [
+        {
+          entitlement: { id: "ent-1", code: "OOPS", revoked_at: "2026-09-20T00:00:00Z" },
+          eligible: false,
+        },
+      ],
+    });
+    expect(await fetchWallet({ items: [], shippingFeeWon: 0 })).toEqual([]);
+  });
+
+  it("is empty rather than throwing when the wallet cannot be read", async () => {
+    stubFetch(null, false, 401);
+    expect(await fetchWallet({ items: [ITEM], shippingFeeWon: 0 })).toEqual([]);
   });
 });

@@ -194,3 +194,94 @@ export function rejectionFromBody(body: unknown): PromotionRejection | null {
       typeof record.sub_reason === "string" ? record.sub_reason : undefined,
   };
 }
+
+// ── Wallet ──────────────────────────────────────────────────────────────────
+
+/**
+ * One promotional code this customer holds, judged against the bag they are
+ * looking at.
+ *
+ * Account-scoped codes are issued, not typed: the sign-up campaign mints an
+ * entitlement on registration, and a manager can grant one as goodwill. The
+ * wallet is the only place a customer can discover one, so an ineligible entry
+ * comes back with its reason rather than being hidden — somebody who knows
+ * they have a code is owed an explanation, not silence.
+ */
+export interface WalletEntry {
+  entitlementId: string;
+  code: string;
+  description: string;
+  terms: string;
+  /** Per entitlement, not per campaign: everyone gets the same window. */
+  expiresAt?: string;
+  eligible: boolean;
+  /** Whole KRW this bag earns with the code, as the service priced it. */
+  discountWon: number;
+  rejection?: PromotionRejection;
+}
+
+interface RawWalletEntry {
+  entitlement?: {
+    id?: string;
+    code?: string;
+    expires_at?: string | null;
+    revoked_at?: string | null;
+  };
+  promotion?: { description?: string; terms?: string } | null;
+  eligible?: boolean;
+  discount_won?: number;
+  reason?: string;
+  sub_reason?: string;
+}
+
+/**
+ * Lists the signed-in customer's codes.
+ *
+ * The bag travels with the request so each entry is judged against it — the
+ * service takes the customer from the session token, never from the body, so
+ * one account cannot read another's wallet. An empty bag is fine: the entries
+ * come back, with nothing to judge them against.
+ */
+export async function fetchWallet(options: {
+  items: CartItem[];
+  shippingFeeWon: number;
+}): Promise<WalletEntry[]> {
+  let body: { results?: RawWalletEntry[] };
+  try {
+    // Needs the session's bearer token, so it goes through the session
+    // gateway rather than a public BFF route.
+    const res = await fetch(
+      "/auth/session/gateway/api/v1/products/promotions/me",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          shipping_fee_won: options.shippingFeeWon,
+          lines: promotionLines(options.items),
+        }),
+      }
+    );
+    if (!res.ok) return [];
+    body = (await res.json()) as { results?: RawWalletEntry[] };
+  } catch {
+    return [];
+  }
+
+  return (body.results ?? [])
+    // A revoked entitlement is withdrawn, not merely unusable; it has no
+    // business on a customer's shelf.
+    .filter((raw) => raw.entitlement?.id && !raw.entitlement.revoked_at)
+    .map((raw) => ({
+      entitlementId: raw.entitlement?.id ?? "",
+      code: raw.entitlement?.code ?? "",
+      description: raw.promotion?.description ?? "",
+      terms: raw.promotion?.terms ?? "",
+      expiresAt: raw.entitlement?.expires_at ?? undefined,
+      eligible: Boolean(raw.eligible),
+      discountWon: raw.discount_won ?? 0,
+      rejection: raw.eligible
+        ? undefined
+        : { reason: toReason(raw.reason), subReason: raw.sub_reason },
+    }));
+}
