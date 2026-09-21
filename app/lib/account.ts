@@ -1,6 +1,6 @@
 export const ACCOUNT_SECTIONS = [
   "wishlist",
-  "coupons",
+  "promotions",
   "orders",
   "settings",
   "support",
@@ -22,9 +22,21 @@ export function myAccountPath(section: AccountSection = "wishlist"): string {
   return `${MY_ACCOUNT_PATH}/${section}`;
 }
 
+/**
+ * Pre-rename section slugs, kept so a bookmarked URL still lands on the right
+ * section for one release (dupli1 docs/product-promotion-rename.md). Drop with
+ * the other compatibility aliases.
+ */
+const PRE_RENAME_SECTIONS: Record<string, AccountSection> = {
+  coupons: "promotions",
+};
+
 export function parseAccountSection(value: string | undefined): AccountSection {
   if (value && (ACCOUNT_SECTIONS as readonly string[]).includes(value)) {
     return value as AccountSection;
+  }
+  if (value && PRE_RENAME_SECTIONS[value]) {
+    return PRE_RENAME_SECTIONS[value];
   }
   return "wishlist";
 }

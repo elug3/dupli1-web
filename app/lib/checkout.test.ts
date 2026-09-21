@@ -365,7 +365,7 @@ describe("order pricing breakdown", () => {
     expect(mapped.discountWon).toBe(10000);
     expect(mapped.shippingFeeWon).toBe(30000);
     expect(mapped.totalWon).toBe(120000);
-    expect(mapped.couponCode).toBe("SUMMER30");
+    expect(mapped.promotionCode).toBe("SUMMER30");
     expect(orderHasPricingBreakdown(mapped)).toBe(true);
   });
 
@@ -849,7 +849,7 @@ describe("order detail mapping", () => {
       promotion_code: "WELCOME50",
       coupon_code: "WELCOME50",
     });
-    expect((await getOrder("ord_1")).couponCode).toBe("WELCOME50");
+    expect((await getOrder("ord_1")).promotionCode).toBe("WELCOME50");
   });
 
   it("still reads coupon_code from an order that only emits the old name", async () => {
@@ -860,7 +860,7 @@ describe("order detail mapping", () => {
       total_won: 1000,
       coupon_code: "LEGACY10",
     });
-    expect((await getOrder("ord_1")).couponCode).toBe("LEGACY10");
+    expect((await getOrder("ord_1")).promotionCode).toBe("LEGACY10");
   });
 
   it("surfaces the upstream status on a failed request", async () => {

@@ -16,7 +16,7 @@ describe("myAccountPath", () => {
   it("nests other sections under the account root", () => {
     expect(myAccountPath("orders")).toBe(MY_ACCOUNT_ORDERS_PATH);
     expect(myAccountPath("orders")).toBe("/profile/orders");
-    expect(myAccountPath("coupons")).toBe("/profile/coupons");
+    expect(myAccountPath("promotions")).toBe("/profile/promotions");
   });
 });
 
@@ -34,6 +34,10 @@ describe("parseAccountSection", () => {
   it("accepts known account sections", () => {
     expect(parseAccountSection("orders")).toBe("orders");
     expect(parseAccountSection("settings")).toBe("settings");
+  });
+
+  it("keeps a bookmarked pre-rename slug on its section", () => {
+    expect(parseAccountSection("coupons")).toBe("promotions");
   });
 
   it("defaults unknown or missing values to wishlist", () => {

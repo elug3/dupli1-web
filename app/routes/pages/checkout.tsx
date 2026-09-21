@@ -3,9 +3,9 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { LoadingBadge } from "~/components/loading-badge";
 import { canBypassPayment, getMe, type User } from "~/lib/auth";
-import { clearCart, redeemCoupon, type RedeemedCoupon } from "~/lib/cart";
+import { clearCart, redeemPromotion, type RedeemedPromotion } from "~/lib/cart";
 import {
-  applySessionCoupon,
+  applySessionPromotion,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
   cartHasUnpurchasableItems,
@@ -151,7 +151,7 @@ export default function CheckoutPage() {
   const { items, status, totals } = useCart();
   const mutation = useCartMutation();
   const [form, setForm] = useState<FormState>(initialForm);
-  const [coupon, setCoupon] = useState<RedeemedCoupon | null>(null);
+  const [promotion, setPromotion] = useState<RedeemedPromotion | null>(null);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
@@ -391,7 +391,7 @@ export default function CheckoutPage() {
     navigate("/cart");
   }
 
-  const summary = totals(coupon?.discount ?? 0);
+  const summary = totals(promotion?.discount ?? 0);
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
@@ -423,12 +423,12 @@ export default function CheckoutPage() {
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemCoupon(code);
+    const redeemed = await redeemPromotion(code);
     setApplyingPromo(false);
     if (redeemed) {
-      setCoupon(redeemed);
+      setPromotion(redeemed);
     } else {
-      setCoupon(null);
+      setPromotion(null);
       setPromoError(t("checkout.invalidPromo"));
     }
   }
@@ -666,8 +666,8 @@ export default function CheckoutPage() {
         return;
       }
       await replaceSessionItems(session.id, sessionItems);
-      if (coupon) {
-        await applySessionCoupon(session.id, coupon.code);
+      if (promotion) {
+        await applySessionPromotion(session.id, promotion.code);
       }
       // Complete → pending order + stock reserved on dupli1-product inventory.
       // Payment then marks paid (card redirect / bypass); ship commits stock.
@@ -1188,9 +1188,9 @@ export default function CheckoutPage() {
                         {formatCurrency(summary.subtotal)}
                       </dd>
                     </div>
-                    {summary.promoApplied && coupon && (
+                    {summary.promoApplied && promotion && (
                       <div className="flex justify-between text-emerald-700">
-                        <dt>{t("cart.promo", { code: coupon.code })}</dt>
+                        <dt>{t("cart.promo", { code: promotion.code })}</dt>
                         <dd>−{formatCurrency(summary.discount)}</dd>
                       </div>
                     )}
@@ -1300,7 +1300,7 @@ export default function CheckoutPage() {
 
             <OrderSummary
               summary={summary}
-              coupon={coupon}
+              promotion={promotion}
               promoInput={promoInput}
               promoError={promoError}
               applyingPromo={applyingPromo}

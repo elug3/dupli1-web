@@ -340,8 +340,8 @@ function OrderDetail({
           {order.discountWon > 0 && (
             <SummaryRow
               label={
-                order.couponCode
-                  ? t("cart.promo", { code: order.couponCode })
+                order.promotionCode
+                  ? t("cart.promo", { code: order.promotionCode })
                   : t("confirmation.discount")
               }
               value={`−${formatCurrency(order.discountWon)}`}

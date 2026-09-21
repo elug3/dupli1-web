@@ -266,15 +266,21 @@ export function computeTotals(
   return { itemCount, subtotal, shipping, discount, total, promoApplied };
 }
 
-export interface RedeemedCoupon {
+export interface RedeemedPromotion {
   code: string;
   discount: number;
   description: string;
 }
 
-/** Validates a coupon against the public product-service redeem endpoint. */
-export async function redeemCoupon(code: string): Promise<RedeemedCoupon | null> {
-  const res = await fetch("/api/coupons/redeem", {
+/**
+ * Validates a promotional code against the public product-service redeem
+ * endpoint. Renamed from `redeemCoupon` on 2026-09-16 (dupli1
+ * docs/product-promotion-rename.md).
+ */
+export async function redeemPromotion(
+  code: string
+): Promise<RedeemedPromotion | null> {
+  const res = await fetch("/api/promotions/redeem", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: code.trim().toUpperCase() }),
