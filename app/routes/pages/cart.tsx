@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
-import { redeemCoupon, type RedeemedCoupon } from "~/lib/cart";
+import { getMe } from "~/lib/auth";
+import {
+  PromotionWallet,
+  usePromotionWallet,
+} from "~/components/promotion-wallet";
+import {
+  type AppliedPromotion,
+  type WalletEntry,
+  evaluatePromotion,
+  promotionMessageKey,
+} from "~/lib/promotions";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { CartLineControls } from "~/components/cart-line-controls";
@@ -22,33 +32,92 @@ export function meta() {
 export default function CartPage() {
   const { t, formatCurrency, translateProductName } = useLanguage();
   const { items, status, totals } = useCart();
+  // Same quote the summary renders; the evaluator is given the shipping fee so
+  // a shipping-sensitive condition reads the number the shopper is seeing.
+  const shippingFeeWon = useShippingFeeWon();
   const mutation = useCartMutation();
-  const [coupon, setCoupon] = useState<RedeemedCoupon | null>(null);
+  const [promotion, setPromotion] = useState<AppliedPromotion | null>(null);
+  const [customerId, setCustomerId] = useState<string | undefined>(undefined);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(coupon?.discount ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
   }, []);
 
-  async function applyPromo() {
-    const code = promoInput.trim();
+  // An account-scoped code, and a code this shopper has already spent, can
+  // only be judged against a customer. The bag needs a session anyway.
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((user) => {
+        if (!cancelled) setCustomerId(user?.user_id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The shopper's own codes, so an issued one is discoverable where it is
+  // used. Account-scoped codes are never typed from ad creative.
+  const wallet = usePromotionWallet(items, shippingFeeWon);
+
+  async function applyPromo(fromWallet?: string) {
+    const code = (fromWallet ?? promoInput).trim();
     if (!code) return;
     setApplyingPromo(true);
     setPromoError("");
-    const redeemed = await redeemCoupon(code);
+    const result = await evaluatePromotion(code, {
+      items,
+      shippingFeeWon,
+      customerId,
+    });
     setApplyingPromo(false);
-    if (redeemed) {
-      setCoupon(redeemed);
+    if (result.ok) {
+      setPromotion(result.promotion);
     } else {
-      setCoupon(null);
-      setPromoError(t("cart.invalidPromo"));
+      setPromotion(null);
+      setPromoError(t(promotionMessageKey(result.rejection)));
     }
   }
+
+  function removePromo() {
+    setPromotion(null);
+    setPromoError("");
+    setPromoInput("");
+  }
+
+  // The bag can change under an applied code — a removed line can drop it
+  // below a minimum spend, and the discount itself may be a share of the
+  // lines. Re-price rather than leave a number the service would not agree to.
+  useEffect(() => {
+    if (!promotion) return;
+    let cancelled = false;
+    evaluatePromotion(promotion.code, { items, shippingFeeWon, customerId })
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setPromotion(result.promotion);
+          return;
+        }
+        // A check we could not make says nothing about the code, so keep the
+        // one the shopper applied; checkout re-evaluates authoritatively.
+        if (result.rejection.reason === "unavailable") return;
+        setPromotion(null);
+        setPromoError(t(promotionMessageKey(result.rejection)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on the priced bag, not the promotion, so re-pricing cannot loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary.subtotal, summary.itemCount, shippingFeeWon, customerId]);
 
   return (
     <main className="bg-white">
@@ -135,12 +204,14 @@ export default function CartPage() {
             <aside className="lg:sticky lg:top-28 lg:self-start">
               <OrderSummary
                 summary={summary}
-                coupon={coupon}
+                promotion={promotion}
                 promoInput={promoInput}
                 promoError={promoError}
                 applyingPromo={applyingPromo}
                 onPromoInputChange={setPromoInput}
-                onApplyPromo={applyPromo}
+                onApplyPromo={() => applyPromo()}
+                onRemovePromo={removePromo}
+                walletEntries={wallet.entries}
                 checkoutHref="/checkout"
                 checkoutLabel={t("cart.proceedToCheckout")}
                 disabled={mutation.pendingKey !== null}
@@ -317,23 +388,27 @@ function Recommendations({
 
 export function OrderSummary({
   summary,
-  coupon,
+  promotion,
   promoInput,
   promoError,
   applyingPromo = false,
   onPromoInputChange,
   onApplyPromo,
+  onRemovePromo,
+  walletEntries,
   checkoutHref,
   checkoutLabel,
   disabled = false,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
-  coupon: RedeemedCoupon | null;
+  promotion: AppliedPromotion | null;
   promoInput: string;
   promoError: string;
   applyingPromo?: boolean;
   onPromoInputChange: (value: string) => void;
-  onApplyPromo: () => void;
+  onApplyPromo: (code?: string) => void;
+  onRemovePromo: () => void;
+  walletEntries: WalletEntry[];
   checkoutHref: string;
   checkoutLabel: string;
   disabled?: boolean;
@@ -354,9 +429,9 @@ export function OrderSummary({
             {formatCurrency(summary.subtotal)}
           </dd>
         </div>
-        {summary.promoApplied && coupon && (
+        {summary.promoApplied && promotion && (
           <div className="flex justify-between text-emerald-700">
-            <dt>{t("cart.promo", { code: coupon.code })}</dt>
+            <dt>{t("cart.promo", { code: promotion.code })}</dt>
             <dd className="font-medium">
               −{formatCurrency(summary.discount)}
             </dd>
@@ -397,7 +472,7 @@ export function OrderSummary({
           />
           <button
             type="button"
-            onClick={onApplyPromo}
+            onClick={() => onApplyPromo()}
             disabled={applyingPromo}
             className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
@@ -407,9 +482,26 @@ export function OrderSummary({
         {promoError && (
           <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
         )}
-        {summary.promoApplied && coupon && (
-          <p className="mt-2 text-[11px] text-emerald-700">
-            {t("cart.discountApplied", { discount: Math.round(coupon.discount * 100) })}
+        <PromotionWallet
+          entries={walletEntries}
+          appliedCode={promotion?.code}
+          onApply={(code) => onApplyPromo(code)}
+          formatCurrency={formatCurrency}
+        />
+        {summary.promoApplied && promotion && (
+          <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
+            <span>
+              {t("cart.discountApplied", {
+                amount: formatCurrency(summary.discount),
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={onRemovePromo}
+              className="text-[10px] uppercase tracking-[0.12em] text-zinc-400 underline transition hover:text-zinc-950"
+            >
+              {t("cart.removePromo")}
+            </button>
           </p>
         )}
       </div>

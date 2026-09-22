@@ -28,20 +28,12 @@ import {
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { useCart } from "~/lib/useCart";
+import { useShippingFeeWon } from "~/lib/useShippingFee";
+import { usePromotionWallet } from "~/components/promotion-wallet";
+import { type WalletEntry, promotionMessageKey } from "~/lib/promotions";
 
 type Section = AccountSection;
-
-type CouponStatus = "active" | "expired" | "used";
-
-interface Coupon {
-  code: string;
-  discount: string;
-  description: string;
-  expires: string;
-  status: CouponStatus;
-}
-
-const COUPONS: Coupon[] = [];
 
 const FAQ_ITEMS = [
   {
@@ -57,8 +49,8 @@ const FAQ_ITEMS = [
     aKey: "profile.faqAuthenticatedAnswer",
   },
   {
-    qKey: "profile.faqApplyCoupon",
-    aKey: "profile.faqApplyCouponAnswer",
+    qKey: "profile.faqApplyPromotionCode",
+    aKey: "profile.faqApplyPromotionCodeAnswer",
   },
   {
     qKey: "profile.faqCancelOrder",
@@ -68,7 +60,7 @@ const FAQ_ITEMS = [
 
 const NAV_ITEMS: { id: Section; labelKey: string; icon: React.FC }[] = [
   { id: "wishlist", labelKey: "profile.wishlist", icon: HeartIcon },
-  { id: "coupons", labelKey: "profile.coupons", icon: TagIcon },
+  { id: "promotions", labelKey: "profile.promotionCodes", icon: TagIcon },
   { id: "orders", labelKey: "profile.orders", icon: BoxIcon },
   { id: "settings", labelKey: "profile.accountSettings", icon: SettingsIcon },
   { id: "support", labelKey: "profile.support", icon: SupportIcon },
@@ -213,7 +205,7 @@ export default function Profile() {
         {/* Content */}
         <div className="min-w-0 flex-1">
           {section === "wishlist" && <WishlistSection />}
-          {section === "coupons" && <CouponsSection />}
+          {section === "promotions" && <PromotionsSection />}
           {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
           {section === "support" && <SupportSection />}
@@ -321,14 +313,26 @@ function WishlistSection() {
   );
 }
 
-// ── Coupons ────────────────────────────────────────────────────────────────
+// ── Promotional codes ──────────────────────────────────────────────────────
 
-function CouponsSection() {
-  const { t } = useLanguage();
-  const [coupons, setCoupons] = useState<Coupon[]>(COUPONS);
+/**
+ * The customer's wallet: the codes issued to this account.
+ *
+ * Account-scoped codes are issued rather than typed — the sign-up campaign
+ * mints one on registration, a manager can grant one as goodwill — so this
+ * list is how a customer learns they hold one. It replaces a stub that kept
+ * redeemed codes in React state and lost them on reload.
+ *
+ * There is no "redeem into my wallet" step: a single-user code arrives on its
+ * own, and a shared campaign code is typed at checkout. Claiming a shared code
+ * into the wallet is Phase 4 of the promotional-code plan.
+ */
+function PromotionsSection() {
+  const { t, formatCurrency } = useLanguage();
+  const { items, status } = useCart();
+  const shippingFeeWon = useShippingFeeWon();
+  const { entries, loaded } = usePromotionWallet(items, shippingFeeWon);
   const [copied, setCopied] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const [redeemStatus, setRedeemStatus] = useState<"idle" | "success" | "already" | "invalid">("idle");
 
   function copy(code: string) {
     navigator.clipboard.writeText(code).catch(() => {});
@@ -336,152 +340,120 @@ function CouponsSection() {
     setTimeout(() => setCopied(null), 2000);
   }
 
-  async function redeem(e: React.FormEvent) {
-    e.preventDefault();
-    const code = input.trim().toUpperCase();
-    if (!code) return;
+  // With an empty bag there is nothing to judge a code against, so the
+  // verdicts are suppressed rather than reported as "nothing qualifies".
+  const hasBag = status === "ready" && items.length > 0;
+  const usable = entries.filter((entry) => !hasBag || entry.eligible);
+  const unusable = hasBag ? entries.filter((entry) => !entry.eligible) : [];
 
-    if (coupons.some((c) => c.code === code)) {
-      setRedeemStatus("already");
-      setTimeout(() => setRedeemStatus("idle"), 3000);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/coupons/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ code }),
-      });
-
-      if (res.status === 404) {
-        setRedeemStatus("invalid");
-      } else if (!res.ok) {
-        setRedeemStatus("invalid");
-      } else {
-        const data = (await res.json()) as {
-          code: string;
-          discount: number;
-          description: string;
-          expires: string;
-        };
-        setCoupons((prev) => [
-          {
-            code: data.code,
-            discount: `${Math.round(data.discount * 100)}% off`,
-            description: data.description,
-            expires: data.expires,
-            status: "active",
-          },
-          ...prev,
-        ]);
-        setInput("");
-        setRedeemStatus("success");
-      }
-    } catch {
-      setRedeemStatus("invalid");
-    }
-
-    setTimeout(() => setRedeemStatus("idle"), 3000);
+  if (!loaded) {
+    return (
+      <section>
+        <SectionHeader title={t("profile.promotionCodes")} count="" />
+        <div className="h-20 animate-pulse border border-zinc-100" />
+      </section>
+    );
   }
-
-  const active = coupons.filter((c) => c.status === "active");
-  const inactive = coupons.filter((c) => c.status !== "active");
 
   return (
     <section>
-      <SectionHeader title={t("profile.coupons")} count={t("profile.active", { count: active.length })} />
+      <SectionHeader
+        title={t("profile.promotionCodes")}
+        count={t("profile.active", { count: usable.length })}
+      />
 
-      {/* Redeem form */}
-      <div className="mb-8 border border-zinc-100 p-5">
-        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-          {t("profile.redeemCode")}
-        </p>
-        <form onSubmit={redeem} className="flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => { setInput(e.target.value); setRedeemStatus("idle"); }}
-            placeholder="e.g. SUMMER30"
-            className="flex-1 border border-zinc-200 bg-white px-4 py-2.5 font-mono text-sm uppercase tracking-wider text-zinc-950 outline-none transition focus:border-zinc-400 placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder:text-zinc-300"
-          />
-          <button
-            type="submit"
-            className="bg-zinc-950 px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
-          >
-            {t("profile.redeem")}
-          </button>
-        </form>
-        {redeemStatus === "success" && (
-          <p className="mt-2 text-[11px] text-emerald-600">{t("profile.couponAdded")}</p>
-        )}
-        {redeemStatus === "already" && (
-          <p className="mt-2 text-[11px] text-zinc-500">{t("profile.couponAlready")}</p>
-        )}
-        {redeemStatus === "invalid" && (
-          <p className="mt-2 text-[11px] text-red-500">{t("profile.invalidCoupon")}</p>
-        )}
-      </div>
-
-      {/* Active coupons */}
-      {active.length === 0 ? (
-        <EmptyState message={t("profile.noActiveCoupons")} />
+      {entries.length === 0 ? (
+        <EmptyState message={t("profile.noActivePromotionCodes")} />
       ) : (
         <div className="space-y-3">
-          {active.map((c) => (
-            <CouponCard key={c.code} coupon={c} copied={copied === c.code} onCopy={() => copy(c.code)} />
+          {usable.map((entry) => (
+            <PromotionCard
+              key={entry.entitlementId}
+              entry={entry}
+              showVerdict={hasBag}
+              formatCurrency={formatCurrency}
+              copied={copied === entry.code}
+              onCopy={() => copy(entry.code)}
+            />
           ))}
         </div>
       )}
 
-      {/* Used / expired */}
-      {inactive.length > 0 && (
+      {unusable.length > 0 && (
         <>
-          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">{t("profile.usedExpired")}</p>
-          <div className="space-y-3 opacity-50">
-            {inactive.map((c) => (
-              <CouponCard key={c.code} coupon={c} copied={false} onCopy={() => {}} disabled />
+          <p className="mt-8 mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-300">
+            {t("profile.notUsableWithBag")}
+          </p>
+          <div className="space-y-3">
+            {unusable.map((entry) => (
+              <PromotionCard
+                key={entry.entitlementId}
+                entry={entry}
+                showVerdict
+                formatCurrency={formatCurrency}
+                copied={false}
+                onCopy={() => {}}
+                muted
+              />
             ))}
           </div>
         </>
       )}
+
+      <p className="mt-6 text-[11px] text-zinc-400">{t("profile.walletHint")}</p>
     </section>
   );
 }
 
-function CouponCard({
-  coupon,
+function PromotionCard({
+  entry,
+  showVerdict,
+  formatCurrency,
   copied,
   onCopy,
-  disabled,
+  muted,
 }: {
-  coupon: Coupon;
+  entry: WalletEntry;
+  showVerdict: boolean;
+  formatCurrency: (amount: number) => string;
   copied: boolean;
   onCopy: () => void;
-  disabled?: boolean;
+  muted?: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, formatDateTime } = useLanguage();
 
   return (
-    <div className="flex items-center justify-between border border-zinc-100 px-5 py-4">
+    <div
+      className={[
+        "flex items-center justify-between border border-zinc-100 px-5 py-4",
+        muted ? "opacity-60" : "",
+      ].join(" ")}
+    >
       <div className="flex items-center gap-4">
         <div className="min-w-[5rem]">
           <p className="font-mono text-sm font-semibold tracking-wider text-zinc-950">
-            {coupon.code}
+            {entry.code}
           </p>
-          <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
-            {coupon.discount}
-          </p>
+          {showVerdict && entry.eligible && (
+            <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
+              {formatCurrency(entry.discountWon)}
+            </p>
+          )}
         </div>
         <div>
-          <p className="text-xs text-zinc-600">{coupon.description}</p>
+          <p className="text-xs text-zinc-600">
+            {entry.terms || entry.description}
+          </p>
           <p className="mt-0.5 text-[10px] text-zinc-400">
-            {coupon.status === "expired" ? t("profile.expired") : coupon.status === "used" ? t("profile.used") : t("profile.expires")}{" "}
-            {coupon.expires}
+            {showVerdict && !entry.eligible && entry.rejection
+              ? t(promotionMessageKey(entry.rejection))
+              : entry.expiresAt
+                ? `${t("profile.expires")} ${formatDateTime(entry.expiresAt)}`
+                : ""}
           </p>
         </div>
       </div>
-      {!disabled && (
+      {!muted && (
         <button
           onClick={onCopy}
           className="ml-4 shrink-0 text-[10px] uppercase tracking-[0.12em] text-zinc-400 transition hover:text-zinc-950"

@@ -184,18 +184,55 @@ function readSession(request: Request): { id: string; record: SessionRecord } | 
   return { id: sessionId, record };
 }
 
-async function exchangeRefreshToken(refreshToken: string): Promise<{
-  accessToken: string;
-  refreshToken: string;
-  expiresIn?: number;
-} | null> {
-  const upstream = await requestTokens("/api/v1/auth/refresh", {
-    refresh_token: refreshToken,
-  });
+/**
+ * What an exchange attempt established.
+ *
+ * `rejected` is auth's verdict on the token — spent, revoked, expired, or the
+ * account is gone — and the session is over. `unavailable` means auth never
+ * gave a verdict: it is down, or its own session ledger is unreachable. The
+ * token is probably fine and the session must survive.
+ *
+ * Treating the two alike signed every shopper out whenever auth's Redis was
+ * briefly away, which happens on a routine deploy: the ledger lives there and
+ * the task is replaced stop-before-start. Auth now answers 503 for that case
+ * (dupli1 auth/pkg/handler/handler.go) so the two are finally tellable apart.
+ */
+type ExchangeResult =
+  | {
+      ok: true;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn?: number;
+    }
+  | { ok: false; reason: "rejected" | "unavailable" };
 
-  if (!upstream.ok) return null;
+async function exchangeRefreshToken(
+  refreshToken: string
+): Promise<ExchangeResult> {
+  let upstream: Response;
+  try {
+    upstream = await requestTokens("/api/v1/auth/refresh", {
+      refresh_token: refreshToken,
+    });
+  } catch {
+    // Never reached auth, so we learned nothing about the token.
+    return { ok: false, reason: "unavailable" };
+  }
 
-  const body = (await upstream.json()) as TokenResponse;
+  if (!upstream.ok) {
+    // 401 is auth refusing the token; 403 is a locked or deactivated account.
+    // Anything else is about auth's health, not this token.
+    const rejected = upstream.status === 401 || upstream.status === 403;
+    return { ok: false, reason: rejected ? "rejected" : "unavailable" };
+  }
+
+  let body: TokenResponse;
+  try {
+    body = (await upstream.json()) as TokenResponse;
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+
   const accessToken =
     typeof body.token === "string"
       ? body.token
@@ -203,9 +240,11 @@ async function exchangeRefreshToken(refreshToken: string): Promise<{
         ? body.access_token
         : null;
 
-  if (!accessToken) return null;
+  // A 200 with no token is auth misbehaving, not a dead token.
+  if (!accessToken) return { ok: false, reason: "unavailable" };
 
   return {
+    ok: true,
     accessToken,
     refreshToken:
       typeof body.refresh_token === "string" && body.refresh_token
@@ -223,8 +262,12 @@ async function createSessionFromRefreshToken(
   user?: User
 ): Promise<{ setCookie: string } | Response> {
   const exchanged = await exchangeRefreshToken(refreshToken);
-  if (!exchanged) {
-    return json({ error: "Auth server did not issue an access token" }, { status: 502 });
+  if (!exchanged.ok) {
+    // No session exists yet, so nothing to preserve — but the status should
+    // still say whether to retry or to sign in again.
+    return exchanged.reason === "unavailable"
+      ? authUnavailable()
+      : json({ error: "Auth server did not issue an access token" }, { status: 502 });
   }
 
   return createSession({
@@ -326,6 +369,19 @@ function json(
   headers.set("Cache-Control", "no-store");
   if (setCookie) headers.append("Set-Cookie", setCookie);
   return new Response(JSON.stringify(data), { ...init, headers });
+}
+
+/**
+ * Auth could not be reached, so the session's standing is unknown.
+ *
+ * Deliberately not a 401 and deliberately without `clearSessionCookie()`: the
+ * cookie and the stored record both stay, and the caller is told to retry.
+ */
+function authUnavailable(): Response {
+  return json(
+    { error: "Auth service unavailable", code: "auth_unavailable" },
+    { status: 503, headers: { "Retry-After": "2" } }
+  );
 }
 
 async function sanitizedAuthResponse(
@@ -587,7 +643,13 @@ export async function getAccessToken(
 
   const exchanged = await exchangeRefreshToken(session.record.refreshToken);
 
-  if (!exchanged) {
+  if (!exchanged.ok) {
+    // Only auth's own verdict ends the session. On `unavailable` the record
+    // and the cookie both stay, so the shopper keeps their cart and is signed
+    // in again the moment auth answers.
+    if (exchanged.reason === "unavailable") {
+      return authUnavailable();
+    }
     sessions.delete(session.id);
     return json(
       { error: "Session expired. Please sign in again." },
@@ -680,6 +742,13 @@ export async function proxyBackendApi(
   const contentType = request.headers.get("Content-Type");
   if (contentType) headers.set("Content-Type", contentType);
 
+  // Rate limits on the public product endpoints key on the left-most
+  // X-Forwarded-For (dupli1 `product/pkg/infra/ratelimit`.ClientIP). These
+  // headers are built from scratch, so without this every shopper would arrive
+  // as this task's address and share one 20-per-minute bucket.
+  const forwardedFor = request.headers.get("X-Forwarded-For");
+  if (forwardedFor) headers.set("X-Forwarded-For", forwardedFor);
+
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   // Buffer once so a post-refresh retry can resend the same payload.
   const body = hasBody ? await request.arrayBuffer() : undefined;
@@ -750,6 +819,9 @@ function serviceForApiPath(path: string): ApiService | null {
   if (path.startsWith("/api/v1/auth")) return "auth";
   if (
     path.startsWith("/api/v1/products") ||
+    path.startsWith("/api/v1/promotions") ||
+    // Pre-rename alias, still served by the gateway for one release
+    // (dupli1 docs/product-promotion-rename.md).
     path.startsWith("/api/v1/coupons") ||
     path.startsWith("/api/v1/catalog") ||
     path.startsWith("/api/v1/variants") ||

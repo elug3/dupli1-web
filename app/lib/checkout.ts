@@ -12,6 +12,8 @@
  * Error, so the existing `err instanceof Error ? err.message` handling is
  * unaffected.
  */
+import { PromotionRejectedError, rejectionFromBody } from "./promotions";
+
 export class ApiRequestError extends Error {
   readonly status: number;
 
@@ -144,7 +146,7 @@ export interface CheckoutSession {
    */
   shippingFeeWon: number;
   totalWon: number;
-  couponCode?: string;
+  promotionCode?: string;
   orderId?: string;
 }
 
@@ -186,7 +188,7 @@ export interface Order {
   /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
   shippingFeeWon: number;
   totalWon: number;
-  couponCode?: string;
+  promotionCode?: string;
   items: OrderItem[];
   /** Epoch ms the unpaid window closes; order auto-cancels after it (5 min). */
   paymentDueAtMs?: number;
@@ -299,6 +301,8 @@ interface RawSession {
   discount_won?: number;
   shipping_fee_won?: number;
   total_won?: number;
+  /** Canonical since the 2026-09-16 rename; `coupon_code` is the pre-rename alias. */
+  promotion_code?: string;
   coupon_code?: string;
   order_id?: string;
 }
@@ -365,7 +369,9 @@ function mapSession(raw: RawSession): CheckoutSession {
     // Older order services omit the field; 0 (free delivery) is the safe read.
     shippingFeeWon: raw.shipping_fee_won ?? 0,
     totalWon: raw.total_won ?? 0,
-    couponCode: raw.coupon_code,
+    // promotion_code is canonical; coupon_code is the pre-rename alias order
+    // still emits for one release (dupli1 docs/product-promotion-rename.md).
+    promotionCode: raw.promotion_code || raw.coupon_code || undefined,
     orderId: raw.order_id,
   };
 }
@@ -400,7 +406,7 @@ function mapOrder(raw: RawOrder): Order {
     totalWon: raw.total_won ?? 0,
     // promotion_code is canonical; coupon_code is the pre-rename alias order
     // still emits for one release (dupli1 docs/product-promotion-rename.md).
-    couponCode: raw.promotion_code || raw.coupon_code || undefined,
+    promotionCode: raw.promotion_code || raw.coupon_code || undefined,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,
@@ -452,11 +458,33 @@ export async function replaceSessionItems(
   return mapSession(await res.json());
 }
 
-export async function applySessionCoupon(sessionId: string, code: string): Promise<CheckoutSession> {
-  const res = await request(
-    `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/coupon`,
-    { method: "POST", body: JSON.stringify({ code }) }
-  );
+/**
+ * Applies a code to the session. Order re-evaluates it server-side, so this —
+ * not the storefront preview — decides whether the discount is real.
+ *
+ * A refusal comes back `422` with a machine-readable `reason` (and sometimes a
+ * `sub_reason`), which becomes a PromotionRejectedError so the page can say
+ * which rule bit instead of showing a generic checkout failure.
+ */
+export async function applySessionPromotion(
+  sessionId: string,
+  code: string
+): Promise<CheckoutSession> {
+  const path = `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/promotion`;
+  const res = await fetch(`/auth/session/gateway${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const rejection = rejectionFromBody(body);
+    const message =
+      (body as { error?: string } | null)?.error ?? `Request failed: ${res.status}`;
+    if (rejection) throw new PromotionRejectedError(rejection, message);
+    throw new ApiRequestError(res.status, message);
+  }
   return mapSession(await res.json());
 }
 

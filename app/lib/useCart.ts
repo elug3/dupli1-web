@@ -99,11 +99,11 @@ export function useCart() {
   // `shipping_fee_won` once a session exists, since that quote is frozen for
   // the session and is what the resulting order will carry.
   const totals = useCallback(
-    (discountFraction = 0, shippingFeeWon?: number): CartTotals =>
+    (discountWon = 0, shippingFeeWon?: number): CartTotals =>
       computeTotals(
         raw.items,
         raw.subtotalWon,
-        discountFraction,
+        discountWon,
         shippingFeeWon ?? serviceShippingFee
       ),
     [raw.items, raw.subtotalWon, serviceShippingFee]
