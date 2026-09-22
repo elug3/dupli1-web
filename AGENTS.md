@@ -18,6 +18,8 @@ Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-i
 
 Non-auth upstream `401` → BFF force-refreshes with auth and retries once; do not treat that as logout unless auth refresh/`/me` fails (then `401`). Persistent upstream rejection after refresh → `502` `upstream_unauthorized`.
 
+Auth refresh failing is **not** the same as auth being unreachable. `exchangeRefreshToken` returns `rejected` only for `401`/`403` — that clears the session and the cookie. Everything else (`503` when auth cannot reach its own refresh-token ledger, a dial failure, a `200` with no token) is `unavailable`: the BFF answers `503` `code: "auth_unavailable"` and keeps both the session record and the cookie, so the shopper is signed in again the moment auth answers. Reading any non-ok refresh as a dead token used to sign out every shopper whenever auth's Redis was briefly away, which is every deploy.
+
 ## Cursor Cloud specific instructions
 
 - Dependencies (`npm install`) are refreshed automatically by the cloud update script; no manual install needed on a fresh VM.
