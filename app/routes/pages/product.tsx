@@ -5,6 +5,7 @@ import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
 import { brandToSlug } from "~/lib/catalog";
+import { telegramContactUrl } from "~/lib/contact";
 import {
   type Bag,
   type ServerProduct,
@@ -19,6 +20,7 @@ import {
 } from "~/lib/api";
 import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
+import { formatDimensionsCm } from "~/lib/product-dimensions";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
@@ -262,6 +264,7 @@ function ProductLayout({ product }: { product: ServerProduct }) {
 function ProductInfo({ product }: { product: ServerProduct }) {
   const {
     t,
+    language,
     formatCurrency,
     translateProductDescription,
     translateProductName,
@@ -280,6 +283,19 @@ function ProductInfo({ product }: { product: ServerProduct }) {
   const adding =
     isPending(product.sku, product.skuId) && getAction(product.sku, product.skuId) === "add";
   const inStock = isProductInStock(product, availableStock);
+  // Still polling inventory: keep the bag button (disabled) rather than
+  // flashing the inquiry link at a shopper who can in fact buy.
+  const stockPending = sellable && availableStock === null;
+  // Nothing to sell right now. The page never says "out of stock" — it hands
+  // the shopper to the consultation bot, which can check restocks and
+  // alternatives, with this product as the chat's context.
+  const inquireStock = !inStock && !stockPending;
+  const inquireUrl = telegramContactUrl({
+    context: { surface: "product", ref: product.id, language },
+  });
+  const dimensions = formatDimensionsCm(product.dimensions, (axis) =>
+    t(`product.dimension.${axis}`)
+  );
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
@@ -344,18 +360,13 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         {translateProductName(product.id, product.name)}
       </h1>
 
-      {/* Price + stock */}
+      {/* Price */}
       <div className="mt-5 flex items-baseline gap-3">
         <ProductPrice
           price={product.price}
           officialPrice={product.officialPrice}
           size="lg"
         />
-        <span
-          className={`text-[10px] font-semibold uppercase tracking-widest ${inStock ? "text-emerald-600" : "text-zinc-400"}`}
-        >
-          {inStock ? t("product.inStock") : t("product.outOfStock")}
-        </span>
       </div>
 
       <div className="my-6 h-px bg-zinc-100" />
@@ -372,8 +383,11 @@ function ProductInfo({ product }: { product: ServerProduct }) {
           [t("product.category"), translateValue("category", product.category || "Bags")],
           [t("product.material"), product.material ? translateValue("material", product.material) : t("product.premiumLeather")],
           [t("product.color"), product.color ? translateValue("color", product.color) : "—"],
-        ].map(([dt, dd]) => (
-          <div key={dt}>
+          [t("product.dimensions"), dimensions || "—"],
+        ].map(([dt, dd], index, rows) => (
+          // The last row (dimensions) spans both columns: "W 34 × H 22 × D 8 cm"
+          // does not fit half the info column on a phone.
+          <div key={dt} className={index === rows.length - 1 ? "col-span-2" : undefined}>
             <dt className="font-semibold uppercase tracking-widest text-zinc-400">{dt}</dt>
             <dd className="mt-0.5 text-zinc-700">{dd}</dd>
           </div>
@@ -383,48 +397,53 @@ function ProductInfo({ product }: { product: ServerProduct }) {
       <div className="my-6 h-px bg-zinc-100" />
 
       {/* CTA — a single dominant "Add to Bag" action, with instant checkout
-          as a lighter secondary link underneath */}
+          as a lighter secondary link underneath; with nothing to sell, one
+          "Inquire about stock" link to the consultation bot instead */}
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleAddToBag()}
-          aria-label={
-            adding
-              ? t("product.addingToBag")
-              : added
-                ? t("product.added")
-                : t("product.addToBag")
-          }
-          aria-busy={adding}
-          className={[
-            "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
-            inStock && !adding
-              ? added
-                ? "bg-emerald-700 text-white"
-                : "bg-zinc-950 text-white hover:bg-zinc-800"
-              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-          ].join(" ")}
-        >
-          {adding ? (
-            <LoadingBadge label={t("product.addingToBag")} size="lg" />
-          ) : added ? (
-            t("product.added")
-          ) : inStock ? (
-            t("product.addToBag")
-          ) : (
-            t("product.outOfStock")
-          )}
-        </button>
+        {inquireStock ? (
+          <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={!inStock || adding}
+              onClick={() => void handleAddToBag()}
+              aria-label={
+                adding
+                  ? t("product.addingToBag")
+                  : added
+                    ? t("product.added")
+                    : t("product.addToBag")
+              }
+              aria-busy={adding}
+              className={[
+                "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
+                inStock && !adding
+                  ? added
+                    ? "bg-emerald-700 text-white"
+                    : "bg-zinc-950 text-white hover:bg-zinc-800"
+                  : "cursor-not-allowed bg-zinc-100 text-zinc-400",
+              ].join(" ")}
+            >
+              {adding ? (
+                <LoadingBadge label={t("product.addingToBag")} size="lg" />
+              ) : added ? (
+                t("product.added")
+              ) : (
+                t("product.addToBag")
+              )}
+            </button>
 
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleBuy()}
-          className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
-        >
-          {t("product.buy")}
-        </button>
+            <button
+              type="button"
+              disabled={!inStock || adding}
+              onClick={() => void handleBuy()}
+              className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
+            >
+              {t("product.buy")}
+            </button>
+          </>
+        )}
         {cartError && (
           <p className="text-center text-[11px] text-red-600" role="alert">
             {cartError}
@@ -468,29 +487,56 @@ function ProductInfo({ product }: { product: ServerProduct }) {
             {formatCurrency(product.price)}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={!inStock || adding}
-          onClick={() => void handleAddToBag()}
-          className={[
-            "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
-            inStock && !adding
-              ? "bg-zinc-950 text-white hover:bg-zinc-800"
-              : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-          ].join(" ")}
-        >
-          {adding ? (
-            <LoadingBadge label={t("product.addingToBag")} />
-          ) : added ? (
-            t("product.added")
-          ) : inStock ? (
-            t("product.addToBag")
-          ) : (
-            t("product.outOfStock")
-          )}
-        </button>
+        {inquireStock ? (
+          <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} compact />
+        ) : (
+          <button
+            type="button"
+            disabled={!inStock || adding}
+            onClick={() => void handleAddToBag()}
+            className={[
+              "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
+              inStock && !adding
+                ? "bg-zinc-950 text-white hover:bg-zinc-800"
+                : "cursor-not-allowed bg-zinc-100 text-zinc-400",
+            ].join(" ")}
+          >
+            {adding ? (
+              <LoadingBadge label={t("product.addingToBag")} />
+            ) : added ? (
+              t("product.added")
+            ) : (
+              t("product.addToBag")
+            )}
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+/** Opens the consultation bot in Telegram, in place of the bag button. */
+function InquireStockLink({
+  href,
+  label,
+  compact = false,
+}: {
+  href: string;
+  label: string;
+  compact?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={[
+        "flex items-center justify-center rounded-md bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800",
+        compact ? "h-12 shrink-0 px-6" : "h-14 w-full",
+      ].join(" ")}
+    >
+      {label}
+    </a>
   );
 }
 

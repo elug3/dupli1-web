@@ -9,6 +9,10 @@
  */
 
 import "./tls-ca.server";
+import {
+  type ProductDimensions,
+  normalizeDimensions,
+} from "./product-dimensions";
 
 const API_PREFIX = "/api/v1";
 
@@ -23,6 +27,8 @@ export interface UpstreamVariant {
   status: string;
   availableQty?: number;
   inStock?: boolean;
+  /** Millimeters; omitted when the SKU has no recorded size. */
+  dimensions?: ProductDimensions;
 }
 
 export interface UpstreamProduct {
@@ -97,6 +103,8 @@ export interface ProductResponse {
   skuId?: string;
   availableQty?: number;
   inStock?: boolean;
+  /** Physical size (mm) of the default sellable variant. */
+  dimensions?: ProductDimensions;
 }
 
 export interface SearchResult {
@@ -242,6 +250,7 @@ export function toProductResponse(product: UpstreamProduct): ProductResponse {
     skuId: defaultVariantSkuId(product),
     availableQty: variant?.availableQty,
     inStock: variant?.inStock,
+    dimensions: normalizeDimensions(variant?.dimensions) ?? undefined,
     category: product.category || "bags",
     status: mapDisplayStatus(product.status, product.tags),
     image: images[0],

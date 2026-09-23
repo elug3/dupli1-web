@@ -1,4 +1,8 @@
 import { authedFetch } from "./auth";
+import {
+  type ProductDimensions,
+  normalizeDimensions,
+} from "./product-dimensions";
 import { inventoryAvailableFromBody } from "./product-stock";
 
 // ── Bag types (mirrors server domain.Bag) ─────────────────────────────────
@@ -51,6 +55,8 @@ export interface ServerProduct {
   availableQty?: number;
   /** True when availableQty > 0 for the default sellable variant. */
   inStock?: boolean;
+  /** Physical size (mm) of the default sellable variant, when catalogued. */
+  dimensions?: ProductDimensions;
   wishlistCount?: number;
   soldCount?: number;
 }
@@ -99,6 +105,8 @@ interface UpstreamProduct {
     listingImageUrls?: string[];
     availableQty?: number;
     inStock?: boolean;
+    /** Millimeters; omitted when the SKU has no recorded size. */
+    dimensions?: ProductDimensions;
   }>;
 }
 
@@ -202,6 +210,7 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     skuId: upstreamSkuId(product),
     availableQty: variant?.availableQty,
     inStock: variant?.inStock,
+    dimensions: normalizeDimensions(variant?.dimensions) ?? undefined,
     category: product.category || "bags",
     status: upstreamStatus(product),
     image: images[0],
