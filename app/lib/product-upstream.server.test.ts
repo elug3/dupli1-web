@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { toBagResponse, type UpstreamProduct } from "./product-upstream.server";
+import {
+  toBagResponse,
+  toProductResponse,
+  type UpstreamProduct,
+} from "./product-upstream.server";
 
 function product(partial: Partial<UpstreamProduct>): UpstreamProduct {
   return {
@@ -37,5 +41,30 @@ describe("toBagResponse listing image", () => {
     expect(bag.image).toBe(
       "http://localhost:8080/product-images/p1/full.jpg"
     );
+  });
+});
+
+describe("toProductResponse dimensions", () => {
+  it("carries the default variant's dimensions in millimeters", () => {
+    const res = toProductResponse(
+      product({
+        variants: [
+          { sku: "draft", status: "draft", dimensions: { widthMm: 1 } },
+          {
+            sku: "active",
+            status: "active",
+            dimensions: { widthMm: 340, heightMm: 220, depthMm: 0 },
+          },
+        ],
+      })
+    );
+    expect(res.dimensions).toEqual({ widthMm: 340, heightMm: 220 });
+  });
+
+  it("omits dimensions the SKU does not have", () => {
+    const res = toProductResponse(
+      product({ variants: [{ sku: "active", status: "active" }] })
+    );
+    expect(res.dimensions).toBeUndefined();
   });
 });
