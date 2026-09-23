@@ -68,8 +68,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "Shipping: {amount} on all orders",
     "announcement.shippingFree": "Complimentary shipping on all orders",
-    "announcement.code": "Code",
-    "announcement.discount": "30% off",
 
     "cookie.title": "Cookies",
     "cookie.description":
@@ -728,8 +726,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "전 상품 배송비 {amount}",
     "announcement.shippingFree": "전 상품 무료배송",
-    "announcement.code": "코드",
-    "announcement.discount": "30% 할인",
 
     "cookie.title": "쿠키",
     "cookie.description":
@@ -1383,8 +1379,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "全场统一运费 {amount}",
     "announcement.shippingFree": "全场包邮",
-    "announcement.code": "代码",
-    "announcement.discount": "7 折优惠",
 
     "cookie.title": "Cookie",
     "cookie.description":
