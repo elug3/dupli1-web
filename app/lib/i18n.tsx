@@ -68,8 +68,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "Shipping: {amount} on all orders",
     "announcement.shippingFree": "Complimentary shipping on all orders",
-    "announcement.code": "Code",
-    "announcement.discount": "30% off",
 
     "cookie.title": "Cookies",
     "cookie.description":
@@ -122,7 +120,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "footer.privacyPolicy": "Privacy Policy",
     "footer.termsConditions": "Terms & Conditions",
     "footer.rights": "© 2026 Dupli1. All rights reserved.",
-    "footer.tagline": "Premium Bags · Authenticated · Curated",
+    "footer.tagline": "Premium Bags · Quality Guaranteed · Curated",
 
     "home.metaTitle": "Dupli1 — Curated Luxury Bags",
     "home.metaDescription":
@@ -175,7 +173,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.outerwear": "Padding",
     "home.valueShipping": "Shipping: {amount}",
     "home.valueShippingFree": "Complimentary shipping",
-    "home.valueAuthenticity": "Authenticity Guaranteed",
+    "home.valueAuthenticity": "Quality Guaranteed",
     "home.valueCuration": "Expert Curation",
     "home.scroll": "Scroll",
     "home.editorialEyebrow": "The Dupli1 Edit",
@@ -728,8 +726,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "전 상품 배송비 {amount}",
     "announcement.shippingFree": "전 상품 무료배송",
-    "announcement.code": "코드",
-    "announcement.discount": "30% 할인",
 
     "cookie.title": "쿠키",
     "cookie.description":
@@ -782,7 +778,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "footer.privacyPolicy": "개인정보 처리방침",
     "footer.termsConditions": "이용 약관",
     "footer.rights": "© 2026 Dupli1. All rights reserved.",
-    "footer.tagline": "프리미엄 가방 · 정품 보증 · 엄선 큐레이션",
+    "footer.tagline": "프리미엄 가방 · 품질 보증 · 엄선 큐레이션",
 
     "home.metaTitle": "Dupli1 — 엄선한 럭셔리 가방",
     "home.metaDescription":
@@ -835,7 +831,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.outerwear": "패딩",
     "home.valueShipping": "배송비 {amount}",
     "home.valueShippingFree": "무료배송",
-    "home.valueAuthenticity": "정품 보증",
+    "home.valueAuthenticity": "품질 보증",
     "home.valueCuration": "전문 큐레이션",
     "home.scroll": "스크롤",
     "home.editorialEyebrow": "Dupli1 에디트",
@@ -1383,8 +1379,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
 
     "announcement.shipping": "全场统一运费 {amount}",
     "announcement.shippingFree": "全场包邮",
-    "announcement.code": "代码",
-    "announcement.discount": "7 折优惠",
 
     "cookie.title": "Cookie",
     "cookie.description":
@@ -1437,7 +1431,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "footer.privacyPolicy": "隐私政策",
     "footer.termsConditions": "条款与条件",
     "footer.rights": "© 2026 Dupli1. 保留所有权利。",
-    "footer.tagline": "高级包袋 · 正品认证 · 精选策划",
+    "footer.tagline": "高级包袋 · 品质保证 · 精选策划",
 
     "home.metaTitle": "Dupli1 — 精选奢华包袋",
     "home.metaDescription": "来自全球热门品牌的正品奢华包袋。",
@@ -1485,7 +1479,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "home.categoryLabel.outerwear": "羽绒",
     "home.valueShipping": "运费 {amount}",
     "home.valueShippingFree": "包邮",
-    "home.valueAuthenticity": "正品保证",
+    "home.valueAuthenticity": "品质保证",
     "home.valueCuration": "专业甄选",
     "home.scroll": "滚动",
     "home.editorialEyebrow": "Dupli1 精选",

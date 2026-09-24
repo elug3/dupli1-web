@@ -105,9 +105,7 @@ function AnnouncementBar() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">
       <p className="text-center text-[10px] tracking-[0.18em] text-white/70 uppercase">
-        {shippingCopy}&ensp;·&ensp;{t("announcement.code")}&ensp;
-        <span className="font-medium text-[#c8a96e] tracking-widest">SUMMER30</span>
-        &ensp;—&ensp;{t("announcement.discount")}
+        {shippingCopy}
       </p>
     </div>
   );
