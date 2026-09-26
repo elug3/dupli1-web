@@ -49,15 +49,13 @@ export function ProductImageGallery({
     }
   }
 
-  const activeImage = images[activeIndex];
-
   return (
-    <div className="relative flex-1 overflow-hidden bg-zinc-50">
+    <div className="relative flex-1 bg-zinc-50">
       {/* Mobile: swipeable carousel */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {images.map((img, i) => (
@@ -77,14 +75,38 @@ export function ProductImageGallery({
         ))}
       </div>
 
-      {/* Desktop: single image */}
-      <div className="relative hidden md:block" style={{ paddingBottom: "120%" }}>
-        <img
-          src={activeImage.src}
-          alt={alt}
-          onClick={() => setIsZoomOpen(true)}
-          className={`absolute inset-0 h-full w-full cursor-zoom-in object-cover transition duration-500 ${activeImage.position}`}
-        />
+      {/* Desktop: full-bleed vertical stack — every image at full column
+          width, one below the other, hairline-separated. The column scrolls
+          against the pinned product info beside it. */}
+      <div className="hidden flex-col gap-0.5 bg-white lg:flex">
+        {actions && (
+          <div className="pointer-events-none sticky top-[8.25rem] z-10 h-0">
+            <div className="pointer-events-auto absolute right-4 top-4">
+              {actions}
+            </div>
+          </div>
+        )}
+        {images.map((img, i) => (
+          <button
+            key={i}
+            type="button"
+            aria-label={`Open image ${i + 1} of ${images.length}`}
+            onClick={() => {
+              onActiveIndexChange(i);
+              setIsZoomOpen(true);
+            }}
+            className="relative block w-full cursor-zoom-in overflow-hidden bg-zinc-50"
+            style={{ paddingBottom: "120%" }}
+          >
+            <img
+              src={img.src}
+              alt={i === 0 ? alt : ""}
+              draggable={false}
+              loading={i === 0 ? undefined : "lazy"}
+              className={`absolute inset-0 h-full w-full object-cover ${img.position}`}
+            />
+          </button>
+        ))}
       </div>
 
       {badge && (
@@ -92,11 +114,11 @@ export function ProductImageGallery({
       )}
 
       {actions && (
-        <div className="absolute right-4 top-4 z-10">{actions}</div>
+        <div className="absolute right-4 top-4 z-10 lg:hidden">{actions}</div>
       )}
 
       {images.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5 md:hidden">
+        <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5 lg:hidden">
           {images.map((_, i) => (
             <button
               key={i}
