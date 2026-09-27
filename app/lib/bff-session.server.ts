@@ -571,7 +571,7 @@ export async function handleRegister(request: Request): Promise<Response> {
     return json(
       {
         error:
-          "Registration is unavailable: configure DUPLI1_WEB_SERVICE_TOKEN or DUPLI1_WEB_SERVICE_EMAIL + DUPLI1_WEB_SERVICE_PASSWORD",
+          "Registration is unavailable: configure DUPLI1_WEB_SERVICE_API_KEY (or DUPLI1_WEB_SERVICE_TOKEN for local/dev)",
       },
       { status: 503 }
     );
