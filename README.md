@@ -280,7 +280,7 @@ GitHub Actions runs two workflows on every change to `master`:
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | [CI](.github/workflows/ci.yml) | Push and pull requests to `master` | Install dependencies, run `npm run typecheck`, run `npm run build`, and verify the Docker image builds |
-| [Deploy](.github/workflows/deploy.yml) | Push to `master` | Build and push the Docker image to Amazon ECR, then roll out a new Amazon ECS task definition |
+| [Image](.github/workflows/images.yml) | Push to `master` | Publish the image to GHCR, then deploy it to VENUS |
 
 ### CI checks
 
@@ -295,33 +295,25 @@ docker build -t dupli1-web .
 
 ### Production deployment
 
-Merging to `master` deploys to Amazon ECS in `us-east-1`:
+Production runs on VENUS, a self-hosted machine behind a Cloudflare Tunnel
+(moved off AWS ECS on 2026-09-27). Merging to `master`:
 
-- **ECR repository:** `web`
-- **ECS cluster:** `production`
-- **ECS service:** `dupli1-web`
-- **Task definition:** [.aws/task-definition.json](.aws/task-definition.json)
+1. builds `ghcr.io/elug3/dupli1-web:sha-<short>` (also tagged `master`);
+2. runs `deploy.sh web sha-<short>` from the backend repo's deploy checkout on
+   the VENUS self-hosted runner. It restarts only the `web` container, checks
+   `/` and `/login`, and rolls back to the previous image if they fail.
 
-Deployment uses GitHub OIDC to assume `arn:aws:iam::845061289093:role/github-actions-deploy-role`. That role has ECR push and ECS deploy permissions. Ensure the role's OIDC trust policy includes this repository.
+The runbook, including manual deploys and rollback, is
+[elug3/dupli1 docs/deployment-venus.md](https://github.com/elug3/dupli1/blob/main/docs/deployment-venus.md)
+→ "Deploying new code". The container's environment (port `3000`,
+`DUPLI1_API_BASE_URL=http://proxy.dupli1.local`) lives in the backend repo's
+`deploy/venus/docker-compose.yml`.
 
-The container listens on port `3000` behind the `dupli1-web-3000-tg` load balancer target group. Backend API calls are routed through `DUPLI1_API_BASE_URL=http://proxy.dupli1.local`.
-
-Customer registration credentials are **not** GitHub Actions secrets. Production
-injects `DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` from AWS
-Secrets Manager `dupli1/production/web-service-account` (same secret
-`dupli1-auth` uses to seed the machine user). The deploy workflow attaches that
-secret on every release. Do not put a different password in GitHub secrets —
-it will drift from auth and break signup (`login: invalid credentials`).
-
-To re-attach Secrets Manager after a bad task revision (without rebuilding):
-
-```bash
-bash scripts/configure-web-service-ecs.sh
-```
-
-or run the **Attach web service Secrets Manager credentials** workflow. After
-rotating the secret password, also force-redeploy `dupli1-auth` so it re-seeds
-the DB hash (see [elug3/dupli1 infra/terraform/README.md](https://github.com/elug3/dupli1/blob/main/infra/terraform/README.md)).
+Customer registration credentials are **not** GitHub Actions secrets.
+`DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` come from
+`/opt/dupli1/.env` on VENUS, the same values `dupli1-auth` seeds the machine
+user with. A different password here would drift from auth and break signup
+(`login: invalid credentials`).
 
 ## Deployment Notes
 
