@@ -101,8 +101,19 @@ DUPLI1_API_CA_FILE=../dupli1/certs/server.crt
 Plain `http://localhost:8080` remains the default and needs no CA file. See
 [scripts/dupli1-local-tls/README.md](scripts/dupli1-local-tls/README.md).
 
-Customer registration requires a dupli1-web service account. Prefer email + password
-so the BFF can mint and refresh access tokens:
+Customer registration requires a dupli1-web service account. Prefer its API key
+(elug3/dupli1 `docs/auth-service-api-keys.md`) — the same value auth seeds from
+`DUPLI1_WEB_SERVICE_API_KEY`. The BFF exchanges it for access tokens at auth's
+`/api/v1/auth/token`, which the gateway serves only on its internal listener, so
+point `DUPLI1_WEB_SERVICE_AUTH_URL` there (or at auth directly):
+
+```bash
+DUPLI1_WEB_SERVICE_API_KEY=dk_live_<43 chars>
+DUPLI1_WEB_SERVICE_AUTH_URL=http://proxy.dupli1.local:8081   # defaults to DUPLI1_AUTH_API_BASE_URL / DUPLI1_API_BASE_URL
+```
+
+Email + password still works while the service account keeps a password (being
+retired in favour of the key):
 
 ```bash
 DUPLI1_WEB_SERVICE_EMAIL=dupli1-web@web.dupli1.com
