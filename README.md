@@ -101,9 +101,10 @@ DUPLI1_API_CA_FILE=../dupli1/certs/server.crt
 Plain `http://localhost:8080` remains the default and needs no CA file. See
 [scripts/dupli1-local-tls/README.md](scripts/dupli1-local-tls/README.md).
 
-Customer registration requires a dupli1-web service account. Prefer its API key
+Customer registration requires the dupli1-web service account's API key
 (elug3/dupli1 `docs/auth-service-api-keys.md`) — the same value auth seeds from
-`DUPLI1_WEB_SERVICE_API_KEY`. The BFF exchanges it for access tokens at auth's
+`DUPLI1_WEB_SERVICE_API_KEY`. Service accounts have no password and cannot sign
+in to either web app. The BFF exchanges the key for access tokens at auth's
 `/api/v1/auth/token`, which the gateway serves only on its internal listener, so
 point `DUPLI1_WEB_SERVICE_AUTH_URL` there (or at auth directly):
 
@@ -112,15 +113,7 @@ DUPLI1_WEB_SERVICE_API_KEY=dk_live_<43 chars>
 DUPLI1_WEB_SERVICE_AUTH_URL=http://proxy.dupli1.local:8081   # defaults to DUPLI1_AUTH_API_BASE_URL / DUPLI1_API_BASE_URL
 ```
 
-Email + password still works while the service account keeps a password (being
-retired in favour of the key):
-
-```bash
-DUPLI1_WEB_SERVICE_EMAIL=dupli1-web@web.dupli1.com
-DUPLI1_WEB_SERVICE_PASSWORD=<service-account-password>
-```
-
-Optionally set a short-lived access token instead (skips login/refresh):
+For local/dev you can set a short-lived access token instead (skips the exchange):
 
 ```bash
 DUPLI1_WEB_SERVICE_TOKEN=<access_token>
@@ -310,10 +303,9 @@ The runbook, including manual deploys and rollback, is
 `deploy/venus/docker-compose.yml`.
 
 Customer registration credentials are **not** GitHub Actions secrets.
-`DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD` come from
-`/opt/dupli1/.env` on VENUS, the same values `dupli1-auth` seeds the machine
-user with. A different password here would drift from auth and break signup
-(`login: invalid credentials`).
+`DUPLI1_WEB_SERVICE_API_KEY` comes from `/opt/dupli1/.env` on VENUS, the same
+value `dupli1-auth` seeds the machine user's key from. A different key here
+would drift from auth and break signup (`invalid_api_key`).
 
 ## Deployment Notes
 

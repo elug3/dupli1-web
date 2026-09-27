@@ -17,6 +17,7 @@ describe("service account API key", () => {
     vi.stubEnv("DUPLI1_WEB_SERVICE_TOKEN", "");
     vi.stubEnv("DUPLI1_WEB_SERVICE_API_KEY", KEY);
     vi.stubEnv("DUPLI1_WEB_SERVICE_AUTH_URL", "http://proxy.internal:8081");
+    // A leftover password must be ignored: service accounts have none.
     vi.stubEnv("DUPLI1_WEB_SERVICE_EMAIL", "web@example.com");
     vi.stubEnv("DUPLI1_WEB_SERVICE_PASSWORD", "legacy-password");
   });
@@ -27,7 +28,7 @@ describe("service account API key", () => {
     delete globalThis.__dupli1WebServiceAccount;
   });
 
-  it("exchanges the key at the internal URL, not the password login, and caches the token", async () => {
+  it("exchanges the key at the internal URL, never logs in with a password, and caches the token", async () => {
     const calls: { url: string; auth: string | null }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -44,12 +45,13 @@ describe("service account API key", () => {
     expect(calls).toEqual([{ url: "http://proxy.internal:8081/api/v1/auth/token", auth: `ApiKey ${KEY}` }]);
   });
 
-  it("is configured by the key alone, with no password", async () => {
-    vi.stubEnv("DUPLI1_WEB_SERVICE_EMAIL", "");
-    vi.stubEnv("DUPLI1_WEB_SERVICE_PASSWORD", "");
-    vi.stubGlobal("fetch", vi.fn(async () => json({ token: "access-2", expires_in: 900 })));
-    expect(serviceAccountConfigured()).toBe(true);
-    expect(await getServiceAccountAccessToken()).toBe("access-2");
+  it("is not configured by an email and password alone", async () => {
+    vi.stubEnv("DUPLI1_WEB_SERVICE_API_KEY", "");
+    const fetchMock = vi.fn(async () => json({ refresh_token: "should-not-be-used" }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(serviceAccountConfigured()).toBe(false);
+    await expect(getServiceAccountAccessToken()).rejects.toThrow("DUPLI1_WEB_SERVICE_API_KEY is required");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("explains an internal-only 404 and never echoes the key", async () => {

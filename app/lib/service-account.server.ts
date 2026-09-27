@@ -2,20 +2,12 @@ const ACCESS_TOKEN_TTL_SECONDS = 60 * 5;
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 15_000;
 
 interface ServiceAccountState {
-  /** Empty when the token came from an API key: there is nothing to refresh. */
-  refreshToken: string;
   accessToken: string;
   accessTokenExpiresAt: number;
 }
 
-interface AuthLoginResponse {
-  refresh_token?: string;
-}
-
-interface AuthRefreshResponse {
+interface AuthTokenResponse {
   token?: string;
-  access_token?: string;
-  refresh_token?: string;
   expires_in?: number;
 }
 
@@ -44,10 +36,6 @@ function authApiBaseUrl(): string {
   );
 }
 
-function authUrl(path: string): string {
-  return new URL(path, authApiBaseUrl()).toString();
-}
-
 /**
  * Where the API key exchange goes. auth's `/api/v1/auth/token` is served only
  * on the gateway's internal listener (elug3/dupli1 api/gateway/routes.conf),
@@ -74,34 +62,18 @@ function staticServiceToken(): string | undefined {
   return token || undefined;
 }
 
-/** Service-account API key (elug3/dupli1 docs/auth-service-api-keys.md). */
+/**
+ * The dupli1-web service account's API key (elug3/dupli1
+ * docs/auth-service-api-keys.md). Service accounts have no password, so this
+ * is its only credential.
+ */
 function serviceAPIKey(): string | undefined {
   const key = process.env.DUPLI1_WEB_SERVICE_API_KEY?.trim();
   return key || undefined;
 }
 
-function serviceAccountCredentials(): { email: string; password: string } | undefined {
-  const email = process.env.DUPLI1_WEB_SERVICE_EMAIL?.trim();
-  const password = process.env.DUPLI1_WEB_SERVICE_PASSWORD;
-  if (!email || !password) return undefined;
-  return { email, password };
-}
-
 export function serviceAccountConfigured(): boolean {
-  return Boolean(staticServiceToken() || serviceAPIKey() || serviceAccountCredentials());
-}
-
-export function requireServiceAccountConfig(): {
-  email: string;
-  password: string;
-} {
-  const credentials = serviceAccountCredentials();
-  if (!credentials) {
-    throw new Error(
-      "DUPLI1_WEB_SERVICE_API_KEY (or DUPLI1_WEB_SERVICE_EMAIL and DUPLI1_WEB_SERVICE_PASSWORD, or DUPLI1_WEB_SERVICE_TOKEN) is required"
-    );
-  }
-  return credentials;
+  return Boolean(staticServiceToken() || serviceAPIKey());
 }
 
 /**
@@ -109,7 +81,7 @@ export function requireServiceAccountConfig(): {
  * key is the long-lived credential, so when the token nears expiry we simply
  * exchange again. Errors never include the key.
  */
-async function exchangeAPIKey(apiKey: string): Promise<{ accessToken: string; expiresAt: number }> {
+async function exchangeAPIKey(apiKey: string): Promise<ServiceAccountState> {
   const response = await fetch(tokenExchangeUrl(), {
     method: "POST",
     headers: { Authorization: `ApiKey ${apiKey}` },
@@ -123,80 +95,12 @@ async function exchangeAPIKey(apiKey: string): Promise<{ accessToken: string; ex
       `Service account API key exchange failed (${response.status}): ${await response.text()}${hint}`
     );
   }
-  const body = (await response.json()) as AuthRefreshResponse;
+  const body = (await response.json()) as AuthTokenResponse;
   const accessToken = typeof body.token === "string" ? body.token : "";
   if (!accessToken) {
     throw new Error("Service account API key exchange did not return a token");
   }
-  return { accessToken, expiresAt: accessTokenExpiresAt(body.expires_in) };
-}
-
-async function loginForRefreshToken(
-  email: string,
-  password: string
-): Promise<string> {
-  const response = await fetch(authUrl("/api/v1/auth/login"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // A machine login, not a web session: auth allows it for service accounts only.
-    body: JSON.stringify({ email, password, client: "service" }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Service account login failed (${response.status}): ${message}`
-    );
-  }
-
-  const body = (await response.json()) as AuthLoginResponse;
-  if (typeof body.refresh_token !== "string" || !body.refresh_token) {
-    throw new Error("Service account login did not return a refresh token");
-  }
-
-  return body.refresh_token;
-}
-
-async function refreshAccessToken(refreshToken: string): Promise<{
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-}> {
-  const response = await fetch(authUrl("/api/v1/auth/refresh"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Service account refresh failed (${response.status}): ${message}`
-    );
-  }
-
-  const body = (await response.json()) as AuthRefreshResponse;
-  const accessToken =
-    typeof body.token === "string"
-      ? body.token
-      : typeof body.access_token === "string"
-        ? body.access_token
-        : "";
-
-  if (!accessToken) {
-    throw new Error("Service account refresh did not return an access token");
-  }
-
-  const nextRefreshToken =
-    typeof body.refresh_token === "string" && body.refresh_token
-      ? body.refresh_token
-      : refreshToken;
-
-  return {
-    accessToken,
-    refreshToken: nextRefreshToken,
-    expiresAt: accessTokenExpiresAt(body.expires_in),
-  };
+  return { accessToken, accessTokenExpiresAt: accessTokenExpiresAt(body.expires_in) };
 }
 
 /**
@@ -204,9 +108,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{
  *
  * Preference order:
  * 1. Static `DUPLI1_WEB_SERVICE_TOKEN` (short-lived; fine for local/dev)
- * 2. API key exchange via `DUPLI1_WEB_SERVICE_API_KEY`
- * 3. Login + refresh via `DUPLI1_WEB_SERVICE_EMAIL` / `DUPLI1_WEB_SERVICE_PASSWORD`
- *    (being retired in favour of the API key)
+ * 2. `DUPLI1_WEB_SERVICE_API_KEY`, exchanged at auth and cached until near expiry
  */
 export async function getServiceAccountAccessToken(): Promise<string> {
   const staticToken = staticServiceToken();
@@ -215,47 +117,17 @@ export async function getServiceAccountAccessToken(): Promise<string> {
   }
 
   const cached = getState();
-  if (
-    cached &&
-    cached.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > now()
-  ) {
+  if (cached && cached.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > now()) {
     return cached.accessToken;
   }
 
   const apiKey = serviceAPIKey();
-  if (apiKey) {
-    const exchanged = await exchangeAPIKey(apiKey);
-    setState({
-      refreshToken: "",
-      accessToken: exchanged.accessToken,
-      accessTokenExpiresAt: exchanged.expiresAt,
-    });
-    return exchanged.accessToken;
+  if (!apiKey) {
+    throw new Error(
+      "DUPLI1_WEB_SERVICE_API_KEY is required (or DUPLI1_WEB_SERVICE_TOKEN for local/dev)"
+    );
   }
-
-  const { email, password } = requireServiceAccountConfig();
-
-  if (cached?.refreshToken) {
-    try {
-      const refreshed = await refreshAccessToken(cached.refreshToken);
-      setState({
-        refreshToken: refreshed.refreshToken,
-        accessToken: refreshed.accessToken,
-        accessTokenExpiresAt: refreshed.expiresAt,
-      });
-      return refreshed.accessToken;
-    } catch {
-      setState(undefined);
-    }
-  }
-
-  const refreshToken = await loginForRefreshToken(email, password);
-  const refreshed = await refreshAccessToken(refreshToken);
-  setState({
-    refreshToken: refreshed.refreshToken,
-    accessToken: refreshed.accessToken,
-    accessTokenExpiresAt: refreshed.expiresAt,
-  });
-
-  return refreshed.accessToken;
+  const exchanged = await exchangeAPIKey(apiKey);
+  setState(exchanged);
+  return exchanged.accessToken;
 }
