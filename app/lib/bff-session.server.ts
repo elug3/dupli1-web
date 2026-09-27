@@ -348,6 +348,11 @@ function tokenRequestBody(body: Record<string, unknown>): string {
   });
 }
 
+/** Login client auth checks the account type against: customers and managers
+ * may sign in here, service accounts may not. Set server-side so a browser
+ * cannot pick another client; auth's refusal message is shown as is. */
+const LOGIN_CLIENT = "storefront";
+
 async function requestTokens(
   path: string,
   body: Record<string, unknown>
@@ -533,7 +538,10 @@ export async function proxyNanoCheckout(
 
 export async function handleLogin(request: Request): Promise<Response> {
   const body = await parseJsonBody(request);
-  const upstream = await requestTokens("/api/v1/auth/login", body);
+  const upstream = await requestTokens("/api/v1/auth/login", {
+    ...body,
+    client: LOGIN_CLIENT,
+  });
 
   if (!upstream.ok) {
     return sanitizedAuthResponse(upstream);
@@ -599,7 +607,11 @@ export async function handleRegister(request: Request): Promise<Response> {
     return sanitizedAuthResponse(registerResponse);
   }
 
-  const loginResponse = await requestTokens("/api/v1/auth/login", { email, password });
+  const loginResponse = await requestTokens("/api/v1/auth/login", {
+    email,
+    password,
+    client: LOGIN_CLIENT,
+  });
   if (!loginResponse.ok) {
     return sanitizedAuthResponse(loginResponse);
   }

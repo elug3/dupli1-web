@@ -337,3 +337,52 @@ describe("auth unavailable is not an expired session", () => {
     expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
   });
 });
+
+describe("login client", () => {
+  it("asks auth for the storefront client whatever the browser sends", async () => {
+    let sentClient: unknown;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        if (String(url).endsWith("/api/v1/auth/login")) {
+          sentClient = JSON.parse(String(init?.body)).client;
+          return jsonResponse({ refresh_token: "rt-1" });
+        }
+        if (String(url).endsWith("/api/v1/auth/refresh")) {
+          return jsonResponse({ token: "access-1", refresh_token: "rt-2" });
+        }
+        throw new Error(`unexpected fetch: ${String(url)}`);
+      })
+    );
+
+    await handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "a@example.com", password: "secret", client: "service" }),
+      })
+    );
+    expect(sentClient).toBe("storefront");
+  });
+
+  it("passes auth's refusal message through without a session", async () => {
+    const message = "Service accounts cannot sign in to the storefront.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ error: message, code: "account_type_not_allowed" }, 403)
+      )
+    );
+
+    const res = await handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "robot@example.com", password: "secret" }),
+      })
+    );
+    expect(res.status).toBe(403);
+    expect(res.headers.get("Set-Cookie")).toBeNull();
+    expect(await res.json()).toMatchObject({ error: message, code: "account_type_not_allowed" });
+  });
+});
