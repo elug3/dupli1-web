@@ -52,10 +52,10 @@ export default function ProductPage() {
 
   if (status === "loading") {
     return (
-      <main className="mx-auto max-w-7xl animate-pulse px-4 py-10 md:px-8">
-        <div className="flex flex-col gap-10 md:flex-row">
-          <div className="flex-1 bg-zinc-100" style={{ paddingBottom: "120%" }} />
-          <div className="w-full space-y-4 md:w-[420px]">
+      <main className="animate-pulse">
+        <div className="lg:flex lg:items-start">
+          <div className="aspect-[5/6] w-full bg-zinc-100 lg:w-1/2" />
+          <div className="w-full space-y-4 px-4 py-8 lg:w-1/2 lg:px-16 lg:py-10 xl:px-24">
             <div className="h-4 w-24 rounded bg-zinc-100" />
             <div className="h-10 w-64 rounded bg-zinc-100" />
             <div className="h-8 w-32 rounded bg-zinc-100" />
@@ -78,7 +78,6 @@ export default function ProductPage() {
 
   return (
     <main className="bg-white">
-      <Breadcrumb product={product} />
       <ProductLayout product={product} />
       <RelatedProducts seedId={product.id} />
     </main>
@@ -91,37 +90,36 @@ function Breadcrumb({ product }: { product: ServerProduct }) {
   const { t, translateProductName } = useLanguage();
   const brandSlug = brandToSlug(product.brand);
 
+  // Lives inside the info column rather than in a full-width band above the
+  // page: against a full-bleed gallery there is no left edge to align to, so
+  // it shares the product title's instead.
   return (
-    <div className="border-b border-zinc-100 px-4 py-3 md:px-8">
-      <div className="mx-auto max-w-7xl">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] uppercase tracking-widest text-zinc-400 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <Link to="/" className="shrink-0 transition hover:text-zinc-950">
-            {t("product.home")}
-          </Link>
-          <ChevronIcon />
-          <Link
-            to="/category/product-type/handbags"
-            className="shrink-0 transition hover:text-zinc-950"
-          >
-            {t("product.bags")}
-          </Link>
-          <ChevronIcon />
-          <Link
-            to={brandSlug ? `/category/brand/${brandSlug}` : "/category/product-type/handbags"}
-            className="shrink-0 transition hover:text-zinc-950"
-          >
-            {product.brand}
-          </Link>
-          <ChevronIcon />
-          <span className="max-w-[14rem] truncate text-zinc-600 sm:max-w-md md:max-w-xl">
-            {translateProductName(product.id, product.name)}
-          </span>
-        </nav>
-      </div>
-    </div>
+    <nav
+      aria-label="Breadcrumb"
+      className="mb-5 flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] uppercase tracking-widest text-zinc-400 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <Link to="/" className="shrink-0 transition hover:text-zinc-950">
+        {t("product.home")}
+      </Link>
+      <ChevronIcon />
+      <Link
+        to="/category/product-type/handbags"
+        className="shrink-0 transition hover:text-zinc-950"
+      >
+        {t("product.bags")}
+      </Link>
+      <ChevronIcon />
+      <Link
+        to={brandSlug ? `/category/brand/${brandSlug}` : "/category/product-type/handbags"}
+        className="shrink-0 transition hover:text-zinc-950"
+      >
+        {product.brand}
+      </Link>
+      <ChevronIcon />
+      <span className="max-w-[14rem] truncate text-zinc-600 sm:max-w-xs lg:max-w-[22rem]">
+        {translateProductName(product.id, product.name)}
+      </span>
+    </nav>
   );
 }
 
@@ -200,35 +198,12 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl px-0 pb-24 md:px-8 md:py-10 md:pb-10">
-      <div className="flex flex-col md:flex-row md:gap-12 lg:gap-20">
+    <div className="pb-24 lg:pb-0">
+      <div className="lg:flex lg:items-start">
 
-        {/* ── Left: image gallery ──────────────────────────────────────── */}
-        <div className="flex-1 md:flex md:gap-4">
-
-          {/* Thumbnail strip — desktop only */}
-          <div className="hidden flex-col gap-2 md:flex">
-            {images.map((img, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setActiveImg(i)}
-                className={[
-                  "h-20 w-16 overflow-hidden bg-zinc-50 transition",
-                  activeImg === i
-                    ? "ring-1 ring-zinc-950"
-                    : "opacity-50 hover:opacity-80",
-                ].join(" ")}
-              >
-                <img
-                  src={img.src}
-                  alt=""
-                  className={`h-full w-full object-cover ${img.position}`}
-                />
-              </button>
-            ))}
-          </div>
-
+        {/* ── Left: full-bleed image stack — edge to edge, no thumbnail rail;
+             scrolling it is how you browse the product ─────────────────── */}
+        <div className="lg:w-1/2">
           <ProductImageGallery
             images={images}
             activeIndex={activeImg}
@@ -250,9 +225,14 @@ function ProductLayout({ product }: { product: ServerProduct }) {
         </div>
 
         {/* ── Right: product info — pinned in place while the gallery scrolls,
-             matching the flagship PDP pattern of keeping price/CTA always in view */}
-        <div className="w-full px-4 py-8 md:w-[420px] md:shrink-0 md:self-start md:sticky md:top-28 md:px-0 md:py-0">
-          <ProductInfo product={product} />
+             matching the flagship PDP pattern of keeping price/CTA always in
+             view. Capped to the viewport so a tall column (open accordions,
+             long names) stays reachable instead of being clipped off-screen. */}
+        <div className="w-full px-4 py-8 lg:sticky lg:top-[7.75rem] lg:max-h-[calc(100vh-7.75rem)] lg:w-1/2 lg:overflow-y-auto lg:px-16 lg:py-10 xl:px-24">
+          <div className="mx-auto w-full max-w-[520px]">
+            <Breadcrumb product={product} />
+            <ProductInfo product={product} />
+          </div>
         </div>
       </div>
     </div>
@@ -476,9 +456,9 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         ))}
       </div>
 
-      {/* Persistent purchase bar — mobile only; the sticky info column above
-          already keeps the CTA in view on md+ viewports */}
-      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-zinc-100 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm md:hidden">
+      {/* Persistent purchase bar — below lg only; from lg up the pinned info
+          column already keeps the CTA in view */}
+      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-zinc-100 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm lg:hidden">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
             {translateProductName(product.id, product.name)}
