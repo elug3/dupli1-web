@@ -91,7 +91,8 @@ async function loginForRefreshToken(
   const response = await fetch(authUrl("/api/v1/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    // A machine login, not a web session: auth allows it for service accounts only.
+    body: JSON.stringify({ email, password, client: "service" }),
   });
 
   if (!response.ok) {
