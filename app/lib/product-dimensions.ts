@@ -48,3 +48,16 @@ export function formatDimensionsCm(
   if (dims.depthMm) parts.push(`${label("depth")} ${mmToCm(dims.depthMm)}`);
   return `${parts.join(" × ")} cm`;
 }
+
+/**
+ * Unlabeled W×H×D in centimeters for tight spots like a size pill:
+ * `34×22×8`. The full labeled form stays next to it for the selected size.
+ */
+export function formatDimensionsCompactCm(raw: ProductDimensions | null | undefined): string {
+  const dims = normalizeDimensions(raw);
+  if (!dims) return "";
+  return [dims.widthMm, dims.heightMm, dims.depthMm]
+    .filter((mm): mm is number => typeof mm === "number")
+    .map(mmToCm)
+    .join("×");
+}

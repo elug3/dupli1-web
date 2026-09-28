@@ -1,5 +1,6 @@
 import type { ProductVariant } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
+import { formatDimensionsCm, formatDimensionsCompactCm } from "~/lib/product-dimensions";
 import {
   isCombinationAvailable,
   pickVariant,
@@ -23,7 +24,16 @@ export function VariantPicker({ variants, selected, onSelect }: VariantPickerPro
   const { t, translateValue } = useLanguage();
   const colors = variantColors(variants);
   const sizes = variantSizes(variants);
-  if (colors.length === 0 && sizes.length === 0) return null;
+  const selectedDimensions = formatDimensionsCm(selected?.dimensions, (axis) =>
+    t(`product.dimension.${axis}`)
+  );
+  if (colors.length === 0 && sizes.length === 0 && !selectedDimensions) return null;
+
+  // The variant a size pill stands for: that size in the current color, or
+  // in any color when the current one does not come in it.
+  const variantForSize = (size: string) =>
+    variants.find((v) => v.size === size && v.color === selected?.color) ??
+    variants.find((v) => v.size === size);
 
   const pick = (choice: { color?: string; size?: string }) => {
     const next = pickVariant(variants, selected, choice);
@@ -77,15 +87,16 @@ export function VariantPicker({ variants, selected, onSelect }: VariantPickerPro
               const active = selected?.size === size;
               const exists = variants.some((v) => v.size === size && v.color === selected?.color);
               const available = isCombinationAvailable(variants, exists ? selected?.color : undefined, size);
+              const dims = formatDimensionsCompactCm(variantForSize(size)?.dimensions);
               return (
                 <button
                   key={size}
                   type="button"
                   aria-pressed={active}
-                  aria-label={`${size}${available ? "" : ` · ${t("product.variantSoldOut")}`}`}
+                  aria-label={`${size}${dims ? ` · ${dims} cm` : ""}${available ? "" : ` · ${t("product.variantSoldOut")}`}`}
                   onClick={() => pick({ size })}
                   className={[
-                    "h-10 min-w-12 rounded-md border px-4 text-xs font-semibold uppercase transition",
+                    "flex min-h-10 min-w-12 flex-col items-center justify-center rounded-md border px-4 py-1.5 text-xs font-semibold uppercase transition",
                     active
                       ? "border-zinc-950 bg-zinc-950 text-white"
                       : available
@@ -94,11 +105,31 @@ export function VariantPicker({ variants, selected, onSelect }: VariantPickerPro
                   ].join(" ")}
                 >
                   {size}
+                  {dims && (
+                    <span
+                      aria-hidden="true"
+                      className={[
+                        "mt-0.5 text-[10px] font-normal normal-case tabular-nums",
+                        active ? "text-white/70" : "text-zinc-400",
+                      ].join(" ")}
+                    >
+                      {dims}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
         </fieldset>
+      )}
+
+      {/* The selected size's measurements, labeled (W/H/D are easy to mix
+          up); shown alone for one-size styles */}
+      {selectedDimensions && (
+        <p className="-mt-2 text-xs text-zinc-500">
+          <span className="font-semibold text-zinc-950">{t("product.dimensions")}</span>
+          <span className="ml-2 tabular-nums">{selectedDimensions}</span>
+        </p>
       )}
     </div>
   );

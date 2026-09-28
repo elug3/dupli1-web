@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDimensionsCm,
+  formatDimensionsCompactCm,
   normalizeDimensions,
 } from "./product-dimensions";
 
@@ -42,5 +43,17 @@ describe("formatDimensionsCm", () => {
 
   it("returns empty string without dimensions", () => {
     expect(formatDimensionsCm(undefined, label)).toBe("");
+  });
+});
+
+describe("formatDimensionsCompactCm", () => {
+  it("joins the known axes in centimeters", () => {
+    expect(formatDimensionsCompactCm({ widthMm: 340, heightMm: 220, depthMm: 80 })).toBe("34×22×8");
+    expect(formatDimensionsCompactCm({ widthMm: 225, heightMm: 105 })).toBe("22.5×10.5");
+  });
+
+  it("is empty when nothing is known", () => {
+    expect(formatDimensionsCompactCm(undefined)).toBe("");
+    expect(formatDimensionsCompactCm({ widthMm: 0 })).toBe("");
   });
 });
