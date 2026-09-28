@@ -12,8 +12,8 @@ import { hasReachedScrollEnd, resolveSheetDrag } from "~/lib/product-sheet";
 
 /** Tailwind `max-lg`: below 64rem the PDP is a gallery with a bottom sheet. */
 const MOBILE_QUERY = "(width < 64rem)";
-/** Breathing room kept under the bag button in the collapsed sheet. */
-const PEEK_BOTTOM_GAP_PX = 16;
+/** Breathing room kept under the product name in the folded sheet. */
+const PEEK_BOTTOM_GAP_PX = 14;
 
 function isMobileViewport() {
   return typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches;
@@ -32,7 +32,7 @@ function scrollWindowTo(top: number) {
  * sheet over it.
  *
  * Collapsed, the document does not scroll — only the gallery does, and the
- * sheet shows its head (handle, name, price, bag button). The sheet opens when
+ * sheet shows its head (handle, brand, name, color dots). The sheet opens when
  * dragged up far enough, when its handle is tapped, or when the gallery is
  * scrolled to its last image. Open, it sits right under the site header and
  * the document scrolls it (and the related products after it); scrolling back
@@ -105,7 +105,7 @@ export function useProductSheet() {
       root.style.setProperty("--pdp-peek", `${peek}px`);
     };
     measure();
-    // The head grows once the price stops loading, and with long names.
+    // The head grows with long names and the language switch.
     const observer = new ResizeObserver(measure);
     observer.observe(sheet);
     window.addEventListener("resize", measure);
