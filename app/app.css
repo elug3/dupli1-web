@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "Noto Sans KR", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif,
+  --font-sans: "Pretendard Variable", Pretendard, "Noto Sans SC", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-display: "Cormorant Garamond", Georgia, serif;
+  /* One family for text and display: Pretendard (Inter-based Latin + Hangul).
+     Chinese has no Pretendard glyphs and falls through to Noto Sans SC. */
+  --font-display: "Pretendard Variable", Pretendard, "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 
   --animate-mobile-menu-overlay-in: mobile-menu-overlay-in 220ms ease-out both;
   --animate-mobile-menu-overlay-out: mobile-menu-overlay-out 180ms ease-in both;
@@ -152,14 +154,6 @@
   }
 }
 
-html[lang="ko"] {
-  --font-display: "Noto Sans KR", "Inter", ui-sans-serif, system-ui, sans-serif;
-}
-
-html[lang="zh-CN"] {
-  --font-display: "Noto Sans SC", "Inter", ui-sans-serif, system-ui, sans-serif;
-}
-
 html,
 body {
   @apply bg-white dark:bg-gray-950;
@@ -174,7 +168,8 @@ html[lang="zh-CN"] :where(.uppercase[class*="tracking-"]:not([data-brand-logo]))
   letter-spacing: 0.06em;
 }
 
-html[lang="ko"] :where(h1, h2, h3, [style*="--font-display"]),
-html[lang="zh-CN"] :where(h1, h2, h3, [style*="--font-display"]) {
-  line-height: 1.12;
+/* Headings in every language: Hangul and Han need more room than 1.12 once
+   a title wraps. */
+html[lang] :where(h1, h2, h3, [style*="--font-display"]) {
+  line-height: 1.3;
 }

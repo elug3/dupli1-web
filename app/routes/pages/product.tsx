@@ -450,7 +450,7 @@ function ProductInfo({
           </Link>
 
           <h1
-            className="mt-1 text-2xl font-light leading-tight text-zinc-950 md:text-3xl lg:mt-2 lg:text-5xl"
+            className="mt-1 break-keep text-2xl font-medium tracking-[-0.01em] text-zinc-950 md:text-3xl lg:mt-2 lg:text-5xl lg:font-normal"
             style={{ fontFamily: "var(--font-display)" }}
           >
             {translateProductName(product.id, product.name)}

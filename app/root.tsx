@@ -25,6 +25,9 @@ import { useCart } from "./lib/useCart";
 import { useShippingFeeWon } from "./lib/useShippingFee";
 
 export const links = () => [
+  // Pretendard (Latin + Hangul, all text): the dynamic-subset build fetches
+  // only the Hangul blocks a page uses.
+  { rel: "preconnect", href: "https://cdn.jsdelivr.net", crossOrigin: "anonymous" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -33,7 +36,12 @@ export const links = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap",
+    href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css",
+  },
+  // Noto Sans SC: Chinese, which Pretendard does not cover.
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap",
   },
 ];
 
@@ -244,7 +252,7 @@ function TopNav() {
         <NavLink
           to="/"
           data-brand-logo
-          className="justify-self-center text-sm font-medium uppercase tracking-[0.4em] text-zinc-950 transition hover:opacity-70"
+          className="justify-self-center text-sm font-semibold uppercase tracking-[0.4em] text-zinc-950 transition hover:opacity-70"
           style={{ fontFamily: "var(--font-display)" }}
         >
           Dupli1
