@@ -5,10 +5,12 @@ import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
+import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
 import { brandToSlug } from "~/lib/catalog";
 import { telegramContactUrl } from "~/lib/contact";
 import {
   type Bag,
+  type ProductVariant,
   type ServerProduct,
   addToWishlist,
   bagImage,
@@ -22,6 +24,7 @@ import {
 import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
 import { formatDimensionsCm } from "~/lib/product-dimensions";
+import { defaultVariant, withVariant } from "~/lib/product-variants";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
@@ -133,8 +136,12 @@ function Breadcrumb({
 
 // ── Main product layout ────────────────────────────────────────────────────
 
-function ProductLayout({ product }: { product: ServerProduct }) {
+function ProductLayout({ product: parent }: { product: ServerProduct }) {
   const { t, translateProductName } = useLanguage();
+  const variants = parent.variants ?? [];
+  const [variant, setVariant] = useState<ProductVariant | undefined>(() => defaultVariant(parent));
+  // The rest of the page reads the product as the selected color/size.
+  const product = withVariant(parent, variant);
   const fallback = productImage(product.category, product.brand, product.image);
   const images = (product.images?.length ? product.images : [fallback]).map((src) => ({
     src,
@@ -146,6 +153,12 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   const [wishlistBusy, setWishlistBusy] = useState(false);
   const navigate = useNavigate();
   const sheet = useProductSheet();
+  const imagesKey = images.map((img) => img.src).join("|");
+
+  // A color with its own photos swaps the gallery; start it from the top.
+  useEffect(() => {
+    setActiveImg(0);
+  }, [imagesKey]);
 
   useEffect(() => {
     setActiveImg(0);
@@ -220,6 +233,7 @@ function ProductLayout({ product }: { product: ServerProduct }) {
              a vertical scroller of their own under the bottom sheet. ─────── */}
         <div className="lg:w-1/2" style={sheet.galleryStyle}>
           <ProductImageGallery
+            key={imagesKey}
             images={images}
             activeIndex={activeImg}
             onActiveIndexChange={setActiveImg}
@@ -264,7 +278,14 @@ function ProductLayout({ product }: { product: ServerProduct }) {
           />
           <div className="mx-auto w-full max-w-[520px]">
             <Breadcrumb product={product} className="mb-5 hidden lg:flex" />
-            <ProductInfo product={product} headEndRef={sheet.headEndRef} />
+            <ProductInfo
+              product={product}
+              variants={variants}
+              selectedVariant={variant}
+              onSelectVariant={setVariant}
+              onShowVariants={sheet.show}
+              headEndRef={sheet.headEndRef}
+            />
             <Breadcrumb product={product} className="mt-10 flex lg:hidden" />
           </div>
         </div>
@@ -318,9 +339,18 @@ function SheetHandle({
 
 function ProductInfo({
   product,
+  variants,
+  selectedVariant,
+  onSelectVariant,
+  onShowVariants,
   headEndRef,
 }: {
   product: ServerProduct;
+  variants: ProductVariant[];
+  selectedVariant: ProductVariant | undefined;
+  onSelectVariant: (variant: ProductVariant) => void;
+  /** Mobile: open the bottom sheet from its head's color dots. */
+  onShowVariants: () => void;
   /** End of what the collapsed mobile sheet shows (after the bag button). */
   headEndRef?: Ref<HTMLDivElement>;
 }) {
@@ -425,8 +455,9 @@ function ProductInfo({
       </h1>
 
       {/* Price */}
-      <div className="mt-1 lg:hidden">
+      <div className="mt-1 flex items-center justify-between gap-4 lg:hidden">
         <ProductPrice price={product.price} officialPrice={product.officialPrice} />
+        <VariantColorDots variants={variants} onClick={onShowVariants} />
       </div>
       <div className="mt-5 hidden items-baseline gap-3 lg:flex">
         <ProductPrice
@@ -435,6 +466,14 @@ function ProductInfo({
           size="lg"
         />
       </div>
+
+      {/* Color / size — under the price from lg; below lg it opens with the
+          sheet, right after the bag button (the head shows color dots) */}
+      {variants.length > 0 && (
+        <div className="mt-6 max-lg:order-2">
+          <VariantPicker variants={variants} selected={selectedVariant} onSelect={onSelectVariant} />
+        </div>
+      )}
 
       <div className="my-6 h-px bg-zinc-100 max-lg:order-2" />
 

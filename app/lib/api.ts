@@ -59,6 +59,23 @@ export interface ServerProduct {
   dimensions?: ProductDimensions;
   wishlistCount?: number;
   soldCount?: number;
+  /** Active sellable variants (color × size), for the PDP pickers. */
+  variants?: ProductVariant[];
+}
+
+/** One sellable SKU of a parent product, as the PDP pickers need it. */
+export interface ProductVariant {
+  sku: string;
+  skuId?: string;
+  /** Display color name (e.g. "Black"); may be empty. */
+  color: string;
+  /** Letter size label (e.g. "M"); empty when the style has no sizes. */
+  size: string;
+  availableQty?: number;
+  inStock?: boolean;
+  dimensions?: ProductDimensions;
+  /** Variant-specific gallery; empty means use the parent's images. */
+  images: string[];
 }
 
 /** Raw parent-style payload from `GET /api/v1/products` (dupli1-product). */
@@ -97,6 +114,9 @@ interface UpstreamProduct {
     sku: string;
     skuId?: string;
     color?: string;
+    /** Letter size label (S/M/L); distinct from `dimensions`. */
+    size?: string;
+    sizeCode?: string;
     /** Echo of parent price for cart clients. */
     price?: number;
     officialPrice?: number;
@@ -218,7 +238,23 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     createdAt: product.createdAt ?? new Date(0).toISOString(),
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
+    variants: upstreamVariants(product),
   };
+}
+
+function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
+  return (product.variants ?? [])
+    .filter((v) => v.status === "active" && v.sku?.trim())
+    .map((v) => ({
+      sku: v.sku.trim(),
+      skuId: v.skuId?.trim() || undefined,
+      color: v.color?.trim() ?? "",
+      size: (v.size ?? v.sizeCode ?? "").trim(),
+      availableQty: v.availableQty,
+      inStock: v.inStock,
+      dimensions: normalizeDimensions(v.dimensions) ?? undefined,
+      images: (v.imageUrls ?? []).filter((url) => url.trim().length > 0),
+    }));
 }
 
 // ── Bag listing — public gateway path ──────────────────────────────────────

@@ -258,6 +258,7 @@ export function useProductSheet() {
     open: mobileOpen,
     pinnedTop,
     toggle,
+    show: useCallback(() => setOpen(true), [setOpen]),
     close: useCallback(() => setOpen(false), [setOpen]),
     rootRef,
     galleryRef,
