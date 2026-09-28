@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
+import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
 import { brandToSlug } from "~/lib/catalog";
 import { telegramContactUrl } from "~/lib/contact";
 import {
   type Bag,
+  type ProductVariant,
   type ServerProduct,
   addToWishlist,
   bagImage,
@@ -21,6 +24,7 @@ import {
 import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
 import { formatDimensionsCm } from "~/lib/product-dimensions";
+import { defaultVariant, withVariant } from "~/lib/product-variants";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
@@ -29,6 +33,7 @@ import {
 } from "~/lib/product-stock";
 import { useCart } from "~/lib/useCart";
 import { useCartMutation } from "~/lib/useCartMutation";
+import { useProductSheet } from "~/lib/useProductSheet";
 
 export function meta() {
   return [
@@ -86,7 +91,13 @@ export default function ProductPage() {
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
 
-function Breadcrumb({ product }: { product: ServerProduct }) {
+function Breadcrumb({
+  product,
+  className = "",
+}: {
+  product: ServerProduct;
+  className?: string;
+}) {
   const { t, translateProductName } = useLanguage();
   const brandSlug = brandToSlug(product.brand);
 
@@ -96,7 +107,7 @@ function Breadcrumb({ product }: { product: ServerProduct }) {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="mb-5 flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] uppercase tracking-widest text-zinc-400 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className={`${className} items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] uppercase tracking-widest text-zinc-400 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
     >
       <Link to="/" className="shrink-0 transition hover:text-zinc-950">
         {t("product.home")}
@@ -125,8 +136,12 @@ function Breadcrumb({ product }: { product: ServerProduct }) {
 
 // ── Main product layout ────────────────────────────────────────────────────
 
-function ProductLayout({ product }: { product: ServerProduct }) {
+function ProductLayout({ product: parent }: { product: ServerProduct }) {
   const { t, translateProductName } = useLanguage();
+  const variants = parent.variants ?? [];
+  const [variant, setVariant] = useState<ProductVariant | undefined>(() => defaultVariant(parent));
+  // The rest of the page reads the product as the selected color/size.
+  const product = withVariant(parent, variant);
   const fallback = productImage(product.category, product.brand, product.image);
   const images = (product.images?.length ? product.images : [fallback]).map((src) => ({
     src,
@@ -137,6 +152,13 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   const [wishlist, setWishlist] = useState(false);
   const [wishlistBusy, setWishlistBusy] = useState(false);
   const navigate = useNavigate();
+  const sheet = useProductSheet();
+  const imagesKey = images.map((img) => img.src).join("|");
+
+  // A color with its own photos swaps the gallery; start it from the top.
+  useEffect(() => {
+    setActiveImg(0);
+  }, [imagesKey]);
 
   useEffect(() => {
     setActiveImg(0);
@@ -198,18 +220,28 @@ function ProductLayout({ product }: { product: ServerProduct }) {
   })();
 
   return (
-    <div className="pb-24 lg:pb-0">
+    // --pdp-gallery-h: below lg the gallery fills what the collapsed bottom
+    // sheet leaves of the viewport; useProductSheet measures the parts.
+    <div
+      ref={sheet.rootRef}
+      className="[--pdp-gallery-h:calc(var(--pdp-vh,100svh)-var(--pdp-header,5.5rem)-var(--pdp-peek,12rem))]"
+    >
       <div className="lg:flex lg:items-start">
 
-        {/* ── Left: full-bleed image stack — edge to edge, no thumbnail rail;
-             scrolling it is how you browse the product ─────────────────── */}
-        <div className="lg:w-1/2">
+        {/* ── Left: full-bleed images — edge to edge, no thumbnail rail;
+             scrolling them is how you browse the product. Below lg they are
+             a vertical scroller of their own under the bottom sheet. ─────── */}
+        <div className="lg:w-1/2" style={sheet.galleryStyle}>
           <ProductImageGallery
+            key={imagesKey}
             images={images}
             activeIndex={activeImg}
             onActiveIndexChange={setActiveImg}
             alt={translateProductName(product.id, product.name)}
             badge={badge}
+            scrollerRef={sheet.galleryRef}
+            onScrollerScroll={sheet.onGalleryScroll}
+            scrollLocked={sheet.open}
             actions={
               <button
                 type="button"
@@ -224,24 +256,104 @@ function ProductLayout({ product }: { product: ServerProduct }) {
           />
         </div>
 
-        {/* ── Right: product info — pinned in place while the gallery scrolls,
-             matching the flagship PDP pattern of keeping price/CTA always in
-             view. Capped to the viewport so a tall column (open accordions,
-             long names) stays reachable instead of being clipped off-screen. */}
-        <div className="w-full px-4 py-8 lg:sticky lg:top-[7.75rem] lg:max-h-[calc(100vh-7.75rem)] lg:w-1/2 lg:overflow-y-auto lg:px-16 lg:py-10 xl:px-24">
+        {/* ── Right: product info. From lg: pinned in place while the gallery
+             scrolls, capped to the viewport so a tall column (open accordions,
+             long names) stays reachable. Below lg: the bottom sheet — its head
+             (name, price, bag button) peeks under the gallery; drag it up, tap
+             its handle, or scroll to the last image to open it. */}
+        <div
+          ref={sheet.sheetRef}
+          style={sheet.sheetStyle}
+          {...sheet.sheetHandlers}
+          className={[
+            "w-full px-4 pb-8 lg:sticky lg:top-[7.75rem] lg:max-h-[calc(100vh-7.75rem)] lg:w-1/2 lg:overflow-y-auto lg:px-16 lg:py-10 xl:px-24",
+            "max-lg:relative max-lg:z-20 max-lg:bg-white max-lg:transition-transform max-lg:duration-300 max-lg:ease-[cubic-bezier(0.4,0,0.2,1)]",
+            sheet.open ? "" : "max-lg:touch-none",
+          ].join(" ")}
+        >
+          <SheetHandle
+            expanded={sheet.open}
+            label={sheet.open ? t("product.hideDetails") : t("product.showDetails")}
+            onClick={sheet.toggle}
+          />
           <div className="mx-auto w-full max-w-[520px]">
-            <Breadcrumb product={product} />
-            <ProductInfo product={product} />
+            <Breadcrumb product={product} className="mb-5 hidden lg:flex" />
+            <ProductInfo
+              product={product}
+              variants={variants}
+              selectedVariant={variant}
+              onSelectVariant={setVariant}
+              onShowVariants={sheet.show}
+              headEndRef={sheet.headEndRef}
+            />
+            <Breadcrumb product={product} className="mt-10 flex lg:hidden" />
           </div>
         </div>
       </div>
+
+      {/* The sheet's handle, pinned under the header once the open sheet has
+          scrolled it away. Portalled: the page transition wrapper keeps a
+          transform, which would otherwise anchor `fixed` to it. */}
+      {sheet.pinnedTop !== null &&
+        createPortal(
+          <div
+            className="fixed inset-x-0 z-30 bg-white lg:hidden"
+            style={{ top: sheet.pinnedTop }}
+          >
+            <SheetHandle
+              expanded
+              label={t("product.hideDetails")}
+              onClick={sheet.close}
+            />
+          </div>,
+          document.body
+        )}
     </div>
+  );
+}
+
+/** Bottom sheet grip (below lg only): a short bar that toggles the sheet. */
+function SheetHandle({
+  expanded,
+  label,
+  onClick,
+}: {
+  expanded: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-label={label}
+      onClick={onClick}
+      className="block w-full py-3.5 lg:hidden"
+    >
+      <span className="mx-auto block h-0.5 w-12 rounded-full bg-zinc-950" />
+    </button>
   );
 }
 
 // ── Product Info ───────────────────────────────────────────────────────────
 
-function ProductInfo({ product }: { product: ServerProduct }) {
+function ProductInfo({
+  product,
+  variants,
+  selectedVariant,
+  onSelectVariant,
+  onShowVariants,
+  headEndRef,
+}: {
+  product: ServerProduct;
+  variants: ProductVariant[];
+  selectedVariant: ProductVariant | undefined;
+  onSelectVariant: (variant: ProductVariant) => void;
+  /** Mobile: open the bottom sheet from its head's color dots. */
+  onShowVariants: () => void;
+  /** End of what the collapsed mobile sheet shows (after the bag button). */
+  headEndRef?: Ref<HTMLDivElement>;
+}) {
   const {
     t,
     language,
@@ -321,6 +433,8 @@ function ProductInfo({ product }: { product: ServerProduct }) {
     if (ok) navigate("/checkout");
   }
 
+  // Below lg the column is a bottom sheet whose head must be name, price and
+  // bag button, so the CTA moves up (flex `order`) and the rest follows it.
   return (
     <div className="flex flex-col gap-0">
 
@@ -334,14 +448,18 @@ function ProductInfo({ product }: { product: ServerProduct }) {
 
       {/* Name */}
       <h1
-        className="mt-2 text-4xl font-light leading-tight text-zinc-950 md:text-5xl"
+        className="mt-1 text-2xl font-light leading-tight text-zinc-950 md:text-3xl lg:mt-2 lg:text-5xl"
         style={{ fontFamily: "var(--font-display)" }}
       >
         {translateProductName(product.id, product.name)}
       </h1>
 
       {/* Price */}
-      <div className="mt-5 flex items-baseline gap-3">
+      <div className="mt-1 flex items-center justify-between gap-4 lg:hidden">
+        <ProductPrice price={product.price} officialPrice={product.officialPrice} />
+        <VariantColorDots variants={variants} onClick={onShowVariants} />
+      </div>
+      <div className="mt-5 hidden items-baseline gap-3 lg:flex">
         <ProductPrice
           price={product.price}
           officialPrice={product.officialPrice}
@@ -349,15 +467,23 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         />
       </div>
 
-      <div className="my-6 h-px bg-zinc-100" />
+      {/* Color / size — under the price from lg; below lg it opens with the
+          sheet, right after the bag button (the head shows color dots) */}
+      {variants.length > 0 && (
+        <div className="mt-6 max-lg:order-2">
+          <VariantPicker variants={variants} selected={selectedVariant} onSelect={onSelectVariant} />
+        </div>
+      )}
+
+      <div className="my-6 h-px bg-zinc-100 max-lg:order-2" />
 
       {/* Description */}
-      <p className="text-sm leading-relaxed text-zinc-500">
+      <p className="text-sm leading-relaxed text-zinc-500 max-lg:order-2">
         {translateProductDescription(product.id, product.description)}
       </p>
 
       {/* Details */}
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-xs">
+      <dl className="mt-6 grid grid-cols-2 max-lg:order-2 gap-x-6 gap-y-4 text-xs">
         {[
           [t("product.brand"), product.brand],
           [t("product.category"), translateValue("category", product.category || "Bags")],
@@ -374,16 +500,16 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         ))}
       </dl>
 
-      <div className="my-6 h-px bg-zinc-100" />
+      <div className="my-6 h-px bg-zinc-100 max-lg:hidden" />
 
       {/* CTA — a single dominant "Add to Bag" action, with instant checkout
           as a lighter secondary link underneath; with nothing to sell, one
           "Inquire about stock" link to the consultation bot instead */}
-      <div className="flex flex-col gap-3">
-        {inquireStock ? (
-          <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
-        ) : (
-          <>
+      <div className="flex flex-col gap-3 max-lg:order-1 max-lg:mt-4">
+        <div ref={headEndRef}>
+          {inquireStock ? (
+            <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
+          ) : (
             <button
               type="button"
               disabled={!inStock || adding}
@@ -397,7 +523,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
               }
               aria-busy={adding}
               className={[
-                "flex h-14 w-full items-center justify-center rounded-md text-sm font-semibold transition",
+                "flex h-12 w-full items-center justify-center rounded-md text-sm font-semibold transition lg:h-14",
                 inStock && !adding
                   ? added
                     ? "bg-emerald-700 text-white"
@@ -413,16 +539,18 @@ function ProductInfo({ product }: { product: ServerProduct }) {
                 t("product.addToBag")
               )}
             </button>
+          )}
+        </div>
 
-            <button
-              type="button"
-              disabled={!inStock || adding}
-              onClick={() => void handleBuy()}
-              className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
-            >
-              {t("product.buy")}
-            </button>
-          </>
+        {!inquireStock && (
+          <button
+            type="button"
+            disabled={!inStock || adding}
+            onClick={() => void handleBuy()}
+            className="text-center text-sm font-medium text-zinc-950 underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:text-zinc-300"
+          >
+            {t("product.buy")}
+          </button>
         )}
         {cartError && (
           <p className="text-center text-[11px] text-red-600" role="alert">
@@ -432,7 +560,7 @@ function ProductInfo({ product }: { product: ServerProduct }) {
       </div>
 
       {/* Detail links */}
-      <div className="mt-8 border-t border-zinc-100">
+      <div className="mt-8 border-t border-zinc-100 max-lg:order-2">
         {[
           {
             title: t("product.productDetails"),
@@ -456,64 +584,18 @@ function ProductInfo({ product }: { product: ServerProduct }) {
         ))}
       </div>
 
-      {/* Persistent purchase bar — below lg only; from lg up the pinned info
-          column already keeps the CTA in view */}
-      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-zinc-100 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm lg:hidden">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-            {translateProductName(product.id, product.name)}
-          </p>
-          <p className="text-sm font-semibold text-zinc-950">
-            {formatCurrency(product.price)}
-          </p>
-        </div>
-        {inquireStock ? (
-          <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} compact />
-        ) : (
-          <button
-            type="button"
-            disabled={!inStock || adding}
-            onClick={() => void handleAddToBag()}
-            className={[
-              "flex h-12 shrink-0 items-center justify-center rounded-md px-8 text-sm font-semibold transition",
-              inStock && !adding
-                ? "bg-zinc-950 text-white hover:bg-zinc-800"
-                : "cursor-not-allowed bg-zinc-100 text-zinc-400",
-            ].join(" ")}
-          >
-            {adding ? (
-              <LoadingBadge label={t("product.addingToBag")} />
-            ) : added ? (
-              t("product.added")
-            ) : (
-              t("product.addToBag")
-            )}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
 
 /** Opens the consultation bot in Telegram, in place of the bag button. */
-function InquireStockLink({
-  href,
-  label,
-  compact = false,
-}: {
-  href: string;
-  label: string;
-  compact?: boolean;
-}) {
+function InquireStockLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={[
-        "flex items-center justify-center rounded-md bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800",
-        compact ? "h-12 shrink-0 px-6" : "h-14 w-full",
-      ].join(" ")}
+      className="flex h-12 w-full items-center justify-center rounded-md bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800 lg:h-14"
     >
       {label}
     </a>

@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
+
+/** Set once the shopper has seen (or skipped) the first-visit scroll hint. */
+const SCROLL_HINT_KEY = "dupli1.pdpScrollHintShown";
+/** Share of a slide that must be in view for its dot to light up. */
+const ACTIVE_SLIDE_RATIO = 0.25;
 
 type GalleryImage = {
   src: string;
@@ -13,6 +18,12 @@ type ProductImageGalleryProps = {
   alt: string;
   badge?: ReactNode;
   actions?: ReactNode;
+  /** The mobile vertical scroller, for a parent that coordinates with it. */
+  scrollerRef?: Ref<HTMLDivElement | null>;
+  /** Called on every scroll of the mobile scroller. */
+  onScrollerScroll?: () => void;
+  /** Freeze the mobile scroller (e.g. while a sheet covers it). */
+  scrollLocked?: boolean;
 };
 
 export function ProductImageGallery({
@@ -22,57 +33,142 @@ export function ProductImageGallery({
   alt,
   badge,
   actions,
+  scrollerRef,
+  onScrollerScroll,
+  scrollLocked = false,
 }: ProductImageGalleryProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  // The index the scroller itself last reported, so an index change that came
+  // from scrolling does not scroll again (only dots and the zoom modal do).
+  const observedIndex = useRef(activeIndex);
+  const onActiveIndexChangeRef = useRef(onActiveIndexChange);
+  onActiveIndexChangeRef.current = onActiveIndexChange;
+
+  const setScrollRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollRef.current = el;
+      if (typeof scrollerRef === "function") scrollerRef(el);
+      else if (scrollerRef) scrollerRef.current = el;
+    },
+    [scrollerRef]
+  );
+
+  // Mobile: a slide counts as current once a quarter of it is in view.
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.intersectionRatio < ACTIVE_SLIDE_RATIO) continue;
+          const index = Number((entry.target as HTMLElement).dataset.slideIndex);
+          observedIndex.current = index;
+          onActiveIndexChangeRef.current(index);
+        }
+      },
+      { root, threshold: ACTIVE_SLIDE_RATIO }
+    );
+    root.querySelectorAll("[data-slide-index]").forEach((slide) => observer.observe(slide));
+    return () => observer.disconnect();
+  }, [images.length]);
 
   useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const targetLeft = container.offsetWidth * activeIndex;
-    if (Math.abs(container.scrollLeft - targetLeft) > 2) {
-      container.scrollTo({ left: targetLeft, behavior: "smooth" });
-    }
+    if (activeIndex === observedIndex.current) return;
+    observedIndex.current = activeIndex;
+    const slide = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-slide-index="${activeIndex}"]`
+    );
+    if (slide) scrollRef.current?.scrollTo({ top: slide.offsetTop, behavior: "smooth" });
   }, [activeIndex]);
 
-  function handleScroll() {
-    const container = scrollRef.current;
-    if (!container) return;
+  // First visit: nudge the images up and back once so it is obvious the
+  // gallery scrolls vertically.
+  useEffect(() => {
+    if (images.length < 2) return;
+    try {
+      if (!window.localStorage.getItem(SCROLL_HINT_KEY)) setShowScrollHint(true);
+    } catch {
+      // Storage blocked — skip the hint.
+    }
+  }, [images.length]);
 
-    const slideWidth = container.offsetWidth;
-    if (slideWidth === 0) return;
-
-    const index = Math.round(container.scrollLeft / slideWidth);
-    if (index !== activeIndex && index >= 0 && index < images.length) {
-      onActiveIndexChange(index);
+  function dismissScrollHint() {
+    if (!showScrollHint) return;
+    setShowScrollHint(false);
+    try {
+      window.localStorage.setItem(SCROLL_HINT_KEY, "1");
+    } catch {
+      // Storage blocked — the hint simply shows again next time.
     }
   }
 
   return (
     <div className="relative flex-1 bg-zinc-50">
-      {/* Mobile: swipeable carousel */}
+      {/* Mobile: full-bleed vertical scroller, each image the height of the
+          space the bottom sheet leaves (--pdp-gallery-h, set by the page) */}
       <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"
-        style={{ WebkitOverflowScrolling: "touch" }}
+        ref={setScrollRef}
+        onScroll={() => {
+          dismissScrollHint();
+          onScrollerScroll?.();
+        }}
+        className={[
+          "relative h-[var(--pdp-gallery-h,120vw)] overscroll-none bg-white [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden",
+          scrollLocked ? "overflow-y-hidden" : "overflow-y-auto",
+        ].join(" ")}
       >
         {images.map((img, i) => (
           <div
             key={i}
-            className="relative w-full shrink-0 snap-center snap-always"
-            style={{ paddingBottom: "120%" }}
+            data-slide-index={i}
+            onAnimationEnd={dismissScrollHint}
+            className={[
+              "relative box-content h-[var(--pdp-gallery-h,120vw)] w-full bg-zinc-50",
+              i < images.length - 1 ? "border-b-2 border-white" : "",
+              showScrollHint ? "animate-pdp-scroll-hint" : "",
+            ].join(" ")}
           >
             <img
               src={img.src}
-              alt={i === activeIndex ? alt : ""}
+              alt={i === 0 ? alt : ""}
               draggable={false}
-              onClick={() => setIsZoomOpen(true)}
+              loading={i === 0 ? undefined : "lazy"}
+              onClick={() => {
+                onActiveIndexChange(i);
+                setIsZoomOpen(true);
+              }}
               className={`absolute inset-0 h-full w-full object-cover ${img.position}`}
             />
           </div>
         ))}
+
+        {/* Dot rail: zero-height and sticky to the scroller's bottom edge, so
+            it stays put bottom-left while the images scroll past */}
+        {images.length > 1 && (
+          <div className="pointer-events-none sticky bottom-0 z-10 h-0 w-min">
+            <div className="pointer-events-auto absolute bottom-0 left-0 flex flex-col pb-3 pl-3">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Image ${i + 1} of ${images.length}`}
+                  aria-current={activeIndex === i}
+                  onClick={() => onActiveIndexChange(i)}
+                  className="flex size-5 items-center justify-center"
+                >
+                  <span
+                    className={[
+                      "size-1.5 rounded-full border border-zinc-950 transition-colors",
+                      activeIndex === i ? "bg-zinc-950" : "bg-transparent",
+                    ].join(" ")}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desktop: full-bleed vertical stack — every image at full column
@@ -115,23 +211,6 @@ export function ProductImageGallery({
 
       {actions && (
         <div className="absolute right-4 top-4 z-10 lg:hidden">{actions}</div>
-      )}
-
-      {images.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5 lg:hidden">
-          {images.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Image ${i + 1} of ${images.length}`}
-              onClick={() => onActiveIndexChange(i)}
-              className={[
-                "h-1.5 rounded-full transition-all",
-                activeIndex === i ? "w-5 bg-zinc-950" : "w-1.5 bg-zinc-400",
-              ].join(" ")}
-            />
-          ))}
-        </div>
       )}
 
       {isZoomOpen && (
