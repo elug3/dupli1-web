@@ -259,7 +259,7 @@ function ProductLayout({ product: parent }: { product: ServerProduct }) {
         {/* ── Right: product info. From lg: pinned in place while the gallery
              scrolls, capped to the viewport so a tall column (open accordions,
              long names) stays reachable. Below lg: the bottom sheet — its head
-             (name, price, bag button) peeks under the gallery; drag it up, tap
+             (brand, name, color dots) peeks under the gallery; drag it up, tap
              its handle, or scroll to the last image to open it. */}
         <div
           ref={sheet.sheetRef}
@@ -351,7 +351,7 @@ function ProductInfo({
   onSelectVariant: (variant: ProductVariant) => void;
   /** Mobile: open the bottom sheet from its head's color dots. */
   onShowVariants: () => void;
-  /** End of what the collapsed mobile sheet shows (after the bag button). */
+  /** End of what the folded mobile sheet shows (brand and name). */
   headEndRef?: Ref<HTMLDivElement>;
 }) {
   const {
@@ -438,26 +438,33 @@ function ProductInfo({
   return (
     <div className="flex flex-col gap-0">
 
-      {/* Brand */}
-      <Link
-        to={brandLink}
-        className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e] transition hover:opacity-70"
-      >
-        {product.brand}
-      </Link>
+      {/* Brand + name — all the folded mobile sheet shows (with the color
+          dots); price and bag button sit just under the fold until it opens */}
+      <div ref={headEndRef} className="flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <Link
+            to={brandLink}
+            className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e] transition hover:opacity-70"
+          >
+            {product.brand}
+          </Link>
 
-      {/* Name */}
-      <h1
-        className="mt-1 text-2xl font-light leading-tight text-zinc-950 md:text-3xl lg:mt-2 lg:text-5xl"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {translateProductName(product.id, product.name)}
-      </h1>
+          <h1
+            className="mt-1 break-keep text-2xl font-medium tracking-[-0.01em] text-zinc-950 md:text-3xl lg:mt-2 lg:text-5xl lg:font-normal"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {translateProductName(product.id, product.name)}
+          </h1>
+        </div>
+        <div className="mb-1.5 lg:hidden">
+          <VariantColorDots variants={variants} onClick={onShowVariants} />
+        </div>
+      </div>
 
-      {/* Price */}
-      <div className="mt-1 flex items-center justify-between gap-4 lg:hidden">
+      {/* Price — far enough below the name that none of it shows in the
+          folded sheet (its head ends PEEK_BOTTOM_GAP_PX under the name) */}
+      <div className="mt-5 lg:hidden">
         <ProductPrice price={product.price} officialPrice={product.officialPrice} />
-        <VariantColorDots variants={variants} onClick={onShowVariants} />
       </div>
       <div className="mt-5 hidden items-baseline gap-3 lg:flex">
         <ProductPrice
@@ -506,7 +513,7 @@ function ProductInfo({
           as a lighter secondary link underneath; with nothing to sell, one
           "Inquire about stock" link to the consultation bot instead */}
       <div className="flex flex-col gap-3 max-lg:order-1 max-lg:mt-4">
-        <div ref={headEndRef}>
+        <div>
           {inquireStock ? (
             <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
           ) : (

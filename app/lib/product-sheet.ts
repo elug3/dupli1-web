@@ -1,14 +1,14 @@
 /**
  * Drag maths for the mobile PDP bottom sheet (`app/routes/pages/product.tsx`).
  *
- * Collapsed, the sheet shows only its head (handle, name, price, bag button)
+ * Collapsed, the sheet shows only its head (handle, brand, name, color dots)
  * under a full-bleed vertical gallery. Dragging it up follows the finger once
  * past a small dead zone, is clamped so it never overshoots most of the
  * screen, and opens on release once it has travelled a tenth of the viewport;
  * anything shorter springs back.
  */
 
-/** Movement below this is a tap, not a drag, so the bag button still clicks. */
+/** Movement below this is a tap, not a drag, so taps on the sheet still click. */
 export const SHEET_DRAG_DEAD_ZONE_PX = 20;
 /** Share of the viewport height a drag must travel to open the sheet. */
 export const SHEET_OPEN_THRESHOLD = 0.1;
