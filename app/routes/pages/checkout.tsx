@@ -51,9 +51,10 @@ import {
   type CustomerAddress,
   type CustomerProfile,
   createAddress,
-  formatAddressSummary,
   getCustomerProfile,
+  MAX_ADDRESSES_PER_USER,
 } from "~/lib/profile";
+import { ShippingAddressSelect } from "~/components/shipping-address-select";
 import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { useLanguage } from "~/lib/i18n";
 import { KR_PROVINCES, districtsForProvince } from "~/lib/kr-regions";
@@ -251,7 +252,10 @@ export default function CheckoutPage() {
             if (defaultAddr) {
               setSelectedAddressId(defaultAddr.id);
             } else {
+              // First order: keep the address for next time unless the
+              // shopper unticks it — an empty book meant retyping every order.
               setSelectedAddressId("new");
+              setSaveAddress(true);
             }
           })
           .catch(() => {
@@ -402,6 +406,9 @@ export default function CheckoutPage() {
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
+  // Only a signed-in shopper with a loaded, not-full address book can save.
+  const canSaveAddress =
+    profile !== null && savedAddresses.length < MAX_ADDRESSES_PER_USER;
 
   const activeStepIndex = checkoutSteps.indexOf(activeStep);
   const nextStep = checkoutSteps[activeStepIndex + 1];
@@ -515,7 +522,10 @@ export default function CheckoutPage() {
 
   function selectNewAddress() {
     setSelectedAddressId("new");
-    setSaveAddress(false);
+    // A new address is saved by default (opt-out); editing a pre-filled saved
+    // one also becomes "new" but stays unticked (see updateField), so small
+    // corrections do not pile up near-duplicates in the book.
+    setSaveAddress(canSaveAddress);
   }
 
   async function handleResumePayment() {
@@ -672,7 +682,7 @@ export default function CheckoutPage() {
           ? selectedAddressId
           : undefined;
 
-      if (saveAddress && selectedAddressId === "new") {
+      if (saveAddress && canSaveAddress && selectedAddressId === "new") {
         try {
           const created = await createAddress({
             recipientName: form.name,
@@ -931,77 +941,12 @@ export default function CheckoutPage() {
 
                 <FieldGroup title={t("checkout.shipping")} divided>
                   {savedAddresses.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">
-                        {t("checkout.savedAddresses")}
-                      </p>
-                      <div className="space-y-2" role="radiogroup" aria-label={t("checkout.savedAddresses")}>
-                        {savedAddresses.map((address) => {
-                          const selected = selectedAddressId === address.id;
-                          return (
-                            <label
-                              key={address.id}
-                              className={[
-                                "flex cursor-pointer gap-3 border px-4 py-3 transition",
-                                selected
-                                  ? "border-zinc-950 bg-zinc-50"
-                                  : "border-zinc-200 hover:border-zinc-400",
-                              ].join(" ")}
-                            >
-                              <input
-                                type="radio"
-                                name="savedAddress"
-                                className="mt-1 accent-zinc-950"
-                                checked={selected}
-                                onChange={() => selectSavedAddress(address)}
-                              />
-                              <span className="min-w-0">
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-medium text-zinc-950">
-                                    {address.label?.trim() || address.recipientName}
-                                  </span>
-                                  {address.isDefault && (
-                                    <span className="bg-zinc-950 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white">
-                                      {t("profile.defaultAddress")}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="mt-0.5 block text-xs text-zinc-500">
-                                  {address.recipientName} · {address.recipientPhone}
-                                </span>
-                                <span className="mt-0.5 block text-xs text-zinc-600">
-                                  ({address.postalCode}) {formatAddressSummary(address)}
-                                </span>
-                                {address.pccc && (
-                                  <span className="mt-0.5 block text-[11px] text-zinc-400">
-                                    {t("checkout.pccc")}: {address.pccc}
-                                  </span>
-                                )}
-                              </span>
-                            </label>
-                          );
-                        })}
-                        <label
-                          className={[
-                            "flex cursor-pointer gap-3 border px-4 py-3 transition",
-                            selectedAddressId === "new"
-                              ? "border-zinc-950 bg-zinc-50"
-                              : "border-zinc-200 hover:border-zinc-400",
-                          ].join(" ")}
-                        >
-                          <input
-                            type="radio"
-                            name="savedAddress"
-                            className="mt-1 accent-zinc-950"
-                            checked={selectedAddressId === "new"}
-                            onChange={selectNewAddress}
-                          />
-                          <span className="text-sm text-zinc-950">
-                            {t("checkout.useNewAddress")}
-                          </span>
-                        </label>
-                      </div>
-                    </div>
+                    <ShippingAddressSelect
+                      addresses={savedAddresses}
+                      value={selectedAddressId}
+                      onSelectAddress={selectSavedAddress}
+                      onSelectNew={selectNewAddress}
+                    />
                   )}
                   <Field
                     label={t("checkout.name")}
@@ -1091,7 +1036,7 @@ export default function CheckoutPage() {
                       {t("checkout.pcccHint")}
                     </p>
                   </div>
-                  {selectedAddressId === "new" && (
+                  {selectedAddressId === "new" && canSaveAddress && (
                     <label className="flex items-center gap-2 text-xs text-zinc-700">
                       <input
                         type="checkbox"
