@@ -137,15 +137,15 @@ const desktopNavLinks = [
     labelKey: "nav.brand",
     to: "/category/brand/louis-vuitton",
     items: [
-      { label: "Louis Vuitton", to: "/category/brand/louis-vuitton", image: "/brands/louis-vuitton.svg" },
-      { label: "Miu Miu", to: "/category/brand/miu-miu", image: "/brands/miu-miu.svg" },
-      { label: "Balenciaga", to: "/category/brand/balenciaga", image: "/brands/balenciaga.svg" },
-      { label: "Bottega Veneta", to: "/category/brand/bottega-veneta", image: "/brands/bottega-veneta.svg" },
-      { label: "Chanel", to: "/category/brand/chanel", image: "/brands/chanel.svg" },
-      { label: "Hermès", to: "/category/brand/hermes", image: "/brands/hermes.svg" },
-      { label: "Loewe", to: "/category/brand/loewe", image: "/brands/loewe.svg" },
-      { label: "Prada", to: "/category/brand/prada", image: "/brands/prada.svg" },
-      { label: "Saint Laurent", to: "/category/brand/ysl", image: "/brands/saint-laurent.svg" },
+      { label: "Louis Vuitton", to: "/category/brand/louis-vuitton" },
+      { label: "Miu Miu", to: "/category/brand/miu-miu" },
+      { label: "Balenciaga", to: "/category/brand/balenciaga" },
+      { label: "Bottega Veneta", to: "/category/brand/bottega-veneta" },
+      { label: "Chanel", to: "/category/brand/chanel" },
+      { label: "Hermès", to: "/category/brand/hermes" },
+      { label: "Loewe", to: "/category/brand/loewe" },
+      { label: "Prada", to: "/category/brand/prada" },
+      { label: "Saint Laurent", to: "/category/brand/ysl" },
     ],
   },
   {
@@ -371,23 +371,18 @@ function TopNav() {
               <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.25em] text-zinc-300">
                 {activeGroup ? t(activeGroup.labelKey) : ""}
               </p>
-              <div className={isBrand ? "grid grid-cols-4 gap-4" : "grid grid-cols-4 gap-x-6 gap-y-3"}>
+              <div className={isBrand ? "grid grid-cols-3 gap-3" : "grid grid-cols-4 gap-x-6 gap-y-3"}>
                 {activeGroup?.items.map((item) => {
                   const label = "labelKey" in item ? t(item.labelKey) : item.label;
                   return (
-                  isBrand && "image" in item ? (
+                  isBrand ? (
                     <NavLink
                       key={label}
                       to={item.to}
                       onClick={() => setActiveNav(null)}
-                      aria-label={label}
-                      className="group flex items-center justify-center border border-zinc-100 bg-zinc-50 p-4 transition hover:border-zinc-300"
+                      className="flex items-center justify-center border border-zinc-100 px-4 py-4 text-sm text-zinc-950 transition hover:border-zinc-950"
                     >
-                      <img
-                        src={(item as { image: string }).image}
-                        alt={label}
-                        className="h-7 w-auto object-contain opacity-60 transition group-hover:opacity-100"
-                      />
+                      {label}
                     </NavLink>
                   ) : (
                     <NavLink
