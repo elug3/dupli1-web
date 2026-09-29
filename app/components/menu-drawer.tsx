@@ -25,15 +25,26 @@ export function MenuDrawer({
   const { t } = useLanguage();
   const [groupId, setGroupId] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  // The last group opened stays rendered while level two slides back out.
+  const [shownGroupId, setShownGroupId] = useState<string | null>(null);
+  // Bumped on every open so level one's rows replay their entrance, but not
+  // on close, where they would fade while the drawer slides away.
+  const [openCount, setOpenCount] = useState(0);
   const group = VISIBLE_NAV_GROUPS.find((g) => g.id === groupId) ?? null;
+  const shownGroup = VISIBLE_NAV_GROUPS.find((g) => g.id === shownGroupId) ?? null;
   const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
   const facets = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "facet");
+
+  useEffect(() => {
+    if (groupId) setShownGroupId(groupId);
+  }, [groupId]);
 
   useEffect(() => {
     if (!open) {
       setGroupId(null);
       return;
     }
+    setOpenCount((count) => count + 1);
     closeRef.current?.focus();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -77,11 +88,16 @@ export function MenuDrawer({
             <CloseIcon />
             <span>{t("nav.closeMenu")}</span>
           </button>
-          {group && (
+          {shownGroup && (
             <button
               type="button"
+              tabIndex={group ? 0 : -1}
+              aria-hidden={!group}
               onClick={() => setGroupId(null)}
-              className="ml-auto flex items-center gap-1 p-2 text-small text-mute hover:text-ink"
+              className={[
+                "ml-auto flex items-center gap-1 p-2 text-small text-mute transition-opacity duration-300 ease-lux hover:text-ink motion-reduce:transition-none",
+                group ? "opacity-100" : "pointer-events-none opacity-0",
+              ].join(" ")}
             >
               <ChevronIcon className="rotate-180" />
               <span>{t("nav.back")}</span>
@@ -89,47 +105,67 @@ export function MenuDrawer({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-10 md:px-8">
-          {group ? (
-            <GroupTiles group={group} onNavigate={onClose} />
-          ) : (
-            <>
-              <ul className="mt-6 grid gap-3">
-                {subjects.map((g) => (
-                  <li key={g.id}>
-                    <button
-                      type="button"
-                      onClick={() => setGroupId(g.id)}
-                      className="flex w-full items-center gap-4 text-left"
-                    >
-                      <NavImage to={g.to} className="size-20 shrink-0" />
-                      <span className="flex-1 text-xl">{t(g.labelKey)}</span>
-                      <ChevronIcon />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <ul className="mt-6 grid gap-1 border-t border-rule pt-4">
-                {facets.map((g) => (
-                  <li key={g.id}>
-                    <button
-                      type="button"
-                      onClick={() => setGroupId(g.id)}
-                      className="flex w-full items-center justify-between py-3 text-left text-xl"
-                    >
-                      <span>{t(g.labelKey)}</span>
-                      <ChevronIcon />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {footer && <div className="mt-10 grid gap-3 border-t border-rule pt-6">{footer}</div>}
-            </>
-          )}
+        {/* Both levels stay mounted side by side: choosing a group slides
+            level two in from the right while level one drifts left and
+            fades, and Back plays it in reverse. */}
+        <div className="relative flex-1 overflow-hidden">
+          <div
+            inert={!!group}
+            className={[
+              PANEL_CLASS,
+              group ? "-translate-x-1/4 opacity-0" : "translate-x-0 opacity-100",
+            ].join(" ")}
+          >
+            <ul key={openCount} className="mt-6 grid gap-3">
+              {subjects.map((g, i) => (
+                <li key={g.id} className="animate-menu-item-in" style={stagger(i)}>
+                  <button
+                    type="button"
+                    onClick={() => setGroupId(g.id)}
+                    className="group flex w-full items-center gap-4 text-left"
+                  >
+                    <NavImage to={g.to} className="size-20 shrink-0" />
+                    <span className="flex-1 text-xl">{t(g.labelKey)}</span>
+                    <ChevronIcon className="transition-transform duration-300 ease-lux group-hover:translate-x-1" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <ul key={`facets-${openCount}`} className="mt-6 grid gap-1 border-t border-rule pt-4">
+              {facets.map((g, i) => (
+                <li key={g.id} className="animate-menu-item-in" style={stagger(subjects.length + i)}>
+                  <button
+                    type="button"
+                    onClick={() => setGroupId(g.id)}
+                    className="group flex w-full items-center justify-between py-3 text-left text-xl"
+                  >
+                    <span>{t(g.labelKey)}</span>
+                    <ChevronIcon className="transition-transform duration-300 ease-lux group-hover:translate-x-1" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {footer && <div className="mt-10 grid gap-3 border-t border-rule pt-6">{footer}</div>}
+          </div>
+
+          <div
+            inert={!group}
+            className={[PANEL_CLASS, group ? "translate-x-0" : "translate-x-full"].join(" ")}
+          >
+            {shownGroup && <GroupTiles group={shownGroup} onNavigate={onClose} />}
+          </div>
         </div>
       </nav>
     </div>
   );
+}
+
+const PANEL_CLASS =
+  "absolute inset-0 overflow-y-auto px-4 pb-10 transition-[translate,opacity] duration-500 ease-lux motion-reduce:transition-none md:px-8";
+
+/** Rows and tiles arrive one after another, 40ms apart. */
+function stagger(index: number): React.CSSProperties {
+  return { animationDelay: `${index * 40}ms` };
 }
 
 function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
@@ -143,9 +179,9 @@ function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => 
           {t("nav.viewAll")}
         </Link>
       </div>
-      <ul className="grid grid-cols-2 gap-x-3 gap-y-5">
-        {group.items.map((item) => (
-          <li key={item.to}>
+      <ul key={group.id} className="grid grid-cols-2 gap-x-3 gap-y-5">
+        {group.items.map((item, i) => (
+          <li key={item.to} className="animate-menu-item-in" style={stagger(i + 1)}>
             <Link to={item.to} onClick={onNavigate} className="block">
               <NavImage to={item.to} className="aspect-square" />
               <p className="mt-2 text-small">{navItemLabel(item, t)}</p>
