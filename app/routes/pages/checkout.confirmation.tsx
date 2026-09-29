@@ -130,14 +130,22 @@ export default function CheckoutConfirmationPage() {
                     {formatCurrency(order.subtotalWon)}
                   </dd>
                 </div>
-                {order.discountWon > 0 && (
+                {order.discountWon - (order.tierDiscountWon ?? 0) > 0 && (
                   <div className="flex justify-between gap-8 text-emerald-700">
                     <dt>
                       {order.promotionCode
                         ? t("cart.promo", { code: order.promotionCode })
                         : t("confirmation.discount")}
                     </dt>
-                    <dd>−{formatCurrency(order.discountWon)}</dd>
+                    <dd>−{formatCurrency(order.discountWon - (order.tierDiscountWon ?? 0))}</dd>
+                  </div>
+                )}
+                {(order.tierDiscountWon ?? 0) > 0 && (
+                  <div className="flex justify-between gap-8 text-emerald-700">
+                    <dt>
+                      {t("cart.memberTier", { code: order.tierPromotionCode ?? "" })}
+                    </dt>
+                    <dd>−{formatCurrency((order.tierDiscountWon ?? 0))}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-8">

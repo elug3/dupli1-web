@@ -337,14 +337,21 @@ function OrderDetail({
             label={t("cart.subtotal")}
             value={formatCurrency(order.subtotalWon)}
           />
-          {order.discountWon > 0 && (
+          {order.discountWon - (order.tierDiscountWon ?? 0) > 0 && (
             <SummaryRow
               label={
                 order.promotionCode
                   ? t("cart.promo", { code: order.promotionCode })
                   : t("confirmation.discount")
               }
-              value={`−${formatCurrency(order.discountWon)}`}
+              value={`−${formatCurrency(order.discountWon - (order.tierDiscountWon ?? 0))}`}
+              tone="discount"
+            />
+          )}
+          {(order.tierDiscountWon ?? 0) > 0 && (
+            <SummaryRow
+              label={t("cart.memberTier", { code: order.tierPromotionCode ?? "" })}
+              value={`−${formatCurrency((order.tierDiscountWon ?? 0))}`}
               tone="discount"
             />
           )}

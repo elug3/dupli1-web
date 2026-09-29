@@ -285,3 +285,62 @@ export async function fetchWallet(options: {
         : { reason: toReason(raw.reason), subReason: raw.sub_reason },
     }));
 }
+
+/** The automatic customer tier (VIP, a private tier) a member earns on a bag. */
+export interface MemberTier {
+  code: string;
+  /** Whole KRW, as the service priced it for this bag. */
+  discountWon: number;
+}
+
+/**
+ * The signed-in customer's tier discount on this bag, or null when they hold
+ * none (or are signed out).
+ *
+ * A tier is not a code: a manager makes an account a member, and the order
+ * service applies the tier to every order on top of one code. This is only the
+ * preview; checkout complete asks again and is what is charged.
+ */
+export async function fetchMyTier(options: {
+  items: CartItem[];
+  shippingFeeWon: number;
+}): Promise<MemberTier | null> {
+  if (options.items.length === 0) return null;
+  try {
+    const res = await fetch(
+      "/auth/session/gateway/api/v1/products/promotions/me/tier",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          shipping_fee_won: options.shippingFeeWon,
+          lines: promotionLines(options.items),
+        }),
+      }
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      ok?: boolean;
+      code?: string;
+      discount_won?: number;
+    };
+    if (!body.ok || !body.code || !body.discount_won) return null;
+    return { code: body.code, discountWon: body.discount_won };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Splits a clamped total discount back into the code's and the tier's share.
+ * The order service caps the two together at the goods subtotal and takes the
+ * code first, so the tier is what the code leaves.
+ */
+export function splitDiscount(
+  totalWon: number,
+  codeWon: number
+): { codeWon: number; tierWon: number } {
+  const code = Math.max(0, Math.min(codeWon, totalWon));
+  return { codeWon: code, tierWon: Math.max(0, totalWon - code) };
+}
