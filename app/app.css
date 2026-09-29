@@ -158,6 +158,12 @@ html,
 body {
   @apply bg-white dark:bg-gray-950;
 
+  /* Chromium on Linux snaps glyph advances to whole pixels at
+     small sizes unless this is set, which opened visible gaps inside words
+     in Pretendard ("LOUIS VUITT ON", "BOTT EGA") at 10-11px. Takes effect
+     with or without letter-spacing. */
+  text-rendering: geometricPrecision;
+
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
   }

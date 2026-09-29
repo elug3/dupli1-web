@@ -236,7 +236,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Every item sold by Dupli1 is backed by our Quality Guarantee. We partner directly with authorized retailers to ensure each product meets our rigorous standards.",
     "product.badgeNew": "New",
     "product.badgeFeatured": "Featured",
-    "product.priceLoading": "Loading",
     "product.youMayAlsoLike": "You may also like",
     "product.similarItems": "Similar items",
 
@@ -901,7 +900,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Dupli1에서 판매되는 모든 상품은 품질 보증이 적용됩니다. 공식 리테일러와 직접 협력하여 엄격한 품질 기준을 충족하는 제품만 제공합니다.",
     "product.badgeNew": "신상품",
     "product.badgeFeatured": "추천",
-    "product.priceLoading": "불러오는 중",
     "product.youMayAlsoLike": "함께 보면 좋은 상품",
     "product.similarItems": "유사 상품",
 
@@ -1555,7 +1553,6 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
       "Dupli1 售出的每件商品均享有品质保证。我们直接与授权零售商合作，确保每件商品均符合我们的严格品质标准。",
     "product.badgeNew": "新品",
     "product.badgeFeatured": "精选",
-    "product.priceLoading": "加载中",
     "product.youMayAlsoLike": "你可能还喜欢",
     "product.similarItems": "相似商品",
 
