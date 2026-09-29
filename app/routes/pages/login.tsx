@@ -51,7 +51,7 @@ export default function Login() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-14 md:py-20">
       <div className="mb-10 text-center">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-mute">
           Dupli1
         </p>
         <h1
@@ -213,7 +213,7 @@ function SignupWizard({
   if (step === 4) {
     return (
       <section className="mx-auto max-w-md border border-zinc-100 bg-zinc-50/50 p-8 text-center md:p-10">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-mute">
           {t("signup.welcomeEyebrow")}
         </p>
         <h2
@@ -408,7 +408,7 @@ function SignupStepper({ step }: { step: SignupStep }) {
                 isActive
                   ? "border-zinc-950 bg-zinc-950 text-white"
                   : isComplete
-                    ? "border-[#c8a96e] bg-[#c8a96e] text-white"
+                    ? "border-ink bg-ink text-white"
                     : "border-zinc-200 text-zinc-300",
               ].join(" ")}
             >
@@ -440,7 +440,7 @@ function StepHeader({
 }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-mute">
         {eyebrow}
       </p>
       <h2

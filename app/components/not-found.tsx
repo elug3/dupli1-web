@@ -32,7 +32,7 @@ export function NotFoundPage({
   return (
     <main className="flex min-h-[62vh] items-center justify-center px-4 py-16 text-center md:px-8">
       <section className="mx-auto max-w-xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-[#c8a96e]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-mute">
           {eyebrow}
         </p>
         <h1

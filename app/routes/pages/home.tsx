@@ -9,7 +9,6 @@ import {
   bannerBagImage,
   heroBagImage,
   listingBagImage,
-  LISTING_IMAGE_SIZES,
 } from "~/lib/api";
 import {
   PRODUCT_TYPE_TO_SUBCATEGORY,
@@ -18,7 +17,12 @@ import {
 } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
-import { ProductPrice } from "~/components/product-price";
+import {
+  PRODUCT_GRID_CLASS,
+  ProductCard,
+  ProductCardSkeleton,
+} from "~/components/product-card";
+import { useWishlist } from "~/lib/useWishlist";
 
 export function meta() {
   return [
@@ -89,7 +93,7 @@ const HOME_BRAND_ORDER = [
 
 export default function Home() {
   return (
-    <main className="bg-[#faf8f5]">
+    <main className="bg-white">
       <Hero />
       <ValueStrip />
       <CategoryMosaic />
@@ -158,8 +162,8 @@ function ValueStrip() {
   ];
 
   return (
-    <section className="border-y border-[#e8e0d4] bg-white">
-      <div className="mx-auto grid max-w-7xl divide-y divide-[#e8e0d4] md:grid-cols-3 md:divide-x md:divide-y-0">
+    <section className="border-y border-rule bg-white">
+      <div className="mx-auto grid max-w-7xl divide-y divide-rule md:grid-cols-3 md:divide-x md:divide-y-0">
         {values.map(({ titleKey, icon: Icon, values: interpolation }) => (
           <div
             key={titleKey}
@@ -221,7 +225,7 @@ function CategoryMosaic() {
     <section className="px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 max-w-2xl md:mb-14">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-[#9a7b45]">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
             {t("home.categoryEyebrow")}
           </p>
           <h2
@@ -258,7 +262,7 @@ function CategoryMosaic() {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c8a96e]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
                     {t("home.categoryExplore")}
                   </p>
                   <h3
@@ -308,7 +312,7 @@ function EditorialSplit() {
     <section className="overflow-hidden bg-zinc-950 text-white">
       <div className="mx-auto grid max-w-7xl lg:grid-cols-2">
         <div className="flex flex-col justify-center px-6 py-16 md:px-10 md:py-24 lg:px-14">
-          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
+          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70">
             {t("home.editorialEyebrow")}
           </p>
           <h2
@@ -322,7 +326,7 @@ function EditorialSplit() {
           </p>
           <Link
             to={ctaTo}
-            className="mt-10 inline-flex h-12 w-fit items-center border border-[#c8a96e]/50 px-8 text-xs font-semibold uppercase tracking-[0.2em] text-[#c8a96e] transition hover:bg-[#c8a96e] hover:text-zinc-950"
+            className="mt-10 inline-flex h-12 w-fit items-center border border-white/50 px-8 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white hover:text-ink"
           >
             {t("home.editorialCta")}
           </Link>
@@ -410,7 +414,7 @@ function BrandTiles() {
   if (tiles.length === 0) return null;
 
   return (
-    <section className="border-t border-[#e8e0d4] bg-white px-4 py-16 md:px-8 md:py-24">
+    <section className="border-t border-rule bg-white px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 flex items-end justify-between gap-4">
           <h2
@@ -446,7 +450,7 @@ function BrandTiles() {
                   >
                     {label}
                   </p>
-                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8a96e] opacity-0 transition duration-300 group-hover:opacity-100">
+                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70 opacity-0 transition duration-300 group-hover:opacity-100">
                     {t("home.categoryExplore")} →
                   </p>
                 </div>
@@ -464,6 +468,7 @@ function BrandTiles() {
 
 function FeaturedBags() {
   const { t, translateProductName } = useLanguage();
+  const wishlist = useWishlist();
   const [bags, setBags] = useState<Bag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -478,11 +483,11 @@ function FeaturedBags() {
   }, [t]);
 
   return (
-    <section className="bg-[#faf8f5] px-4 py-16 md:px-8 md:py-24">
+    <section className="bg-white px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 flex flex-col gap-3 md:mb-14 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#9a7b45]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
               {t("home.featuredEyebrow")}
             </p>
             <h2
@@ -502,48 +507,24 @@ function FeaturedBags() {
 
         {error && <p className="text-sm text-zinc-400">{error}</p>}
 
-        <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4 md:gap-x-6 md:gap-y-14">
+        <div className={PRODUCT_GRID_CLASS}>
           {loading
-            ? Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="mb-4 bg-zinc-200" style={{ paddingBottom: "115%" }} />
-                  <div className="h-2.5 w-16 bg-zinc-200" />
-                  <div className="mt-2 h-3.5 w-32 bg-zinc-200" />
-                  <div className="mt-2 h-3 w-20 bg-zinc-200" />
-                </div>
-              ))
+            ? Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
             : bags.map((bag, index) => (
-                <Link key={bag.id} to={`/product/${bag.id}`} className="group">
-                  <div
-                    className="relative mb-4 overflow-hidden bg-white"
-                    style={{ paddingBottom: "115%" }}
-                  >
-                    <img
-                      src={listingBagImage(bag.brand, bag.image)}
-                      alt={bag.name}
-                      width={600}
-                      height={690}
-                      sizes={LISTING_IMAGE_SIZES}
-                      loading={index < 4 ? "eager" : "lazy"}
-                      decoding="async"
-                      fetchPriority={index < 4 ? "high" : undefined}
-                      className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-zinc-950/0 transition duration-500 group-hover:bg-zinc-950/5" />
-                    {bag.stock <= 5 && bag.stock > 0 && (
-                      <span className="absolute left-3 top-3 bg-zinc-950 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-white">
-                        {t("home.lowStock")}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a7b45]">
-                    {brandDisplayName(bag.brand)}
-                  </p>
-                  <p className="mt-1 text-sm font-medium leading-snug text-zinc-950 transition group-hover:text-zinc-600">
-                    {translateProductName(bag.id, bag.name)}
-                  </p>
-                  <ProductPrice price={bag.price} officialPrice={bag.officialPrice} />
-                </Link>
+                <ProductCard
+                  key={bag.id}
+                  id={bag.id}
+                  name={translateProductName(bag.id, bag.name)}
+                  brand={brandDisplayName(bag.brand)}
+                  image={listingBagImage(bag.brand, bag.image)}
+                  price={bag.price}
+                  officialPrice={bag.officialPrice}
+                  stock={bag.stock}
+                  index={index}
+                  wishlisted={wishlist.has(bag.id)}
+                  wishlistBusy={wishlist.isBusy(bag.id)}
+                  onToggleWishlist={() => void wishlist.toggle(bag.id)}
+                />
               ))}
         </div>
       </div>
@@ -591,10 +572,10 @@ function StyleEdit() {
   }, []);
 
   return (
-    <section className="border-t border-[#e8e0d4] bg-white px-4 py-16 md:px-8 md:py-24">
+    <section className="border-t border-rule bg-white px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#9a7b45]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
             {t("home.styleEyebrow")}
           </p>
           <h2
@@ -688,7 +669,7 @@ function PromoBanner() {
         <div className="h-[28rem] w-full animate-pulse bg-zinc-200 md:h-[36rem]" />
       )}
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/55 px-6 text-center text-white backdrop-blur-[1px]">
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#c8a96e]">
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.32em] text-white/70">
           {t("home.limitedTime")}
         </p>
         <h3
@@ -700,7 +681,7 @@ function PromoBanner() {
         <p className="mt-3 text-sm tracking-[0.15em] text-white/70">{t("home.saleDescription")}</p>
         <Link
           to={shopLink}
-          className="mt-8 inline-flex h-12 items-center bg-[#c8a96e] px-10 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-950 transition hover:bg-[#d4b87a]"
+          className="mt-8 inline-flex h-12 items-center bg-white px-10 text-[10px] font-semibold uppercase tracking-[0.22em] text-ink transition hover:bg-zinc-200"
         >
           {t("home.shopSale")}
         </Link>
@@ -713,7 +694,7 @@ function PromoBanner() {
 
 function ShippingIcon() {
   return (
-    <svg aria-hidden="true" className="size-5 text-[#c8a96e]" viewBox="0 0 24 24" fill="none">
+    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
       <path d="M3 7h11v8H3V7Zm11 3h4l3 3v2h-7v-5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
       <circle cx="7.5" cy="17.5" r="1.5" fill="currentColor" />
       <circle cx="17.5" cy="17.5" r="1.5" fill="currentColor" />
@@ -723,7 +704,7 @@ function ShippingIcon() {
 
 function ShieldIcon() {
   return (
-    <svg aria-hidden="true" className="size-5 text-[#c8a96e]" viewBox="0 0 24 24" fill="none">
+    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
       <path d="M12 3 20 7v6c0 4.5-3.2 7.4-8 8-4.8-.6-8-3.5-8-8V7l8-4Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
       <path d="m9 12 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
@@ -732,7 +713,7 @@ function ShieldIcon() {
 
 function StarIcon() {
   return (
-    <svg aria-hidden="true" className="size-5 text-[#c8a96e]" viewBox="0 0 24 24" fill="none">
+    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
       <path d="m12 3 2.6 6.4L21 10.5l-5 4.3L17.3 21 12 17.8 6.7 21l1.3-6.2-5-4.3 6.4-1.1L12 3Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
   );

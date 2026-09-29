@@ -435,7 +435,7 @@ function PromotionCard({
             {entry.code}
           </p>
           {showVerdict && entry.eligible && (
-            <p className="text-[10px] uppercase tracking-[0.1em] text-[#c8a96e]">
+            <p className="text-[10px] uppercase tracking-[0.1em] text-mute">
               {formatCurrency(entry.discountWon)}
             </p>
           )}
