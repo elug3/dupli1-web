@@ -22,11 +22,9 @@
   --text-caption: 0.75rem;
   --text-caption--line-height: 1.5;
 
-  --animate-mobile-menu-overlay-in: mobile-menu-overlay-in 220ms ease-out both;
-  --animate-mobile-menu-overlay-out: mobile-menu-overlay-out 180ms ease-in both;
-  --animate-mobile-menu-panel-in: mobile-menu-panel-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-mobile-menu-panel-out: mobile-menu-panel-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
-  --animate-mobile-menu-item-in: mobile-menu-item-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* The one easing for chrome that moves (drawer, header, overlays). */
+  --ease-lux: cubic-bezier(0.215, 0.61, 0.355, 1);
+
   --animate-home-float: home-float 7s ease-in-out infinite;
   --animate-home-fade-up: home-fade-up 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-home-hero-zoom: home-hero-zoom 18s ease-out forwards;
@@ -35,54 +33,15 @@
   --animate-pdp-scroll-hint: pdp-scroll-hint 2.5s ease 0.75s 1;
 }
 
-@keyframes mobile-menu-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* Height of the fixed site header. Sticky columns and anything pinned under
+   the header offset by this, never by a number of their own. */
+:root {
+  --header-h: 3.5rem;
 }
 
-@keyframes mobile-menu-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes mobile-menu-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes mobile-menu-panel-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes mobile-menu-item-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+@media (width >= 48rem) {
+  :root {
+    --header-h: 4rem;
   }
 }
 
@@ -153,11 +112,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   :where(
-    .animate-mobile-menu-overlay-in,
-    .animate-mobile-menu-overlay-out,
-    .animate-mobile-menu-panel-in,
-    .animate-mobile-menu-panel-out,
-    .animate-mobile-menu-item-in,
     .animate-home-float,
     .animate-home-fade-up,
     .animate-home-hero-zoom,

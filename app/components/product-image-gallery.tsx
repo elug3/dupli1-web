@@ -176,7 +176,7 @@ export function ProductImageGallery({
           against the pinned product info beside it. */}
       <div className="hidden flex-col gap-0.5 bg-white lg:flex">
         {actions && (
-          <div className="pointer-events-none sticky top-[8.25rem] z-10 h-0">
+          <div className="pointer-events-none sticky top-[calc(var(--header-h)+0.5rem)] z-10 h-0">
             <div className="pointer-events-auto absolute right-4 top-4">
               {actions}
             </div>

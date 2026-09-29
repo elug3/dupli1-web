@@ -224,7 +224,7 @@ function ProductLayout({ product: parent }: { product: ServerProduct }) {
     // sheet leaves of the viewport; useProductSheet measures the parts.
     <div
       ref={sheet.rootRef}
-      className="[--pdp-gallery-h:calc(var(--pdp-vh,100svh)-var(--pdp-header,5.5rem)-var(--pdp-peek,12rem))]"
+      className="[--pdp-gallery-h:calc(var(--pdp-vh,100svh)-var(--pdp-header,var(--header-h))-var(--pdp-peek,12rem))]"
     >
       <div className="lg:flex lg:items-start">
 
@@ -266,7 +266,7 @@ function ProductLayout({ product: parent }: { product: ServerProduct }) {
           style={sheet.sheetStyle}
           {...sheet.sheetHandlers}
           className={[
-            "w-full px-4 pb-8 lg:sticky lg:top-[7.75rem] lg:max-h-[calc(100vh-7.75rem)] lg:w-1/2 lg:overflow-y-auto lg:px-16 lg:py-10 xl:px-24",
+            "w-full px-4 pb-8 lg:sticky lg:top-(--header-h) lg:max-h-[calc(100vh-var(--header-h))] lg:w-1/2 lg:overflow-y-auto lg:px-16 lg:py-10 xl:px-24",
             "max-lg:relative max-lg:z-20 max-lg:bg-white max-lg:transition-transform max-lg:duration-300 max-lg:ease-[cubic-bezier(0.4,0,0.2,1)]",
             sheet.open ? "" : "max-lg:touch-none",
           ].join(" ")}

@@ -201,7 +201,7 @@ export default function CartPage() {
               ))}
             </section>
 
-            <aside className="lg:sticky lg:top-28 lg:self-start">
+            <aside className="lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start">
               <OrderSummary
                 summary={summary}
                 promotion={promotion}
