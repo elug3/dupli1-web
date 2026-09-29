@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import {
   isRouteErrorResponse,
   Link,
@@ -19,10 +18,10 @@ import {
   storefrontContext,
   TelegramFloat,
 } from "./components/telegram-float";
+import { ShippingNote, SiteHeader } from "./components/site-header";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
-import { LanguageProvider, useLanguage, type LanguageCode } from "./lib/i18n";
-import { useCart } from "./lib/useCart";
-import { useShippingFeeWon } from "./lib/useShippingFee";
+import { LanguageProvider, useLanguage } from "./lib/i18n";
+import { VISIBLE_NAV_GROUPS } from "./lib/nav";
 
 export const links = () => [
   // Pretendard (Latin + Hangul, all text): the dynamic-subset build fetches
@@ -67,14 +66,12 @@ export default function App() {
   return (
     <LanguageProvider>
       <div className="min-h-screen bg-white text-zinc-950">
-        <AnnouncementBar />
-        <TopNav />
-        {/* announcement 32px + logo row 56px = 88px mobile; + nav row ~36px = 124px desktop */}
-        <div className="pt-[5.5rem] md:pt-[7.75rem]">
+        <SiteHeader />
+        <MainOffset>
           <PageTransition>
             <Outlet />
           </PageTransition>
-        </div>
+        </MainOffset>
         <Footer />
         <TelegramChat />
         <CookieBanner />
@@ -92,6 +89,15 @@ function TelegramChat() {
   return <TelegramFloat context={storefrontContext(pathname, language)} />;
 }
 
+/**
+ * Pushes pages below the fixed header. The home hero runs underneath it
+ * instead, so the header can sit transparent over the image.
+ */
+function MainOffset({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  return <div className={pathname === "/" ? "" : "pt-(--header-h)"}>{children}</div>;
+}
+
 function PageTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
@@ -99,332 +105,6 @@ function PageTransition({ children }: { children: React.ReactNode }) {
     <div key={location.pathname} className="animate-page-transition">
       {children}
     </div>
-  );
-}
-
-function AnnouncementBar() {
-  const { t, formatCurrency } = useLanguage();
-  const shippingFeeWon = useShippingFeeWon();
-  const shippingCopy =
-    shippingFeeWon === 0
-      ? t("announcement.shippingFree")
-      : t("announcement.shipping", { amount: formatCurrency(shippingFeeWon) });
-
-  return (
-    <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center bg-zinc-950 px-4 py-2">
-      <p className="text-center text-[10px] tracking-[0.18em] text-white/70 uppercase">
-        {shippingCopy}
-      </p>
-    </div>
-  );
-}
-
-const desktopNavLinks = [
-  {
-    id: "productType",
-    labelKey: "nav.productType",
-    to: "/category/product-type/handbags",
-    items: [
-      { labelKey: "home.categoryBags", to: "/category/product-type/handbags" },
-      { labelKey: "category.totes", to: "/category/product-type/totes" },
-      { labelKey: "category.shoulderBags", to: "/category/product-type/shoulder-bags" },
-      { labelKey: "category.crossbody", to: "/category/product-type/crossbody" },
-      { labelKey: "category.miniBags", to: "/category/product-type/mini-bags" },
-    ],
-  },
-  {
-    id: "brand",
-    labelKey: "nav.brand",
-    to: "/category/brand/louis-vuitton",
-    items: [
-      { label: "Louis Vuitton", to: "/category/brand/louis-vuitton" },
-      { label: "Miu Miu", to: "/category/brand/miu-miu" },
-      { label: "Balenciaga", to: "/category/brand/balenciaga" },
-      { label: "Bottega Veneta", to: "/category/brand/bottega-veneta" },
-      { label: "Chanel", to: "/category/brand/chanel" },
-      { label: "Hermès", to: "/category/brand/hermes" },
-      { label: "Loewe", to: "/category/brand/loewe" },
-      { label: "Prada", to: "/category/brand/prada" },
-      { label: "Saint Laurent", to: "/category/brand/ysl" },
-    ],
-  },
-  {
-    id: "style",
-    labelKey: "nav.style",
-    to: "/category/style/casual",
-    items: [
-      { labelKey: "category.casual", to: "/category/style/casual" },
-      { labelKey: "category.evening", to: "/category/style/evening" },
-      { labelKey: "category.business", to: "/category/style/business" },
-      { labelKey: "category.weekend", to: "/category/style/weekend" },
-      { labelKey: "category.statement", to: "/category/style/statement" },
-    ],
-  },
-];
-
-const MOBILE_MENU_ANIM_MS = 280;
-
-function TopNav() {
-  const { t } = useLanguage();
-  const { count } = useCart();
-  const [activeNav, setActiveNav] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
-  const closeMenuTimeoutRef = useRef<number | null>(null);
-
-  const openMobileMenu = () => {
-    if (closeMenuTimeoutRef.current) {
-      clearTimeout(closeMenuTimeoutRef.current);
-      closeMenuTimeoutRef.current = null;
-    }
-    setMobileMenuVisible(true);
-    setMobileMenuOpen(true);
-  };
-
-  const closeMobileMenu = () => {
-    if (closeMenuTimeoutRef.current) {
-      clearTimeout(closeMenuTimeoutRef.current);
-    }
-    setMobileMenuOpen(false);
-    closeMenuTimeoutRef.current = window.setTimeout(() => {
-      setMobileMenuVisible(false);
-      closeMenuTimeoutRef.current = null;
-    }, MOBILE_MENU_ANIM_MS);
-  };
-
-  const toggleMobileMenu = () => {
-    if (mobileMenuOpen) {
-      closeMobileMenu();
-    } else {
-      openMobileMenu();
-    }
-  };
-
-  useEffect(() => {
-    if (!mobileMenuVisible) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMobileMenu();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      if (closeMenuTimeoutRef.current) {
-        clearTimeout(closeMenuTimeoutRef.current);
-        closeMenuTimeoutRef.current = null;
-      }
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [mobileMenuVisible]);
-
-  return (
-    <header
-      className="fixed inset-x-0 top-8 z-40 bg-white"
-      onMouseLeave={() => setActiveNav(null)}
-    >
-      {/* Row 1 — Logo (center) + Icons (right) */}
-      <div className="mx-auto grid h-14 max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-6 md:px-10">
-        <div className="flex justify-start">
-          <button
-            type="button"
-            className="rounded p-2 text-zinc-400 transition-colors duration-200 hover:text-zinc-950 active:scale-95 md:hidden"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-nav-menu"
-            aria-label={mobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
-            onClick={toggleMobileMenu}
-          >
-            <span
-              className={[
-                "block transition-transform duration-300 ease-out",
-                mobileMenuOpen ? "rotate-90" : "rotate-0",
-              ].join(" ")}
-            >
-              {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
-            </span>
-          </button>
-        </div>
-
-        <NavLink
-          to="/"
-          data-brand-logo
-          className="justify-self-center text-sm font-semibold uppercase tracking-[0.4em] text-zinc-950 transition hover:opacity-70"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Dupli1
-        </NavLink>
-
-        <div className="flex justify-end gap-0.5">
-          <LanguageSelector />
-          <NavLink
-            to="/cart"
-            aria-label={t("nav.shoppingBag")}
-            className="relative rounded p-2 text-zinc-400 transition hover:text-zinc-950"
-          >
-            <BagIcon />
-            {count > 0 && (
-              <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center bg-zinc-950 text-[9px] font-semibold text-white">
-                {count > 9 ? "9+" : count}
-              </span>
-            )}
-          </NavLink>
-          <NavLink
-            to="/profile"
-            aria-label={t("nav.profile")}
-            className="rounded p-2 text-zinc-400 transition hover:text-zinc-950"
-          >
-            <ProfileIcon />
-          </NavLink>
-        </div>
-      </div>
-
-      {/* Mobile menu panel */}
-      {mobileMenuVisible && (
-        <>
-          <button
-            type="button"
-            aria-label={t("nav.closeMenu")}
-            className={[
-              "fixed inset-0 top-[5.5rem] z-30 bg-black/25 backdrop-blur-[1px] md:hidden",
-              mobileMenuOpen ? "animate-mobile-menu-overlay-in" : "animate-mobile-menu-overlay-out",
-            ].join(" ")}
-            onClick={closeMobileMenu}
-          />
-          <nav
-            id="mobile-nav-menu"
-            aria-label={t("nav.main")}
-            className={[
-              "absolute inset-x-0 top-full z-40 max-h-[calc(100vh-5.5rem)] overflow-y-auto border-b border-zinc-100 bg-white shadow-[0_18px_40px_-24px_rgba(9,9,11,0.35)] md:hidden",
-              mobileMenuOpen ? "animate-mobile-menu-panel-in" : "animate-mobile-menu-panel-out",
-            ].join(" ")}
-          >
-            <div className="mx-auto max-w-7xl px-6 py-5">
-              {desktopNavLinks.map(({ id, labelKey, to, items }, sectionIndex) => (
-                <div
-                  key={id}
-                  className="animate-mobile-menu-item-in border-b border-zinc-100 py-4 last:border-b-0"
-                  style={{ animationDelay: `${80 + sectionIndex * 55}ms` }}
-                >
-                  <NavLink
-                    to={to}
-                    onClick={closeMobileMenu}
-                    className="mb-3 block py-1 text-sm font-bold uppercase tracking-[0.15em] text-zinc-950 transition-colors duration-200 active:text-zinc-600"
-                  >
-                    {t(labelKey)}
-                  </NavLink>
-                  <ul className="space-y-1">
-                    {items.map((item) => {
-                      const label = "labelKey" in item ? t(item.labelKey) : item.label;
-                      return (
-                        <li key={label}>
-                          <NavLink
-                            to={item.to}
-                            onClick={closeMobileMenu}
-                            className="block py-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-500 transition-colors duration-200 hover:text-zinc-950 active:text-zinc-950"
-                          >
-                            {label}
-                          </NavLink>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </nav>
-        </>
-      )}
-
-      {/* Row 2 — Nav links below logo (desktop only) */}
-      <nav
-        aria-label={t("nav.main")}
-        className="hidden border-b border-zinc-100 md:flex items-center justify-center gap-7 pb-3"
-      >
-        {desktopNavLinks.map(({ id, labelKey, to }) => (
-          <NavLink
-            key={id}
-            to={to}
-            onMouseEnter={() => setActiveNav(id)}
-            className={({ isActive }) =>
-              [
-                "whitespace-nowrap text-[11px] uppercase tracking-[0.15em] transition-colors",
-                isActive || activeNav === id ? "text-zinc-950" : "text-zinc-400 hover:text-zinc-950",
-              ].join(" ")
-            }
-          >
-            {t(labelKey)}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* Mega dropdown — half viewport width, centered */}
-      {activeNav && (() => {
-        const activeGroup = desktopNavLinks.find((n) => n.id === activeNav);
-        const isBrand = activeNav === "brand";
-        return (
-          <div className="absolute inset-x-0 flex justify-center border-b border-zinc-100 bg-white shadow-md">
-            <div className="w-[50vw] px-10 py-8">
-              <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.25em] text-zinc-300">
-                {activeGroup ? t(activeGroup.labelKey) : ""}
-              </p>
-              <div className={isBrand ? "grid grid-cols-3 gap-3" : "grid grid-cols-4 gap-x-6 gap-y-3"}>
-                {activeGroup?.items.map((item) => {
-                  const label = "labelKey" in item ? t(item.labelKey) : item.label;
-                  return (
-                  isBrand ? (
-                    <NavLink
-                      key={label}
-                      to={item.to}
-                      onClick={() => setActiveNav(null)}
-                      className="flex items-center justify-center border border-zinc-100 px-4 py-4 text-sm text-zinc-950 transition hover:border-zinc-950"
-                    >
-                      {label}
-                    </NavLink>
-                  ) : (
-                    <NavLink
-                      key={label}
-                      to={item.to}
-                      onClick={() => setActiveNav(null)}
-                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-400 transition hover:text-zinc-950 py-1"
-                    >
-                      {label}
-                    </NavLink>
-                  )
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-    </header>
-  );
-}
-
-function LanguageSelector() {
-  const { language, languages, setLanguage, t } = useLanguage();
-
-  return (
-    <label className="mr-1 hidden items-center gap-1 rounded p-1 text-zinc-400 transition hover:text-zinc-950 sm:flex">
-      <span className="sr-only">{t("language.label")}</span>
-      <GlobeIcon />
-      <select
-        value={language}
-        onChange={(event) => setLanguage(event.target.value as LanguageCode)}
-        aria-label={t("language.label")}
-        className="cursor-pointer bg-transparent text-[10px] font-semibold uppercase tracking-[0.12em] outline-none"
-      >
-        {languages.map((option) => (
-          <option key={option.code} value={option.code}>
-            {option.nativeLabel}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -455,7 +135,7 @@ function Footer() {
               {t("footer.shop")}
             </p>
             <ul className="space-y-2">
-              {desktopNavLinks.map(({ id, labelKey, to }) => (
+              {VISIBLE_NAV_GROUPS.map(({ id, labelKey, to }) => (
                 <li key={id}>
                   <NavLink
                     to={to}
@@ -496,54 +176,11 @@ function Footer() {
 
         <div className="mt-12 flex items-center justify-between border-t border-zinc-100 pt-8">
           <p className="text-[11px] text-zinc-300">{t("footer.rights")}</p>
+          <ShippingNote className="text-[11px] text-zinc-400" />
           <p className="text-[11px] text-zinc-300">{t("footer.tagline")}</p>
         </div>
       </div>
     </footer>
-  );
-}
-
-// ── Icons ──────────────────────────────────────────────────────────────────
-
-function ProfileIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function BagIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="M6 8h12l-1 13H7L6 8Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
-      <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-      <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-      <path d="M3.6 9h16.8M3.6 15h16.8M12 3c2.25 2.45 3.35 5.45 3.35 9S14.25 18.55 12 21c-2.25-2.45-3.35-5.45-3.35-9S9.75 5.45 12 3Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function MenuIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-      <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-    </svg>
   );
 }
 

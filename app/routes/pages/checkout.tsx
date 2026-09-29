@@ -1271,7 +1271,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <aside className="hidden lg:block lg:sticky lg:top-28 lg:self-start">
+          <aside className="hidden lg:block lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start">
             <div className="mb-6 space-y-6 border-b border-zinc-100 pb-6">
               {items.map((item) => (
                 <div key={item.skuId ?? item.sku}>
