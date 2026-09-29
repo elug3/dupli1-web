@@ -87,7 +87,7 @@ export default function CheckoutConfirmationPage() {
           <CheckIcon />
         </div>
 
-        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-mute">
           {t("confirmation.orderConfirmed")}
         </p>
         <h1

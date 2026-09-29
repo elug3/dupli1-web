@@ -444,7 +444,7 @@ function ProductInfo({
         <div className="min-w-0">
           <Link
             to={brandLink}
-            className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e] transition hover:opacity-70"
+            className="text-[10px] font-semibold uppercase tracking-[0.25em] text-mute transition hover:opacity-70"
           >
             {product.brand}
           </Link>
@@ -699,7 +699,7 @@ function RelatedProducts({ seedId }: { seedId: string }) {
 
 function getBadge(product: ServerProduct) {
   if (product.status === "new") return { labelKey: "product.badgeNew", style: "bg-white text-zinc-950 border border-zinc-200" };
-  if (product.status === "featured") return { labelKey: "product.badgeFeatured", style: "bg-[#c8a96e] text-white" };
+  if (product.status === "featured") return { labelKey: "product.badgeFeatured", style: "bg-ink text-white" };
   return null;
 }
 

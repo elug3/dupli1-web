@@ -33,10 +33,10 @@ export function ProductPrice({
   }
 
   return (
-    <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm font-semibold text-zinc-950">
+    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-small text-mute">
       <span>{formatCurrency(price)}</span>
       {showOfficial && (
-        <span className="text-xs font-medium text-zinc-400 line-through">
+        <span className="text-caption text-zinc-400 line-through">
           {formatCurrency(officialPrice)}
         </span>
       )}

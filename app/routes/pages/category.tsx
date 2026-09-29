@@ -4,7 +4,6 @@ import {
   type DisplayProduct,
   bannerBagImage,
   listingProductImage,
-  LISTING_IMAGE_SIZES,
   productImage,
   searchProducts,
 } from "~/lib/api";
@@ -19,8 +18,13 @@ import {
   isFeaturedBrandSlug,
 } from "~/lib/catalog";
 import { NotFoundPage } from "~/components/not-found";
-import { ProductPrice } from "~/components/product-price";
+import {
+  PRODUCT_GRID_CLASS,
+  ProductCard,
+  ProductCardSkeleton,
+} from "~/components/product-card";
 import { useLanguage } from "~/lib/i18n";
+import { useWishlist } from "~/lib/useWishlist";
 
 export function meta({
   params,
@@ -102,8 +106,8 @@ function CategoryShell({
 
   return (
     <main className="bg-white">
-      <div className="mx-auto max-w-7xl px-4 pt-6 md:px-8">
-        <nav className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-400">
+      <div className="px-4 pt-6 md:px-8">
+        <nav className="mx-auto flex max-w-7xl items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-400">
           <Link to="/" className="transition hover:text-zinc-950">
             {t("product.home")}
           </Link>
@@ -115,7 +119,7 @@ function CategoryShell({
       {/* Solid-color banner — shared across every category/style/target/brand page */}
       <div className="mt-6 bg-zinc-950">
         <div className="mx-auto max-w-7xl px-4 py-6 text-center md:px-8 md:py-8">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#c8a96e]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-zinc-400">
             {eyebrow}
           </p>
           <h1
@@ -127,14 +131,16 @@ function CategoryShell({
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
-        {typeof count === "number" && (
-          <p className="mb-6 text-sm text-zinc-400">
-            {count} {count === 1 ? t("cart.item") : t("cart.items")}
-          </p>
-        )}
+      <div className="px-4 py-10 md:px-8 md:py-14">
+        <div className="mx-auto max-w-7xl">
+          {typeof count === "number" && (
+            <p className="mb-6 text-sm text-zinc-400">
+              {count} {count === 1 ? t("cart.item") : t("cart.items")}
+            </p>
+          )}
 
-        {children}
+          {children}
+        </div>
       </div>
     </main>
   );
@@ -142,13 +148,9 @@ function CategoryShell({
 
 function ProductSkeletonGrid() {
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-5 md:gap-y-12">
-      {Array.from({ length: 8 }).map((_, index) => (
-        <div key={index} className="animate-pulse">
-          <div className="mb-3 bg-zinc-100" style={{ paddingBottom: "110%" }} />
-          <div className="h-2.5 w-16 rounded bg-zinc-100" />
-          <div className="mt-1.5 h-3.5 w-32 rounded bg-zinc-100" />
-        </div>
+    <div className={PRODUCT_GRID_CLASS}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <ProductCardSkeleton key={i} />
       ))}
     </div>
   );
@@ -156,6 +158,7 @@ function ProductSkeletonGrid() {
 
 function ProductGrid({ products }: { products: DisplayProduct[] }) {
   const { t, translateProductName } = useLanguage();
+  const wishlist = useWishlist();
 
   if (products.length === 0) {
     return (
@@ -172,37 +175,26 @@ function ProductGrid({ products }: { products: DisplayProduct[] }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-5 md:gap-y-12">
+    <div className={PRODUCT_GRID_CLASS}>
       {products.map((product, index) => (
-        <Link key={product.id} to={`/product/${product.id}`} className="group">
-          <div
-            className="relative mb-3 overflow-hidden bg-zinc-50"
-            style={{ paddingBottom: "110%" }}
-          >
-            <img
-              src={listingProductImage(
-                product.category,
-                String(product.details.Brand ?? ""),
-                product.image
-              )}
-              alt={translateProductName(product.id, product.name)}
-              width={600}
-              height={660}
-              sizes={LISTING_IMAGE_SIZES}
-              loading={index < 4 ? "eager" : "lazy"}
-              decoding="async"
-              fetchPriority={index < 4 ? "high" : undefined}
-              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-            />
-          </div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
-            {brandDisplayName(String(product.details.Brand ?? ""))}
-          </p>
-          <p className="mt-0.5 text-sm font-medium leading-snug text-zinc-950">
-            {translateProductName(product.id, product.name)}
-          </p>
-          <ProductPrice price={product.price} officialPrice={product.officialPrice} />
-        </Link>
+        <ProductCard
+          key={product.id}
+          id={product.id}
+          name={translateProductName(product.id, product.name)}
+          brand={brandDisplayName(String(product.details.Brand ?? ""))}
+          image={listingProductImage(
+            product.category,
+            String(product.details.Brand ?? ""),
+            product.image
+          )}
+          price={product.price}
+          officialPrice={product.officialPrice}
+          stock={product.stock}
+          index={index}
+          wishlisted={wishlist.has(product.id)}
+          wishlistBusy={wishlist.isBusy(product.id)}
+          onToggleWishlist={() => void wishlist.toggle(product.id)}
+        />
       ))}
     </div>
   );
@@ -238,7 +230,7 @@ function FeaturedBrandPage({ slug }: { slug: string }) {
     : productImage("bags", title);
 
   return (
-    <main className="bg-[#faf8f5]">
+    <main className="bg-white">
       <section className="relative min-h-[min(88vh,52rem)] overflow-hidden bg-[#141210]">
         <img
           src={heroImage}
@@ -246,7 +238,7 @@ function FeaturedBrandPage({ slug }: { slug: string }) {
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover opacity-40 animate-[brand-hero-zoom_18s_ease-out_forwards]"
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(200,169,110,0.2),transparent_42%),linear-gradient(180deg,rgba(20,18,16,0.45)_0%,rgba(20,18,16,0.88)_70%,#141210_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(255,255,255,0.08),transparent_42%),linear-gradient(180deg,rgba(20,18,16,0.45)_0%,rgba(20,18,16,0.88)_70%,#141210_100%)]" />
 
         <div className="relative mx-auto max-w-7xl px-6 pt-6 md:px-10">
           <nav className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/55">
@@ -283,7 +275,7 @@ function FeaturedBrandPage({ slug }: { slug: string }) {
             )}
             <a
               href="#brand-collection"
-              className="mt-8 inline-flex h-12 items-center bg-white px-7 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-950 transition hover:bg-[#c8a96e] hover:text-white"
+              className="mt-8 inline-flex h-12 items-center bg-white px-7 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-950 transition hover:bg-zinc-200"
             >
               {t("brand.shopCollection")}
             </a>
@@ -293,11 +285,12 @@ function FeaturedBrandPage({ slug }: { slug: string }) {
 
       <section
         id="brand-collection"
-        className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-16"
+        className="px-4 py-12 md:px-8 md:py-16"
       >
+        <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c8a96e]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
               {title}
             </p>
             <h2
@@ -316,6 +309,7 @@ function FeaturedBrandPage({ slug }: { slug: string }) {
         </div>
 
         {loading ? <ProductSkeletonGrid /> : <ProductGrid products={products} />}
+        </div>
       </section>
 
       <style>{`

@@ -14,7 +14,7 @@ export function LoadingBadge({
 
   return (
     <span className={className} aria-live="polite" aria-busy="true">
-      <span className="size-2 animate-pulse rounded-full bg-[#c8a96e]" />
+      <span className="size-2 animate-pulse rounded-full bg-mute" />
       {label}
     </span>
   );

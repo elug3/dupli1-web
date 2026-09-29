@@ -253,7 +253,7 @@ function OrderDetail({
       {isResumableOrder(order) && (
         <div
           role="status"
-          className="mt-6 flex flex-wrap items-center justify-between gap-3 border border-[#c8a96e] bg-[#fdfaf4] px-4 py-4"
+          className="mt-6 flex flex-wrap items-center justify-between gap-3 border border-ink bg-ground px-4 py-4"
         >
           <p className="text-sm text-zinc-700">{t("checkout.resumeTitle")}</p>
           <Link

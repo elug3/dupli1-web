@@ -1461,7 +1461,7 @@ function ResumePaymentBanner({
   return (
     <div
       role="status"
-      className="border border-[#c8a96e] bg-[#fdfaf4] px-4 py-4 md:px-6"
+      className="border border-ink bg-ground px-4 py-4 md:px-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
@@ -1644,7 +1644,7 @@ function CheckoutStepper({
                   isActive
                     ? "border-zinc-950 bg-zinc-950 text-white"
                     : isComplete
-                      ? "border-[#c8a96e] bg-[#c8a96e] text-white"
+                      ? "border-ink bg-ink text-white"
                       : "border-zinc-200 text-zinc-300",
                 ].join(" ")}
               >
@@ -1690,7 +1690,7 @@ function CheckoutSection({
   return (
     <section className="border-t border-zinc-100 pt-10 first:border-t-0 first:pt-0">
       <div className="mb-6 flex items-baseline gap-4">
-        <span className="text-[10px] font-semibold tracking-[0.2em] text-[#c8a96e]">
+        <span className="text-[10px] font-semibold tracking-[0.2em] text-mute">
           {step}
         </span>
         <h2

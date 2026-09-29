@@ -173,7 +173,7 @@ export default function CartPage() {
 
                   <div className="flex min-w-0 flex-col justify-between">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#c8a96e]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-mute">
                         {item.brand}
                       </p>
                       <Link
