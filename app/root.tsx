@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   isRouteErrorResponse,
   Link,
@@ -110,77 +111,86 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 
 function Footer() {
   const { t } = useLanguage();
+  const linkClass = "transition hover:text-ink";
 
   return (
-    <footer className="hidden border-t border-zinc-100 bg-white px-4 py-16 md:block md:px-8">
+    <footer className="border-t border-rule bg-white px-4 pt-10 pb-12 md:px-8 md:py-16">
       <div className="mx-auto max-w-7xl">
-        <div className="grid grid-cols-4 gap-12">
-          {/* Brand */}
-          <div className="col-span-1">
+        <div className="md:grid md:grid-cols-4 md:gap-12">
+          <div className="mb-8 md:mb-0">
             <p
               data-brand-logo
-              className="mb-3 text-2xl font-light tracking-[0.35em] uppercase text-zinc-950"
+              className="mb-3 text-2xl font-light tracking-[0.35em] uppercase text-ink"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Dupli1
             </p>
-            <p className="text-xs leading-relaxed text-zinc-400">
-              {t("footer.description")}
-            </p>
+            <p className="text-caption text-mute">{t("footer.description")}</p>
           </div>
 
-          {/* Shop */}
-          <div>
-            <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-950">
-              {t("footer.shop")}
-            </p>
-            <ul className="space-y-2">
-              {VISIBLE_NAV_GROUPS.map(({ id, labelKey, to }) => (
-                <li key={id}>
-                  <NavLink
-                    to={to}
-                    className="text-xs text-zinc-400 transition hover:text-zinc-950"
-                  >
-                    {t(labelKey)}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterColumn title={t("footer.shop")}>
+            {VISIBLE_NAV_GROUPS.map(({ id, labelKey, to }) => (
+              <li key={id}>
+                <NavLink to={to} className={linkClass}>
+                  {t(labelKey)}
+                </NavLink>
+              </li>
+            ))}
+          </FooterColumn>
 
-          {/* Services */}
-          <div>
-            <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-950">
-              {t("footer.services")}
-            </p>
-            <ul className="space-y-2 text-xs text-zinc-400">
-              <li><Link to="/category/product-type/handbags" className="hover:text-zinc-950 transition">{t("footer.styleConsultation")}</Link></li>
-              <li><NavLink to={MY_ACCOUNT_ORDERS_PATH} className="hover:text-zinc-950 transition">{t("footer.orderHistory")}</NavLink></li>
-              <li><NavLink to="/profile" end className="hover:text-zinc-950 transition">{t("footer.myAccount")}</NavLink></li>
-            </ul>
-          </div>
+          <FooterColumn title={t("footer.services")}>
+            <li><Link to="/category/product-type/handbags" className={linkClass}>{t("footer.styleConsultation")}</Link></li>
+            <li><NavLink to={MY_ACCOUNT_ORDERS_PATH} className={linkClass}>{t("footer.orderHistory")}</NavLink></li>
+            <li><NavLink to="/profile" end className={linkClass}>{t("footer.myAccount")}</NavLink></li>
+          </FooterColumn>
 
-          {/* Info */}
-          <div>
-            <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-950">
-              {t("footer.info")}
-            </p>
-            <ul className="space-y-2 text-xs text-zinc-400">
-              <li>{t("footer.shippingReturns")}</li>
-              <li>{t("footer.authenticityGuarantee")}</li>
-              <li>{t("footer.privacyPolicy")}</li>
-              <li>{t("footer.termsConditions")}</li>
-            </ul>
-          </div>
+          <FooterColumn title={t("footer.info")}>
+            <li>{t("footer.shippingReturns")}</li>
+            <li>{t("footer.authenticityGuarantee")}</li>
+            <li>{t("footer.privacyPolicy")}</li>
+            <li>{t("footer.termsConditions")}</li>
+          </FooterColumn>
         </div>
 
-        <div className="mt-12 flex items-center justify-between border-t border-zinc-100 pt-8">
-          <p className="text-[11px] text-zinc-300">{t("footer.rights")}</p>
-          <ShippingNote className="text-[11px] text-zinc-400" />
-          <p className="text-[11px] text-zinc-300">{t("footer.tagline")}</p>
+        <div className="mt-10 grid gap-2 text-caption text-mute md:mt-12 md:flex md:items-center md:justify-between md:border-t md:border-rule md:pt-8">
+          <p>{t("footer.rights")}</p>
+          <ShippingNote />
+          <p>{t("footer.tagline")}</p>
         </div>
       </div>
     </footer>
+  );
+}
+
+/**
+ * A footer column: always open from md, a tap-to-open row on phones so the
+ * footer does not become a long list under every page.
+ */
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-rule md:border-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between py-4 text-left text-small md:pointer-events-none md:mb-4 md:py-0"
+      >
+        <span>{title}</span>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`size-4 transition-transform duration-300 ease-lux md:hidden ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+        </svg>
+      </button>
+      <ul className={`space-y-2 pb-5 text-small text-mute md:block md:pb-0 ${open ? "block" : "hidden"}`}>
+        {children}
+      </ul>
+    </div>
   );
 }
 

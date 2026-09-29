@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { useLanguage } from "~/lib/i18n";
-import { VISIBLE_NAV_GROUPS, type NavGroup, navItemImage, navItemLabel } from "~/lib/nav";
+import { VISIBLE_NAV_GROUPS, type NavGroup, navItemLabel } from "~/lib/nav";
+
+import { NavImage } from "./nav-image";
 
 /**
  * The one menu for every width: a drawer from the left, full screen on
@@ -189,35 +191,6 @@ function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => 
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-/** A category's most viewed product on the ground colour; blank until it loads. */
-function NavImage({ to, className }: { to: string; className: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void navItemImage(to).then((next) => {
-      if (!cancelled) setSrc(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [to]);
-
-  return (
-    <div className={`overflow-hidden bg-ground ${className}`}>
-      {src && (
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-full w-full object-cover mix-blend-multiply"
-        />
-      )}
     </div>
   );
 }

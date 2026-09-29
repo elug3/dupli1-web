@@ -2,21 +2,20 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
   type Bag,
+  type BagSearchFilters,
   diversifyBagsByBrand,
   fetchBags,
-  fetchCuratedBag,
-  bagImage,
-  bannerBagImage,
-  heroBagImage,
   listingBagImage,
 } from "~/lib/api";
 import {
-  PRODUCT_TYPE_TO_SUBCATEGORY,
+  FEATURED_BRAND_SLUGS,
+  brandApiName,
+  brandBlurbKey,
   brandDisplayName,
-  brandToSlug,
 } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
-import { useShippingFeeWon } from "~/lib/useShippingFee";
+import { NAV_GROUPS, VISIBLE_NAV_GROUPS, navItemLabel } from "~/lib/nav";
+import { NavImage } from "~/components/nav-image";
 import {
   PRODUCT_GRID_CLASS,
   ProductCard,
@@ -31,77 +30,57 @@ export function meta() {
   ];
 }
 
-/** Soft preferences when the seeded id still exists in the filtered page. */
-const EDITORIAL_BAG_ID = "bag-lv-capucines-bb";
-const SUMMER_EDIT_BAG_ID = "bag-hermes-garden-party-30";
-
 const HOME_HERO_POSTER = "/heroes/home-banner.jpg";
 const HOME_HERO_VIDEO =
   "https://video.wixstatic.com/video/e947e9_46c6e0d6219243f0bcd58882fb254882/1080p/mp4/file.mp4";
 
-const categoryTiles = [
-  {
-    key: "handbags",
-    slug: "handbags",
-    titleKey: "home.categoryBags",
-    to: "/category/product-type/handbags",
-    className: "md:col-span-2 md:row-span-2 min-h-[18rem] md:min-h-[28rem]",
-  },
-  {
-    key: "totes",
-    slug: "totes",
-    titleKey: "category.totes",
-    to: "/category/product-type/totes",
-    className: "min-h-[14rem]",
-  },
-  {
-    key: "shoulder",
-    slug: "shoulder-bags",
-    titleKey: "category.shoulderBags",
-    to: "/category/product-type/shoulder-bags",
-    className: "min-h-[14rem]",
-  },
-  {
-    key: "crossbody",
-    slug: "crossbody",
-    titleKey: "category.crossbody",
-    to: "/category/product-type/crossbody",
-    className: "min-h-[14rem] md:col-span-2",
-  },
-] as const;
+/** Products per hub: one row of the shared grid on desktop, two on phones. */
+const HUB_SIZE = 4;
 
-const styleTiles = [
-  { key: "casual", titleKey: "category.casual", to: "/category/style/casual" },
-  { key: "evening", titleKey: "category.evening", to: "/category/style/evening" },
-  { key: "business", titleKey: "category.business", to: "/category/style/business" },
-  { key: "weekend", titleKey: "category.weekend", to: "/category/style/weekend" },
-  { key: "statement", titleKey: "category.statement", to: "/category/style/statement" },
-] as const;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Prefer these brands (API names) for the shop-by-brand strip. */
-const HOME_BRAND_ORDER = [
-  "Chanel",
-  "Louis Vuitton",
-  "Hermes",
-  "Prada",
-  "Balenciaga",
-  "Bottega Veneta",
-  "Loewe",
-  "Miu Miu",
-  "Saint Laurent",
-] as const;
+/**
+ * The featured house for the third hub, changing once a week so the page
+ * does not look the same on every visit.
+ */
+function brandOfTheWeek(now = Date.now()) {
+  return FEATURED_BRAND_SLUGS[Math.floor(now / WEEK_MS) % FEATURED_BRAND_SLUGS.length];
+}
 
+/**
+ * One white page in seven blocks: the hero, the category tiles, then hubs
+ * (an intro, four products, one button to the listing) with the brand row
+ * between them. Every block below the hero ends in something to buy.
+ */
 export default function Home() {
+  const { t } = useLanguage();
+  const brandSlug = brandOfTheWeek();
+  const blurbKey = brandBlurbKey(brandSlug);
+
   return (
     <main className="bg-white">
       <Hero />
-      <ValueStrip />
-      <CategoryMosaic />
-      <EditorialSplit />
-      <BrandTiles />
-      <FeaturedBags />
-      <StyleEdit />
-      <PromoBanner />
+      <CategoryTiles />
+      <Hub
+        title={t("home.newArrivalsTitle")}
+        body={t("home.newArrivalsBody")}
+        to="/category/product-type/handbags"
+        query={{ sort: "newest", limit: 24 }}
+      />
+      <Hub
+        title={t("home.bestSellersTitle")}
+        body={t("home.bestSellersBody")}
+        to="/category/product-type/handbags"
+        query={{ sort: "views", limit: 24 }}
+      />
+      <BrandRow />
+      <Hub
+        title={brandDisplayName(brandSlug)}
+        body={blurbKey ? t(blurbKey) : ""}
+        to={`/category/brand/${brandSlug}`}
+        query={{ brand: brandApiName(brandSlug), sort: "views", limit: HUB_SIZE }}
+        mixBrands={false}
+      />
     </main>
   );
 }
@@ -113,7 +92,7 @@ function Hero() {
 
   return (
     <section className="relative w-full overflow-hidden bg-[#cfcfcf]" aria-label={t("home.heroAlt")}>
-      <div className="relative aspect-[6/5] w-full md:aspect-[5/2]">
+      <div className="relative aspect-[4/5] w-full md:aspect-[5/2]">
         <img
           src={HOME_HERO_POSTER}
           alt=""
@@ -132,384 +111,132 @@ function Hero() {
           <source src={HOME_HERO_VIDEO} type="video/mp4" />
         </video>
 
-        <h1 className="absolute bottom-[11%] left-[7%] z-10 max-w-[18rem] text-[clamp(1.75rem,7.2vw,2rem)] font-semibold leading-[1.3] text-white md:bottom-[14%] md:left-auto md:right-[8%] md:max-w-[22rem] md:text-[clamp(2.5rem,3.8vw,3.375rem)]">
-          <span className="block">{t("home.heroTitleLine1")}</span>
-          <span className="block">
-            {t("home.heroTitleLine2")}{" "}
-            <span data-brand-logo>Dupli1</span>
-          </span>
-        </h1>
-      </div>
-    </section>
-  );
-}
-
-// ── Value strip ────────────────────────────────────────────────────────────
-
-function ValueStrip() {
-  const { t, formatCurrency } = useLanguage();
-  const shippingFeeWon = useShippingFeeWon();
-  const values = [
-    shippingFeeWon === 0
-      ? { titleKey: "home.valueShippingFree", icon: ShippingIcon }
-      : {
-          titleKey: "home.valueShipping",
-          icon: ShippingIcon,
-          values: { amount: formatCurrency(shippingFeeWon) },
-        },
-    { titleKey: "home.valueAuthenticity", icon: ShieldIcon },
-    { titleKey: "home.valueCuration", icon: StarIcon },
-  ];
-
-  return (
-    <section className="border-y border-rule bg-white">
-      <div className="mx-auto grid max-w-7xl divide-y divide-rule md:grid-cols-3 md:divide-x md:divide-y-0">
-        {values.map(({ titleKey, icon: Icon, values: interpolation }) => (
-          <div
-            key={titleKey}
-            className="flex items-center justify-center gap-4 px-6 py-5 text-center md:py-6"
+        <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center bg-gradient-to-t from-black/35 to-transparent px-4 pb-10 pt-24 text-center text-white md:pb-14">
+          <h1 className="text-2xl md:text-[2rem] md:leading-tight">
+            {t("home.heroTitleLine1")} {t("home.heroTitleLine2")}
+          </h1>
+          <Link
+            to="/category/product-type/handbags"
+            className="mt-4 text-small underline underline-offset-4 transition-opacity hover:opacity-70"
           >
-            <Icon />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-800">
-              {t(titleKey, interpolation)}
-            </p>
-          </div>
-        ))}
+            {t("home.shopNow")}
+          </Link>
+        </div>
       </div>
     </section>
   );
 }
 
-// ── Category mosaic ──────────────────────────────────────────────────────────
+// ── Category tiles ─────────────────────────────────────────────────────────
 
-function CategoryMosaic() {
+/**
+ * Every item of every launched subject as a picture tile, then the styles as
+ * a row of links. Reads the menu's tree, so wallets and padded jackets get
+ * their own row of tiles the day they launch.
+ */
+function CategoryTiles() {
   const { t } = useLanguage();
-  const [images, setImages] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.all(
-      categoryTiles.map(async (tile) => {
-        const subcategory = PRODUCT_TYPE_TO_SUBCATEGORY[tile.slug];
-        let bags = await fetchBags({
-          subcategory,
-          sort: "views",
-          limit: 1,
-        }).catch(() => [] as Bag[]);
-
-        // Taxonomy may be unset on older catalog rows — fall back to newest.
-        if (bags.length === 0) {
-          bags = await fetchBags({ sort: "newest", limit: 4 }).catch(
-            () => [] as Bag[]
-          );
-        }
-
-        const bag = bags[0];
-        return [
-          tile.key,
-          bag ? heroBagImage(bag.image, bag.brand) : "",
-        ] as const;
-      })
-    ).then((entries) => {
-      if (cancelled) return;
-      setImages(Object.fromEntries(entries.filter(([, url]) => url)));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
+  const style = VISIBLE_NAV_GROUPS.find((g) => g.id === "style");
 
   return (
     <section className="px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-10 max-w-2xl md:mb-14">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
-            {t("home.categoryEyebrow")}
-          </p>
-          <h2
-            className="text-4xl font-light tracking-tight text-zinc-950 md:text-5xl lg:text-6xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {t("home.categoryTitle")}
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-zinc-500">
-            {t("home.categoryDescription")}
-          </p>
+        <SectionHeading title={t("home.categoriesTitle")} />
+
+        <div className="grid gap-12">
+          {subjects.map((subject) => (
+            <div key={subject.id} className="min-w-0">
+              {subjects.length > 1 && (
+                <h3 className="mb-4 text-small text-mute">{t(subject.labelKey)}</h3>
+              )}
+              <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+                {subject.items.map((item) => (
+                  <li key={item.to} className="w-[42vw] shrink-0 snap-start md:w-auto">
+                    <Link to={item.to} className="group block">
+                      <NavImage
+                        to={item.to}
+                        className="aspect-square transition-opacity duration-300 ease-lux group-hover:opacity-85"
+                      />
+                      <p className="mt-3 text-small">{navItemLabel(item, t)}</p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3 md:grid-rows-2">
-          {categoryTiles.map((tile) => {
-            const image = images[tile.key];
-            return (
+        {style && (
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-2">
+            <span className="mr-2 text-small text-mute">{t("home.shopByStyle")}</span>
+            {style.items.map((item) => (
               <Link
-                key={tile.key}
-                to={tile.to}
-                className={[
-                  "group relative overflow-hidden bg-zinc-900",
-                  tile.className,
-                ].join(" ")}
+                key={item.to}
+                to={item.to}
+                className="inline-flex h-10 items-center border border-rule px-4 text-small transition-colors duration-300 ease-lux hover:border-ink"
               >
-                {image ? (
-                  <img
-                    src={image}
-                    alt={t(tile.titleKey)}
-                    className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-700 group-hover:scale-105 group-hover:opacity-90"
-                  />
-                ) : (
-                  <div className="absolute inset-0 animate-pulse bg-zinc-800" />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
-                    {t("home.categoryExplore")}
-                  </p>
-                  <h3
-                    className="mt-2 text-2xl font-light text-white md:text-3xl"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    {t(tile.titleKey)}
-                  </h3>
-                </div>
+                {navItemLabel(item, t)}
               </Link>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-// ── Editorial split ──────────────────────────────────────────────────────────
+// ── Hub ────────────────────────────────────────────────────────────────────
 
-function EditorialSplit() {
-  const { t } = useLanguage();
-  const [bag, setBag] = useState<Bag | null>(null);
-
-  useEffect(() => {
-    fetchCuratedBag({
-      brand: "Louis Vuitton",
-      sort: "newest",
-      limit: 8,
-      preferredId: EDITORIAL_BAG_ID,
-    })
-      .then(async (selected) => {
-        if (selected) return selected;
-        return fetchCuratedBag({ sort: "newest", limit: 8 });
-      })
-      .then(setBag)
-      .catch(() => {});
-  }, []);
-
-  const ctaTo = bag
-    ? brandToSlug(bag.brand)
-      ? `/category/brand/${brandToSlug(bag.brand)}`
-      : `/product/${bag.id}`
-    : "/category/brand/louis-vuitton";
-
-  return (
-    <section className="overflow-hidden bg-zinc-950 text-white">
-      <div className="mx-auto grid max-w-7xl lg:grid-cols-2">
-        <div className="flex flex-col justify-center px-6 py-16 md:px-10 md:py-24 lg:px-14">
-          <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70">
-            {t("home.editorialEyebrow")}
-          </p>
-          <h2
-            className="text-4xl font-light leading-tight tracking-tight md:text-5xl lg:text-6xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {t("home.editorialTitle")}
-          </h2>
-          <p className="mt-6 max-w-md text-sm leading-relaxed text-white/55">
-            {t("home.editorialBody")}
-          </p>
-          <Link
-            to={ctaTo}
-            className="mt-10 inline-flex h-12 w-fit items-center border border-white/50 px-8 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white hover:text-ink"
-          >
-            {t("home.editorialCta")}
-          </Link>
-        </div>
-
-        <div className="relative min-h-[22rem] lg:min-h-[32rem]">
-          {bag ? (
-            <>
-              <img
-                src={heroBagImage(bag.image, bag.brand)}
-                alt={bag.name}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/20 to-transparent lg:from-zinc-950/80" />
-            </>
-          ) : (
-            <div className="absolute inset-0 animate-pulse bg-zinc-900" />
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Brand tiles ──────────────────────────────────────────────────────────────
-
-function BrandTiles() {
-  const { t } = useLanguage();
-  const [tiles, setTiles] = useState<{ brand: string; id: string; image?: string }[]>([]);
+/**
+ * The home page's one repeated unit: a short intro, four products in the
+ * shared card and one outlined button to the full listing. Hidden when the
+ * catalog returns nothing, so an empty or failed query leaves no hole.
+ */
+function Hub({
+  title,
+  body,
+  to,
+  query,
+  mixBrands = true,
+}: {
+  title: string;
+  body: string;
+  to: string;
+  query: BagSearchFilters;
+  /** Spread the four across brands (true) or keep the query's order. */
+  mixBrands?: boolean;
+}) {
+  const { t, translateProductName } = useLanguage();
+  const wishlist = useWishlist();
+  const [bags, setBags] = useState<Bag[] | null>(null);
+  const queryKey = JSON.stringify(query);
 
   useEffect(() => {
     let cancelled = false;
-
-    // One product per preferred house so tiles don't all share bags[0].
-    Promise.all(
-      HOME_BRAND_ORDER.map(async (brand) => {
-        const bags = await fetchBags({
-          brand,
-          sort: "views",
-          limit: 1,
-        }).catch(() => [] as Bag[]);
-        const bag = bags[0];
-        if (!bag) return null;
-        return { brand: bag.brand, id: bag.id, image: bag.image } as {
-          brand: string;
-          id: string;
-          image?: string;
-        };
+    fetchBags(JSON.parse(queryKey) as BagSearchFilters)
+      .then((results) => {
+        if (cancelled) return;
+        setBags(mixBrands ? diversifyBagsByBrand(results, HUB_SIZE) : results.slice(0, HUB_SIZE));
       })
-    ).then(async (preferred) => {
-      if (cancelled) return;
-      const tilesFromPreferred = preferred.flatMap((tile) =>
-        tile ? [tile] : []
-      );
-
-      if (tilesFromPreferred.length >= 4) {
-        setTiles(tilesFromPreferred);
-        return;
-      }
-
-      // Fill from a broader newest page when some brands are missing.
-      const more = await fetchBags({ sort: "newest", limit: 40 }).catch(
-        () => [] as Bag[]
-      );
-      if (cancelled) return;
-
-      const seen = new Set(
-        tilesFromPreferred.map((tile) => tile.brand.trim().toLowerCase())
-      );
-      const merged = [...tilesFromPreferred];
-      for (const bag of more) {
-        const key = bag.brand.trim().toLowerCase();
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        merged.push({ brand: bag.brand, id: bag.id, image: bag.image });
-      }
-      setTiles(merged);
-    });
-
+      .catch(() => {
+        if (!cancelled) setBags([]);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [queryKey, mixBrands]);
 
-  if (tiles.length === 0) return null;
-
-  return (
-    <section className="border-t border-rule bg-white px-4 py-16 md:px-8 md:py-24">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-10 flex items-end justify-between gap-4">
-          <h2
-            className="text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {t("home.shopByBrand")}
-          </h2>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
-          {tiles.map(({ brand, image }) => {
-            const slug = brandToSlug(brand);
-            if (!slug) return null;
-            const label = brandDisplayName(brand);
-            return (
-            <Link
-              key={brand}
-              to={`/category/brand/${slug}`}
-              className="group relative w-[72vw] shrink-0 overflow-hidden bg-zinc-100 md:w-auto"
-            >
-              <div className="relative overflow-hidden" style={{ paddingBottom: "125%" }}>
-                <img
-                  src={bagImage(brand, image)}
-                  alt={label}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/10 to-transparent transition duration-500 group-hover:from-zinc-950/90" />
-                <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
-                  <p
-                    className="text-xl font-light text-white md:text-2xl"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    {label}
-                  </p>
-                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70 opacity-0 transition duration-300 group-hover:opacity-100">
-                    {t("home.categoryExplore")} →
-                  </p>
-                </div>
-              </div>
-            </Link>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Featured bags ────────────────────────────────────────────────────────────
-
-function FeaturedBags() {
-  const { t, translateProductName } = useLanguage();
-  const wishlist = useWishlist();
-  const [bags, setBags] = useState<Bag[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchBags({ sort: "views", limit: 24 })
-      .then((results) => setBags(diversifyBagsByBrand(results, 8)))
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : t("home.failedToLoadBags"))
-      )
-      .finally(() => setLoading(false));
-  }, [t]);
+  if (bags?.length === 0) return null;
 
   return (
-    <section className="bg-white px-4 py-16 md:px-8 md:py-24">
+    <section className="px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-10 flex flex-col gap-3 md:mb-14 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
-              {t("home.featuredEyebrow")}
-            </p>
-            <h2
-              className="mt-2 text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {t("home.featuredBags")}
-            </h2>
-          </div>
-          <Link
-            to="/category/product-type/handbags"
-            className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 transition hover:text-zinc-950"
-          >
-            {t("home.seeAll")} →
-          </Link>
-        </div>
-
-        {error && <p className="text-sm text-zinc-400">{error}</p>}
+        <SectionHeading title={title} body={body} />
 
         <div className={PRODUCT_GRID_CLASS}>
-          {loading
-            ? Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+          {bags === null
+            ? Array.from({ length: HUB_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)
             : bags.map((bag, index) => (
                 <ProductCard
                   key={bag.id}
@@ -527,194 +254,55 @@ function FeaturedBags() {
                 />
               ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-// ── Style edit ───────────────────────────────────────────────────────────────
-
-function StyleEdit() {
-  const { t } = useLanguage();
-  const [images, setImages] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.all(
-      styleTiles.map(async (tile) => {
-        let bags = await fetchBags({
-          style: tile.key,
-          sort: "views",
-          limit: 1,
-        }).catch(() => [] as Bag[]);
-
-        if (bags.length === 0) {
-          bags = await fetchBags({ sort: "newest", limit: 8 }).catch(
-            () => [] as Bag[]
-          );
-        }
-
-        const bag = bags[0];
-        return [
-          tile.key,
-          bag ? bagImage(bag.brand, bag.image) : "",
-        ] as const;
-      })
-    ).then((entries) => {
-      if (cancelled) return;
-      setImages(Object.fromEntries(entries.filter(([, url]) => url)));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return (
-    <section className="border-t border-rule bg-white px-4 py-16 md:px-8 md:py-24">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-10 max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-mute">
-            {t("home.styleEyebrow")}
-          </p>
-          <h2
-            className="mt-2 text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
-            style={{ fontFamily: "var(--font-display)" }}
+        <div className="mt-10 flex justify-center md:mt-12">
+          <Link
+            to={to}
+            className="inline-flex h-12 items-center border border-ink px-8 text-small transition-colors duration-300 ease-lux hover:bg-ink hover:text-white"
           >
-            {t("home.styleTitle")}
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-zinc-500">
-            {t("home.styleDescription")}
-          </p>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-5 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
-          {styleTiles.map((tile) => {
-            const image = images[tile.key];
-            return (
-              <Link
-                key={tile.key}
-                to={tile.to}
-                className="group relative w-[58vw] shrink-0 overflow-hidden bg-zinc-900 md:w-auto"
-              >
-                <div className="relative min-h-[16rem] md:min-h-[18rem]">
-                  {image ? (
-                    <img
-                      src={image}
-                      alt={t(tile.titleKey)}
-                      className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-700 group-hover:scale-105 group-hover:opacity-85"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 animate-pulse bg-zinc-800" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/25 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-5">
-                    <h3
-                      className="text-xl font-light text-white"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      {t(tile.titleKey)}
-                    </h3>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+            {t("home.viewAll")}
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-// ── Promo banner ─────────────────────────────────────────────────────────────
+// ── Brand row ──────────────────────────────────────────────────────────────
 
-function PromoBanner() {
+/** The houses as a line of names: type does the work the logo tiles did. */
+function BrandRow() {
   const { t } = useLanguage();
-  const [summerBag, setSummerBag] = useState<Bag | null>(null);
-
-  useEffect(() => {
-    // Use seeded ASCII "Hermes" (not Hermès) for the brand filter.
-    fetchCuratedBag({
-      brand: "Hermes",
-      sort: "newest",
-      limit: 8,
-      preferredId: SUMMER_EDIT_BAG_ID,
-    })
-      .then(async (bag) => {
-        if (bag) return bag;
-        return fetchCuratedBag({
-          subcategory: "tote",
-          sort: "views",
-          limit: 8,
-        });
-      })
-      .then(setSummerBag)
-      .catch(() => {});
-  }, []);
-
-  const shopLink = summerBag
-    ? `/product/${summerBag.id}`
-    : "/category/brand/hermes";
+  const brands = NAV_GROUPS.find((g) => g.id === "brand")?.items ?? [];
 
   return (
-    <section className="relative overflow-hidden">
-      {summerBag ? (
-        <img
-          src={bannerBagImage(summerBag.image, summerBag.brand)}
-          alt={t("home.summerEditAlt")}
-          className="h-[28rem] w-full object-cover md:h-[36rem]"
-        />
-      ) : (
-        <div className="h-[28rem] w-full animate-pulse bg-zinc-200 md:h-[36rem]" />
-      )}
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/55 px-6 text-center text-white backdrop-blur-[1px]">
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.32em] text-white/70">
-          {t("home.limitedTime")}
-        </p>
-        <h3
-          className="text-5xl font-light md:text-7xl"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {t("home.summerEdit")}
-        </h3>
-        <p className="mt-3 text-sm tracking-[0.15em] text-white/70">{t("home.saleDescription")}</p>
-        <Link
-          to={shopLink}
-          className="mt-8 inline-flex h-12 items-center bg-white px-10 text-[10px] font-semibold uppercase tracking-[0.22em] text-ink transition hover:bg-zinc-200"
-        >
-          {t("home.shopSale")}
-        </Link>
+    <section className="border-y border-rule px-4 py-16 md:px-8 md:py-20">
+      <div className="mx-auto max-w-5xl">
+        <SectionHeading title={t("home.shopByBrand")} />
+        <ul className="flex flex-wrap justify-center gap-x-8 gap-y-4 md:gap-x-12 md:gap-y-6">
+          {brands.map((item) => (
+            <li key={item.to}>
+              <Link
+                to={item.to}
+                className="text-lg transition-colors duration-300 ease-lux hover:text-mute md:text-xl"
+              >
+                {navItemLabel(item, t)}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
 }
 
-// ── Icons ────────────────────────────────────────────────────────────────────
+// ── Shared ─────────────────────────────────────────────────────────────────
 
-function ShippingIcon() {
+function SectionHeading({ title, body }: { title: string; body?: string }) {
   return (
-    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
-      <path d="M3 7h11v8H3V7Zm11 3h4l3 3v2h-7v-5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
-      <circle cx="7.5" cy="17.5" r="1.5" fill="currentColor" />
-      <circle cx="17.5" cy="17.5" r="1.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
-      <path d="M12 3 20 7v6c0 4.5-3.2 7.4-8 8-4.8-.6-8-3.5-8-8V7l8-4Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
-      <path d="m9 12 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function StarIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5 text-ink" viewBox="0 0 24 24" fill="none">
-      <path d="m12 3 2.6 6.4L21 10.5l-5 4.3L17.3 21 12 17.8 6.7 21l1.3-6.2-5-4.3 6.4-1.1L12 3Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
+    <div className="mb-8 text-center md:mb-12">
+      <h2 className="text-2xl md:text-[2rem] md:leading-tight">{title}</h2>
+      {body && <p className="mx-auto mt-3 max-w-md text-small text-mute">{body}</p>}
+    </div>
   );
 }
