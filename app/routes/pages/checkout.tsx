@@ -55,6 +55,7 @@ import {
   getCustomerProfile,
   MAX_ADDRESSES_PER_USER,
 } from "~/lib/profile";
+import { ListboxSelect, OptionLines } from "~/components/listbox-select";
 import { ShippingAddressSelect } from "~/components/shipping-address-select";
 import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { useLanguage } from "~/lib/i18n";
@@ -106,24 +107,21 @@ const initialForm: FormState = {
   bypassNote: "",
 };
 
-const checkoutSteps = ["shipping", "payment", "review"] as const;
-type CheckoutStep = (typeof checkoutSteps)[number];
+/** Every field the one-page form checks before placing the order. */
+const checkoutFields: (keyof FormState)[] = [
+  "name",
+  "phone",
+  "address",
+  "city",
+  "province",
+  "zip",
+  "pccc",
+  "paymentMethod",
+];
 
-/** Fields each step owns; the review step re-validates the two before it. */
-const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
-  shipping: [
-    "email",
-    "phone",
-    "name",
-    "address",
-    "city",
-    "province",
-    "zip",
-    "pccc",
-  ],
-  payment: ["paymentMethod"],
-  review: [],
-};
+/** Promotional code dropdown values that are not a code from the wallet. */
+const PROMO_NONE = "none";
+const PROMO_ENTER = "enter";
 
 const addressFields: (keyof FormState)[] = [
   "name",
@@ -172,7 +170,9 @@ export default function CheckoutPage() {
   const [productUnavailableOpen, setProductUnavailableOpen] = useState(false);
   const [unavailableProducts, setUnavailableProducts] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
-  const [activeStep, setActiveStep] = useState<CheckoutStep>("shipping");
+  const [promoMode, setPromoMode] = useState<typeof PROMO_NONE | typeof PROMO_ENTER>(
+    PROMO_NONE
+  );
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(
     null
@@ -227,9 +227,8 @@ export default function CheckoutPage() {
         if (cancelled) return;
         setSessionUser(user);
         if (!user) return;
-        setForm((prev) =>
-          prev.email ? prev : { ...prev, email: user.email }
-        );
+        // The account's email, never typed: only the confirmation page reads it.
+        setForm((prev) => ({ ...prev, email: user.email }));
         getCustomerProfile()
           .then((loaded) => {
             if (cancelled) return;
@@ -244,7 +243,7 @@ export default function CheckoutPage() {
                 next.name = loaded.displayName;
               }
               if (!prev.phone && loaded.phone) {
-                next.phone = loaded.phone;
+                next.phone = formatKRPhoneInput(loaded.phone);
               }
               if (defaultAddr && !prev.address) {
                 next = applyAddressToForm(next, defaultAddr);
@@ -339,10 +338,10 @@ export default function CheckoutPage() {
     if (!draft) return;
     draftAppliedRef.current = true;
     setForm(draft.form);
-    setActiveStep(draft.activeStep as CheckoutStep);
     setSelectedAddressId(draft.selectedAddressId);
     setSaveAddress(draft.saveAddress);
     setPromoInput(draft.promoInput);
+    if (draft.promoInput) setPromoMode(PROMO_ENTER);
   }, [mounted, sessionUser, draftRestored]);
 
   // Persist after the restore has run, so an empty initial form never clobbers
@@ -353,7 +352,8 @@ export default function CheckoutPage() {
     const timer = setTimeout(() => {
       saveCheckoutDraft<FormState>({
         userId,
-        activeStep,
+        // One page now; the draft format still carries a step.
+        activeStep: "shipping",
         form,
         selectedAddressId,
         saveAddress,
@@ -366,7 +366,6 @@ export default function CheckoutPage() {
     sessionUser,
     draftRestored,
     submitting,
-    activeStep,
     form,
     selectedAddressId,
     saveAddress,
@@ -417,31 +416,31 @@ export default function CheckoutPage() {
   const canSaveAddress =
     profile !== null && savedAddresses.length < MAX_ADDRESSES_PER_USER;
 
-  const activeStepIndex = checkoutSteps.indexOf(activeStep);
-  const nextStep = checkoutSteps[activeStepIndex + 1];
-  const previousStep = checkoutSteps[activeStepIndex - 1];
-  const isReviewStep = activeStep === "review";
-  const stepLabels: Record<CheckoutStep, string> = {
-    shipping: t("checkout.stepShipping"),
-    payment: t("checkout.stepPayment"),
-    review: t("checkout.stepReview"),
-  };
+  // A saved address is shown by the dropdown alone; its fields open only for
+  // a new address, or when one of them fails validation.
+  const selectedSaved =
+    selectedAddressId && selectedAddressId !== "new"
+      ? (savedAddresses.find((a) => a.id === selectedAddressId) ?? null)
+      : null;
+  const hiddenFieldError = addressFields.some(
+    (field) => field !== "pccc" && errors[field]
+  );
+  const showAddressForm = !selectedSaved || hiddenFieldError;
+  // Older saved addresses may lack the customs code: ask for that alone.
+  const showPcccAlone =
+    !showAddressForm && (!selectedSaved?.pccc || Boolean(errors.pccc));
   const paymentMethodLabels: Record<PaymentMethod, string> = {
     credit_card: t("checkout.methodCreditCard"),
     bypass: t("checkout.methodBypass"),
   };
-  const primaryActionLabel =
-    activeStep === "shipping"
-      ? t("checkout.continueToPayment")
-      : activeStep === "payment"
-        ? t("checkout.continueToReview")
-        : t("checkout.placeOrderWithTotal", {
-            total: formatCurrency(checkoutTotal),
-          });
+  const placeOrderLabel = t("checkout.placeOrderWithTotal", {
+    total: formatCurrency(checkoutTotal),
+  });
 
   // Same wallet the bag shows, so a code the shopper did not apply earlier is
   // still in front of them at the last step.
   const wallet = usePromotionWallet(items, summary.shipping);
+  const eligibleCodes = wallet.entries.filter((e) => e.eligible).length;
 
   async function applyPromo(fromWallet?: string) {
     const code = (fromWallet ?? promoInput).trim();
@@ -466,6 +465,24 @@ export default function CheckoutPage() {
     setPromotion(null);
     setPromoError("");
     setPromoInput("");
+  }
+
+  function selectPromo(choice: string) {
+    if (choice === PROMO_NONE) {
+      removePromo();
+      setPromoMode(PROMO_NONE);
+      return;
+    }
+    if (choice === PROMO_ENTER) {
+      setPromotion(null);
+      setPromoError("");
+      setPromoMode(PROMO_ENTER);
+      requestAnimationFrame(() => document.getElementById("promo-code")?.focus());
+      return;
+    }
+    setPromoMode(PROMO_NONE);
+    setPromoInput("");
+    void applyPromo(choice);
   }
 
   // The bag is editable on this page too, so an applied code is re-priced
@@ -505,7 +522,10 @@ export default function CheckoutPage() {
     if (
       selectedAddressId &&
       selectedAddressId !== "new" &&
-      addressFields.includes(key)
+      addressFields.includes(key) &&
+      // The customs code alone is asked for on a saved address that lacks
+      // it; filling it in is not editing the address.
+      !(key === "pccc" && !showAddressForm)
     ) {
       setEditedAddressId(selectedAddressId);
       setSelectedAddressId("new");
@@ -601,11 +621,6 @@ export default function CheckoutPage() {
       }
     }
 
-    if (fields.includes("email") && form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      next.email = t("checkout.validEmail");
-      firstInvalidField ??= "email";
-    }
-
     if (fields.includes("phone") && form.phone.trim() && !isValidKRPhone(form.phone)) {
       next.phone = t("checkout.validPhone");
       firstInvalidField ??= "phone";
@@ -637,9 +652,6 @@ export default function CheckoutPage() {
     return firstInvalidField;
   }
 
-  function validateStep(step: CheckoutStep): keyof FormState | null {
-    return validateFields(stepFields[step]);
-  }
 
   function scrollToField(field: keyof FormState) {
     requestAnimationFrame(() => {
@@ -650,49 +662,16 @@ export default function CheckoutPage() {
     });
   }
 
-  function goToStep(step: CheckoutStep) {
-    setCheckoutError(null);
-    setActiveStep(step);
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }
-
-  function handleNextStep() {
-    if (!nextStep) return;
-    const firstInvalidField = validateStep(activeStep);
-    if (firstInvalidField) {
-      scrollToField(firstInvalidField);
-      return;
-    }
-    goToStep(nextStep);
-  }
-
-  function handlePreviousStep() {
-    if (previousStep) goToStep(previousStep);
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isReviewStep) {
-      handleNextStep();
-      return;
-    }
-
     setSubmitting(true);
     setCheckoutError(null);
     try {
-      // Review shows a read-only copy of both earlier steps; re-check them so a
-      // method that disappeared (or a cleared field) cannot reach the gateway.
-      for (const step of ["shipping", "payment"] as const) {
-        const firstInvalidField = validateStep(step);
-        if (firstInvalidField) {
-          // Not goToStep: that scrolls to top, which would fight scrollToField.
-          setActiveStep(step);
-          scrollToField(firstInvalidField);
-          setSubmitting(false);
-          return;
-        }
+      const firstInvalidField = validateFields(checkoutFields);
+      if (firstInvalidField) {
+        scrollToField(firstInvalidField);
+        setSubmitting(false);
+        return;
       }
 
       const user = await getMe();
@@ -923,29 +902,35 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        <CheckoutStepper
-          activeStep={activeStep}
-          labels={stepLabels}
-          steps={checkoutSteps}
-          onSelect={goToStep}
-        />
-
         <form
           onSubmit={handleSubmit}
+          // Our own messages (required, phone, PCCC), not the browser's.
+          noValidate
           className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16"
         >
           <div className="space-y-8">
-            {activeStep === "shipping" && (
-              <CheckoutSection step="01" title={t("checkout.stepShipping")}>
-                <FieldGroup title={t("checkout.contact")}>
+            <FieldGroup>
+              {profile !== null && (
+                <ShippingAddressSelect
+                  addresses={savedAddresses}
+                  value={selectedAddressId}
+                  editedFrom={
+                    savedAddresses.find((a) => a.id === editedAddressId) ??
+                    null
+                  }
+                  onSelectAddress={selectSavedAddress}
+                  onSelectNew={selectNewAddress}
+                />
+              )}
+              {showAddressForm && (
+                <>
                   <Field
-                    label={t("checkout.email")}
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    error={errors.email}
-                    onChange={(v) => updateField("email", v)}
-                    autoComplete="email"
+                    label={t("checkout.name")}
+                    id="name"
+                    value={form.name}
+                    error={errors.name}
+                    onChange={(v) => updateField("name", v)}
+                    autoComplete="name"
                     required
                   />
                   <Field
@@ -959,30 +944,6 @@ export default function CheckoutPage() {
                     inputMode="numeric"
                     maxLength={13}
                     placeholder="010-1234-5678"
-                    required
-                  />
-                </FieldGroup>
-
-                <FieldGroup title={t("checkout.shipping")} divided>
-                  {savedAddresses.length > 0 && (
-                    <ShippingAddressSelect
-                      addresses={savedAddresses}
-                      value={selectedAddressId}
-                      editedFrom={
-                        savedAddresses.find((a) => a.id === editedAddressId) ??
-                        null
-                      }
-                      onSelectAddress={selectSavedAddress}
-                      onSelectNew={selectNewAddress}
-                    />
-                  )}
-                  <Field
-                    label={t("checkout.name")}
-                    id="name"
-                    value={form.name}
-                    error={errors.name}
-                    onChange={(v) => updateField("name", v)}
-                    autoComplete="name"
                     required
                   />
                   <Field
@@ -1049,213 +1010,188 @@ export default function CheckoutPage() {
                       readOnly
                     />
                   </div>
-                  <div>
-                    <Field
-                      label={t("checkout.pccc")}
-                      id="pccc"
-                      value={form.pccc}
-                      error={errors.pccc}
-                      onChange={(v) => updateField("pccc", normalizePCCC(v))}
-                      placeholder={t("checkout.pcccPlaceholder")}
-                      maxLength={13}
-                      required
-                    />
-                    <p className="mt-1.5 text-[11px] text-zinc-400">
-                      {t("checkout.pcccHint")}
-                    </p>
-                  </div>
-                  {selectedAddressId === "new" && canSaveAddress && (
-                    <label className="flex items-center gap-2 text-xs text-zinc-700">
-                      <input
-                        type="checkbox"
-                        checked={saveAddress}
-                        onChange={(e) => setSaveAddress(e.target.checked)}
-                        className="size-3.5 accent-zinc-950"
-                      />
-                      {t("checkout.saveAddressToAccount")}
-                    </label>
-                  )}
-                  <p className="text-[11px] text-zinc-400">
-                    <Link
-                      to="/profile"
-                      className="underline underline-offset-2 transition hover:text-zinc-700"
-                    >
-                      {t("checkout.manageAddresses")}
-                    </Link>
+                </>
+              )}
+              {(showAddressForm || showPcccAlone) && (
+                <div>
+                  <Field
+                    label={t("checkout.pccc")}
+                    id="pccc"
+                    value={form.pccc}
+                    error={errors.pccc}
+                    onChange={(v) => updateField("pccc", normalizePCCC(v))}
+                    placeholder={t("checkout.pcccPlaceholder")}
+                    maxLength={13}
+                    required
+                  />
+                  <p className="mt-1.5 text-[11px] text-zinc-400">
+                    {t("checkout.pcccHint")}
                   </p>
-                </FieldGroup>
-              </CheckoutSection>
-            )}
+                </div>
+              )}
+              {showAddressForm && selectedAddressId === "new" && canSaveAddress && (
+                <label className="flex items-center gap-2 text-xs text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={saveAddress}
+                    onChange={(e) => setSaveAddress(e.target.checked)}
+                    className="size-3.5 accent-zinc-950"
+                  />
+                  {t("checkout.saveAddressToAccount")}
+                </label>
+              )}
+            </FieldGroup>
 
-            {activeStep === "payment" && (
-              <CheckoutSection step="02" title={t("checkout.stepPayment")}>
-                <div
+            <FieldGroup>
+              {paymentMethodOptions.length > 0 ? (
+                <ListboxSelect
+                  id="paymentMethod"
+                  label={t("checkout.paymentMethod")}
+                  value={form.paymentMethod}
+                  error={errors.paymentMethod}
+                  onChange={(v) => updateField("paymentMethod", v as PaymentMethod)}
+                  options={paymentMethodOptions.map((method) => ({
+                    value: method,
+                    content: (
+                      <OptionLines
+                        title={paymentMethodLabels[method]}
+                        detail={
+                          method === "bypass"
+                            ? t("checkout.methodBypassHint")
+                            : t("checkout.methodCreditCardHint")
+                        }
+                      />
+                    ),
+                  }))}
+                  selectedContent={
+                    <OptionLines
+                      title={paymentMethodLabels[form.paymentMethod]}
+                      detail={
+                        form.paymentMethod === "bypass"
+                          ? t("checkout.methodBypassBadge")
+                          : t("checkout.methodSecureRedirect")
+                      }
+                    />
+                  }
+                />
+              ) : (
+                <p
                   id="paymentMethod"
                   tabIndex={-1}
-                  className="space-y-3 scroll-mt-32 outline-none"
-                  role="radiogroup"
-                  aria-label={t("checkout.paymentMethod")}
+                  className="border border-rule px-4 py-4 text-sm text-mute outline-none"
                 >
-                  {paymentMethodOptions.includes("credit_card") && (
-                    <PaymentMethodOption
-                      name="paymentMethod"
-                      value="credit_card"
-                      checked={form.paymentMethod === "credit_card"}
-                      title={t("checkout.methodCreditCard")}
-                      subtitle={t("checkout.methodCreditCardHint")}
-                      badge={t("checkout.methodSecureRedirect")}
-                      onChange={() => updateField("paymentMethod", "credit_card")}
+                  {t("checkout.paymentUnavailable")}
+                </p>
+              )}
+              {form.paymentMethod === "bypass" && (
+                <Field
+                  label={t("checkout.bypassNote")}
+                  id="bypassNote"
+                  value={form.bypassNote}
+                  onChange={(v) => updateField("bypassNote", v)}
+                  placeholder={t("checkout.bypassNotePlaceholder")}
+                  maxLength={200}
+                />
+              )}
+            </FieldGroup>
+
+            <FieldGroup>
+              <ListboxSelect
+                label={t("cart.promoCode")}
+                value={
+                  promotion && wallet.entries.some((e) => e.code === promotion.code)
+                    ? promotion.code
+                    : promotion
+                      ? PROMO_ENTER
+                      : promoMode
+                }
+                onChange={selectPromo}
+                options={[
+                  {
+                    value: PROMO_NONE,
+                    content: <OptionLines title={t("checkout.promoNone")} />,
+                  },
+                  ...wallet.entries.map((entry) => ({
+                    value: entry.code,
+                    disabled: !entry.eligible,
+                    content: (
+                      <OptionLines
+                        title={entry.code}
+                        detail={
+                          entry.eligible
+                            ? t("promo.walletSaves", {
+                                amount: formatCurrency(entry.discountWon),
+                              })
+                            : entry.rejection
+                              ? t(promotionMessageKey(entry.rejection))
+                              : entry.description
+                        }
+                      />
+                    ),
+                  })),
+                  {
+                    value: PROMO_ENTER,
+                    separated: true,
+                    content: (
+                      <span className="text-sm font-medium text-ink">
+                        + {t("checkout.promoEnter")}
+                      </span>
+                    ),
+                  },
+                ]}
+                selectedContent={
+                  promotion ? (
+                    <OptionLines
+                      title={promotion.code}
+                      detail={t("cart.discountApplied", {
+                        amount: formatCurrency(discountSplit.codeWon),
+                      })}
                     />
-                  )}
-                  {paymentMethodOptions.includes("bypass") && (
-                    <PaymentMethodOption
-                      name="paymentMethod"
-                      value="bypass"
-                      checked={form.paymentMethod === "bypass"}
-                      title={t("checkout.methodBypass")}
-                      subtitle={t("checkout.methodBypassHint")}
-                      badge={t("checkout.methodBypassBadge")}
-                      onChange={() => updateField("paymentMethod", "bypass")}
+                  ) : promoMode === PROMO_ENTER ? (
+                    <OptionLines title={t("checkout.promoEnter")} />
+                  ) : (
+                    <OptionLines
+                      title={t("checkout.promoNone")}
+                      detail={
+                        eligibleCodes > 0
+                          ? t("checkout.promoAvailable", { count: eligibleCodes })
+                          : undefined
+                      }
                     />
-                  )}
-                  {paymentMethodOptions.length === 0 && (
-                    <p className="border border-zinc-200 bg-zinc-50/50 px-4 py-4 text-sm text-zinc-500">
-                      {t("checkout.paymentUnavailable")}
-                    </p>
-                  )}
-                </div>
-                {errors.paymentMethod && (
-                  <p className="text-[11px] text-red-600">{errors.paymentMethod}</p>
-                )}
-                {form.paymentMethod === "bypass" && (
-                  <Field
-                    label={t("checkout.bypassNote")}
-                    id="bypassNote"
-                    value={form.bypassNote}
-                    onChange={(v) => updateField("bypassNote", v)}
-                    placeholder={t("checkout.bypassNotePlaceholder")}
-                    maxLength={200}
+                  )
+                }
+              />
+              {promoMode === PROMO_ENTER && !promotion && (
+                <div className="flex gap-2">
+                  <input
+                    id="promo-code"
+                    type="text"
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void applyPromo();
+                      }
+                    }}
+                    placeholder={t("cart.promoCode")}
+                    disabled={applyingPromo}
+                    className="h-12 flex-1 border border-rule bg-white px-4 text-sm text-ink outline-none transition-colors duration-300 ease-lux focus:border-ink"
                   />
-                )}
-                <p className="text-sm leading-relaxed text-zinc-500">
-                  {form.paymentMethod === "bypass"
-                    ? t("checkout.bypassNoteHelp")
-                    : t("checkout.paymentNote")}
-                </p>
-              </CheckoutSection>
-            )}
-
-            {activeStep === "review" && (
-              <CheckoutSection step="03" title={t("checkout.stepReview")}>
-                <p className="text-sm leading-relaxed text-zinc-500">
-                  {t("checkout.reviewNote")}
-                </p>
-
-                <ReviewBlock
-                  title={t("checkout.contact")}
-                  onEdit={() => goToStep("shipping")}
-                >
-                  <p>{form.email}</p>
-                  <p>{form.phone}</p>
-                </ReviewBlock>
-
-                <ReviewBlock
-                  title={t("checkout.stepShipping")}
-                  onEdit={() => goToStep("shipping")}
-                >
-                  <p className="font-medium text-zinc-950">{form.name}</p>
-                  <p>
-                    ({form.zip}) {form.province} {form.city} {form.address}
-                    {form.apartment ? ` ${form.apartment}` : ""}
-                  </p>
-                  <p>{form.country}</p>
-                  <p className="text-zinc-400">
-                    {t("checkout.pccc")}: {form.pccc}
-                  </p>
-                </ReviewBlock>
-
-                <ReviewBlock
-                  title={t("checkout.paymentMethod")}
-                  onEdit={() => goToStep("payment")}
-                >
-                  <p className="font-medium text-zinc-950">
-                    {paymentMethodLabels[form.paymentMethod]}
-                  </p>
-                  {form.paymentMethod === "bypass" && form.bypassNote.trim() && (
-                    <p className="text-zinc-400">{form.bypassNote}</p>
-                  )}
-                </ReviewBlock>
-
-                <ReviewBlock
-                  title={t("checkout.reviewItems", { count: items.length })}
-                  onEdit={() => navigate("/cart")}
-                >
-                  <ul className="space-y-3">
-                    {items.map((item) => (
-                      <li
-                        key={item.skuId ?? item.sku}
-                        className="flex items-center gap-3"
-                      >
-                        <div className="h-14 w-11 shrink-0 overflow-hidden bg-zinc-50">
-                          <img
-                            src={item.image}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-zinc-950">
-                            {translateProductName(item.productId, item.name)}
-                          </p>
-                          <p className="text-[11px] text-zinc-400">
-                            {t("checkout.reviewQuantity", { count: item.quantity })}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-sm font-medium text-zinc-950">
-                          {formatCurrency(item.price * item.quantity)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <dl className="mt-4 space-y-2 border-t border-zinc-200 pt-4">
-                    <div className="flex justify-between">
-                      <dt>{t("cart.subtotal")}</dt>
-                      <dd className="text-zinc-950">
-                        {formatCurrency(summary.subtotal)}
-                      </dd>
-                    </div>
-                    {discountSplit.codeWon > 0 && promotion && (
-                      <div className="flex justify-between text-emerald-700">
-                        <dt>{t("cart.promo", { code: promotion.code })}</dt>
-                        <dd>−{formatCurrency(discountSplit.codeWon)}</dd>
-                      </div>
-                    )}
-                    {discountSplit.tierWon > 0 && tier && (
-                      <div className="flex justify-between text-emerald-700">
-                        <dt>{t("cart.memberTier", { code: tier.code })}</dt>
-                        <dd>−{formatCurrency(discountSplit.tierWon)}</dd>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <dt>{t("cart.shipping")}</dt>
-                      <dd className="text-zinc-950">
-                        {summary.shipping === 0
-                          ? t("cart.complimentary")
-                          : formatCurrency(summary.shipping)}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between border-t border-zinc-200 pt-2 text-base">
-                      <dt className="font-semibold uppercase tracking-widest text-zinc-950">
-                        {t("cart.total")}
-                      </dt>
-                      <dd className="text-lg font-semibold text-zinc-950">
-                        {formatCurrency(checkoutTotal)}
-                      </dd>
-                    </div>
-                  </dl>
-                </ReviewBlock>
-              </CheckoutSection>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => void applyPromo()}
+                    disabled={applyingPromo}
+                    className="h-12 rounded-full border border-ink px-6 text-[10px] font-semibold uppercase tracking-widest text-ink transition-colors duration-300 ease-lux hover:bg-ink hover:text-white disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {t("cart.apply")}
+                  </button>
+                </div>
+              )}
+              {promoError && (
+                <p className="text-caption text-alert">{promoError}</p>
+              )}
+            </FieldGroup>
 
             {checkoutError && (
               <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
@@ -1263,45 +1199,17 @@ export default function CheckoutPage() {
               </p>
             )}
 
-            <div className="lg:hidden">
+            <div className="space-y-6 lg:hidden">
               <MiniBag
                 items={items}
                 shipping={summary.shipping}
                 total={checkoutTotal}
                 mutation={mutation}
               />
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-              {previousStep ? (
-                <button
-                  type="button"
-                  onClick={handlePreviousStep}
-                  className="flex h-12 items-center justify-center border border-zinc-200 px-6 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
-                >
-                  {t("checkout.previousStep")}
-                </button>
-              ) : (
-                <span />
-              )}
-              {isReviewStep ? (
-                <button
-                  type="submit"
-                  disabled={submitting || cartBusy}
-                  className="flex h-14 items-center justify-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70 sm:min-w-64"
-                >
-                  {submitting ? t("checkout.processing") : primaryActionLabel}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  disabled={cartBusy}
-                  className="flex h-14 items-center justify-center bg-zinc-950 px-8 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70 sm:min-w-64"
-                >
-                  {primaryActionLabel}
-                </button>
-              )}
+              <PlaceOrderButton
+                label={submitting ? t("checkout.processing") : placeOrderLabel}
+                disabled={submitting || cartBusy}
+              />
             </div>
           </div>
 
@@ -1351,41 +1259,14 @@ export default function CheckoutPage() {
               onApplyPromo={(code) => applyPromo(code)}
               onRemovePromo={removePromo}
               walletEntries={wallet.entries}
-              checkoutHref="#"
-              checkoutLabel={
-                submitting ? t("checkout.processing") : primaryActionLabel
-              }
-              disabled
+              showPromo={false}
             />
 
-            <div className="mt-4 space-y-3">
-              {isReviewStep ? (
-                <button
-                  type="submit"
-                  disabled={submitting || cartBusy}
-                  className="flex h-14 w-full items-center justify-center bg-zinc-950 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
-                >
-                  {submitting ? t("checkout.processing") : t("checkout.placeOrder")}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  disabled={cartBusy}
-                  className="flex h-14 w-full items-center justify-center bg-zinc-950 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
-                >
-                  {primaryActionLabel}
-                </button>
-              )}
-              {previousStep && (
-                <button
-                  type="button"
-                  onClick={handlePreviousStep}
-                  className="flex h-12 w-full items-center justify-center border border-zinc-200 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
-                >
-                  {t("checkout.previousStep")}
-                </button>
-              )}
+            <div className="mt-4">
+              <PlaceOrderButton
+                label={submitting ? t("checkout.processing") : placeOrderLabel}
+                disabled={submitting || cartBusy}
+              />
             </div>
           </aside>
         </form>
@@ -1643,150 +1524,25 @@ function ProductUnavailableDialog({
   );
 }
 
-function CheckoutStepper({
-  activeStep,
-  labels,
-  steps,
-  onSelect,
-}: {
-  activeStep: CheckoutStep;
-  labels: Record<CheckoutStep, string>;
-  steps: readonly CheckoutStep[];
-  onSelect: (step: CheckoutStep) => void;
-}) {
-  const { t } = useLanguage();
-  const activeIndex = steps.indexOf(activeStep);
-
-  return (
-    <ol className="mb-10 grid gap-3 border-y border-zinc-100 py-4 md:mb-12 md:grid-cols-3">
-      {steps.map((step, index) => {
-        const isActive = step === activeStep;
-        // Only completed steps are clickable; moving forward has to validate.
-        const isComplete = index < activeIndex;
-
-        return (
-          <li key={step}>
-            <button
-              type="button"
-              onClick={() => onSelect(step)}
-              disabled={!isComplete}
-              aria-current={isActive ? "step" : undefined}
-              className="flex w-full items-center gap-3 text-left enabled:cursor-pointer disabled:cursor-default"
-            >
-              <span
-                className={[
-                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
-                  isActive
-                    ? "border-zinc-950 bg-zinc-950 text-white"
-                    : isComplete
-                      ? "border-ink bg-ink text-white"
-                      : "border-zinc-200 text-zinc-300",
-                ].join(" ")}
-              >
-                {isComplete ? <CheckIcon /> : String(index + 1).padStart(2, "0")}
-              </span>
-              <span>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
-                  {t("checkout.stepCount", {
-                    current: index + 1,
-                    total: steps.length,
-                  })}
-                </span>
-                <span
-                  className={[
-                    "block text-sm font-medium",
-                    isActive
-                      ? "text-zinc-950"
-                      : isComplete
-                        ? "text-zinc-500 hover:text-zinc-950"
-                        : "text-zinc-400",
-                  ].join(" ")}
-                >
-                  {labels[step]}
-                </span>
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function CheckoutSection({
-  step,
-  title,
-  children,
-}: {
-  step: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-t border-zinc-100 pt-10 first:border-t-0 first:pt-0">
-      <div className="mb-6 flex items-baseline gap-4">
-        <span className="text-[10px] font-semibold tracking-[0.2em] text-mute">
-          {step}
-        </span>
-        <h2
-          className="text-2xl font-light text-zinc-950"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {title}
-        </h2>
-      </div>
-      <div className="space-y-4">{children}</div>
-    </section>
-  );
-}
-
 /** Sub-group inside a step, e.g. Contact vs Shipping within step 01. */
 function FieldGroup({
   title,
   children,
   divided = false,
 }: {
-  title: string;
+  /** Omitted when the section heading already names the group. */
+  title?: string;
   children: React.ReactNode;
   divided?: boolean;
 }) {
   return (
     <div className={divided ? "space-y-4 border-t border-zinc-100 pt-8" : "space-y-4"}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-        {title}
-      </p>
-      {children}
-    </div>
-  );
-}
-
-function ReviewBlock({
-  title,
-  onEdit,
-  children,
-}: {
-  title: string;
-  onEdit: () => void;
-  children: React.ReactNode;
-}) {
-  const { t } = useLanguage();
-
-  return (
-    <div className="border border-zinc-100 bg-zinc-50/50 p-4 md:p-6">
-      <div className="mb-3 flex items-baseline justify-between gap-4">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-950">
+      {title && (
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
           {title}
-        </h3>
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={t("checkout.editSection", { section: title })}
-          className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 underline underline-offset-2 transition hover:text-zinc-950"
-        >
-          {t("checkout.edit")}
-        </button>
-      </div>
-      <div className="space-y-1 text-sm text-zinc-600">{children}</div>
+        </p>
+      )}
+      {children}
     </div>
   );
 }
@@ -1923,55 +1679,21 @@ function SelectField({
   );
 }
 
-function PaymentMethodOption({
-  name,
-  value,
-  checked,
-  title,
-  subtitle,
-  badge,
-  onChange,
-  disabled = false,
+function PlaceOrderButton({
+  label,
+  disabled,
 }: {
-  name: string;
-  value: string;
-  checked: boolean;
-  title: string;
-  subtitle: string;
-  badge: string;
-  onChange: () => void;
-  disabled?: boolean;
+  label: string;
+  disabled: boolean;
 }) {
   return (
-    <label
-      className={[
-        "flex items-center justify-between gap-4 border px-4 py-4 transition",
-        disabled
-          ? "cursor-not-allowed border-zinc-100 bg-zinc-50/50 opacity-60"
-          : checked
-            ? "cursor-pointer border-zinc-950 bg-zinc-50"
-            : "cursor-pointer border-zinc-200 hover:border-zinc-400",
-      ].join(" ")}
+    <button
+      type="submit"
+      disabled={disabled}
+      className="flex h-14 w-full items-center justify-center rounded-full bg-ink text-[11px] font-medium uppercase tracking-widest text-white transition-colors duration-300 ease-lux hover:bg-black disabled:cursor-wait disabled:opacity-70"
     >
-      <div className="flex items-center gap-3">
-        <input
-          type="radio"
-          name={name}
-          value={value}
-          checked={checked}
-          disabled={disabled}
-          onChange={onChange}
-          className="size-4 accent-zinc-950 disabled:cursor-not-allowed"
-        />
-        <div>
-          <p className="text-sm font-medium text-zinc-950">{title}</p>
-          <p className="text-[11px] text-zinc-400">{subtitle}</p>
-        </div>
-      </div>
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-        {badge}
-      </span>
-    </label>
+      {label}
+    </button>
   );
 }
 
@@ -2109,14 +1831,6 @@ function BackIcon() {
   return (
     <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
       <path d="m15 18-6-6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
-      <path d="M20 7 10 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
     </svg>
   );
 }
