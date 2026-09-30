@@ -9,8 +9,9 @@ import {
   evaluatePromotion,
   promotionMessageKey,
   PromotionRejectedError,
+  splitDiscount,
 } from "~/lib/promotions";
-import { usePromotionWallet } from "~/components/promotion-wallet";
+import { useMemberTier, usePromotionWallet } from "~/components/promotion-wallet";
 import {
   applySessionPromotion,
   buildCheckoutFulfillment,
@@ -402,7 +403,11 @@ export default function CheckoutPage() {
     navigate("/cart");
   }
 
-  const summary = totals(promotion?.discountWon ?? 0);
+  // A member's tier stacks under the code. Priced against the same delivery
+  // quote the summary shows; complete re-asks and is what is charged.
+  const tier = useMemberTier(items, totals().shipping);
+  const summary = totals((promotion?.discountWon ?? 0) + (tier?.discountWon ?? 0));
+  const discountSplit = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
   const checkoutTotal = summary.total;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
@@ -1196,10 +1201,16 @@ export default function CheckoutPage() {
                         {formatCurrency(summary.subtotal)}
                       </dd>
                     </div>
-                    {summary.promoApplied && promotion && (
+                    {discountSplit.codeWon > 0 && promotion && (
                       <div className="flex justify-between text-emerald-700">
                         <dt>{t("cart.promo", { code: promotion.code })}</dt>
-                        <dd>−{formatCurrency(summary.discount)}</dd>
+                        <dd>−{formatCurrency(discountSplit.codeWon)}</dd>
+                      </div>
+                    )}
+                    {discountSplit.tierWon > 0 && tier && (
+                      <div className="flex justify-between text-emerald-700">
+                        <dt>{t("cart.memberTier", { code: tier.code })}</dt>
+                        <dd>−{formatCurrency(discountSplit.tierWon)}</dd>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -1309,6 +1320,7 @@ export default function CheckoutPage() {
             <OrderSummary
               summary={summary}
               promotion={promotion}
+              tier={tier}
               promoInput={promoInput}
               promoError={promoError}
               applyingPromo={applyingPromo}

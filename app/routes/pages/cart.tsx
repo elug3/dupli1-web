@@ -4,13 +4,16 @@ import { type Bag, fetchBags, bagImage } from "~/lib/api";
 import { getMe } from "~/lib/auth";
 import {
   PromotionWallet,
+  useMemberTier,
   usePromotionWallet,
 } from "~/components/promotion-wallet";
 import {
   type AppliedPromotion,
+  type MemberTier,
   type WalletEntry,
   evaluatePromotion,
   promotionMessageKey,
+  splitDiscount,
 } from "~/lib/promotions";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
@@ -43,7 +46,9 @@ export default function CartPage() {
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [recommendations, setRecommendations] = useState<Bag[]>([]);
 
-  const summary = totals(promotion?.discountWon ?? 0);
+  // A member's tier stacks under the code; the order service applies both.
+  const tier = useMemberTier(items, shippingFeeWon);
+  const summary = totals((promotion?.discountWon ?? 0) + (tier?.discountWon ?? 0));
 
   useEffect(() => {
     fetchBags().then((bags) => setRecommendations(bags.slice(0, 8))).catch(() => {});
@@ -205,6 +210,7 @@ export default function CartPage() {
               <OrderSummary
                 summary={summary}
                 promotion={promotion}
+                tier={tier}
                 promoInput={promoInput}
                 promoError={promoError}
                 applyingPromo={applyingPromo}
@@ -389,6 +395,7 @@ function Recommendations({
 export function OrderSummary({
   summary,
   promotion,
+  tier = null,
   promoInput,
   promoError,
   applyingPromo = false,
@@ -402,6 +409,8 @@ export function OrderSummary({
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
   promotion: AppliedPromotion | null;
+  /** The member's automatic tier, already included in `summary.discount`. */
+  tier?: MemberTier | null;
   promoInput: string;
   promoError: string;
   applyingPromo?: boolean;
@@ -415,6 +424,7 @@ export function OrderSummary({
 }) {
   const { t, formatCurrency } = useLanguage();
   const shippingFeeWon = useShippingFeeWon();
+  const split = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
 
   return (
     <div className="border border-zinc-100 bg-zinc-50/50 p-6 md:p-8">
@@ -429,11 +439,19 @@ export function OrderSummary({
             {formatCurrency(summary.subtotal)}
           </dd>
         </div>
-        {summary.promoApplied && promotion && (
+        {split.codeWon > 0 && promotion && (
           <div className="flex justify-between text-emerald-700">
             <dt>{t("cart.promo", { code: promotion.code })}</dt>
             <dd className="font-medium">
-              −{formatCurrency(summary.discount)}
+              −{formatCurrency(split.codeWon)}
+            </dd>
+          </div>
+        )}
+        {split.tierWon > 0 && tier && (
+          <div className="flex justify-between text-emerald-700">
+            <dt>{t("cart.memberTier", { code: tier.code })}</dt>
+            <dd className="font-medium">
+              −{formatCurrency(split.tierWon)}
             </dd>
           </div>
         )}
@@ -488,11 +506,11 @@ export function OrderSummary({
           onApply={(code) => onApplyPromo(code)}
           formatCurrency={formatCurrency}
         />
-        {summary.promoApplied && promotion && (
+        {split.codeWon > 0 && promotion && (
           <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
             <span>
               {t("cart.discountApplied", {
-                amount: formatCurrency(summary.discount),
+                amount: formatCurrency(split.codeWon),
               })}
             </span>
             <button

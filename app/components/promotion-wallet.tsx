@@ -3,10 +3,41 @@ import { useEffect, useState } from "react";
 import type { CartItem } from "~/lib/cart";
 import { useLanguage } from "~/lib/i18n";
 import {
+  type MemberTier,
   type WalletEntry,
+  fetchMyTier,
   fetchWallet,
   promotionMessageKey,
 } from "~/lib/promotions";
+
+/**
+ * The signed-in customer's automatic tier discount on the bag, re-priced as
+ * the bag changes. Null for a non-member or a signed-out shopper.
+ */
+export function useMemberTier(items: CartItem[], shippingFeeWon: number) {
+  const [tier, setTier] = useState<MemberTier | null>(null);
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.unitPriceWon * item.quantity,
+    0
+  );
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyTier({ items, shippingFeeWon })
+      .then((result) => {
+        if (!cancelled) setTier(result);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on the priced bag, like the wallet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal, itemCount, shippingFeeWon]);
+
+  return tier;
+}
 
 /**
  * Loads the signed-in customer's promotional codes, judged against the bag.

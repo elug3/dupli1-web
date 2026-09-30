@@ -185,6 +185,10 @@ export interface Order {
   subtotalWon: number;
   /** Whole KRW won (JSON `discount_won`). Goods only — never delivery. */
   discountWon: number;
+  /** Automatic member tier (VIP, a private tier) the order earned without a code. */
+  tierPromotionCode?: string;
+  /** The tier's share of `discountWon`; the code's share is the rest. */
+  tierDiscountWon?: number;
   /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
   shippingFeeWon: number;
   totalWon: number;
@@ -337,6 +341,8 @@ interface RawOrder {
   /** Canonical since the 2026-09-16 rename; `coupon_code` is the pre-rename alias. */
   promotion_code?: string;
   coupon_code?: string;
+  tier_promotion_code?: string;
+  tier_discount_won?: number;
   items?: RawOrderItem[] | null;
   payment_due_at?: string;
   payment_id?: string;
@@ -407,6 +413,8 @@ function mapOrder(raw: RawOrder): Order {
     // promotion_code is canonical; coupon_code is the pre-rename alias order
     // still emits for one release (dupli1 docs/product-promotion-rename.md).
     promotionCode: raw.promotion_code || raw.coupon_code || undefined,
+    tierPromotionCode: raw.tier_promotion_code || undefined,
+    tierDiscountWon: raw.tier_discount_won ?? 0,
     items: (raw.items ?? []).map((item) => ({
       sku: item.sku,
       skuId: item.sku_id || undefined,

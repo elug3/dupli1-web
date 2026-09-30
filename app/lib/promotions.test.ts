@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CartItem } from "./cart";
 import {
   evaluatePromotion,
+  fetchMyTier,
   fetchWallet,
   promotionLines,
   promotionMessageKey,
   rejectionFromBody,
+  splitDiscount,
 } from "./promotions";
 
 const ITEM: CartItem = {
@@ -266,5 +268,33 @@ describe("fetchWallet", () => {
   it("is empty rather than throwing when the wallet cannot be read", async () => {
     stubFetch(null, false, 401);
     expect(await fetchWallet({ items: [ITEM], shippingFeeWon: 0 })).toEqual([]);
+  });
+});
+
+describe("fetchMyTier", () => {
+  it("returns the member's tier through the session gateway", async () => {
+    const fetchStub = stubFetch({ ok: true, code: "VIP", discount_won: 240000 });
+    const tier = await fetchMyTier({ items: [ITEM], shippingFeeWon: 30000 });
+    expect(tier).toEqual({ code: "VIP", discountWon: 240000 });
+    const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/auth/session/gateway/api/v1/products/promotions/me/tier");
+    // The customer comes from the token, never the body.
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("customer_id");
+  });
+
+  it("is null for a non-member or a failed call", async () => {
+    stubFetch({ ok: false });
+    expect(await fetchMyTier({ items: [ITEM], shippingFeeWon: 30000 })).toBeNull();
+    stubFetch({}, false, 401);
+    expect(await fetchMyTier({ items: [ITEM], shippingFeeWon: 30000 })).toBeNull();
+  });
+});
+
+describe("splitDiscount", () => {
+  it("takes the code first and gives the tier what is left", () => {
+    expect(splitDiscount(40000, 30000)).toEqual({ codeWon: 30000, tierWon: 10000 });
+    // Clamped total smaller than the code alone: no tier left.
+    expect(splitDiscount(10000, 30000)).toEqual({ codeWon: 10000, tierWon: 0 });
+    expect(splitDiscount(5000, 0)).toEqual({ codeWon: 0, tierWon: 5000 });
   });
 });
