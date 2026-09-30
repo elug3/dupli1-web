@@ -112,9 +112,8 @@ type CheckoutStep = (typeof checkoutSteps)[number];
 /** Fields each step owns; the review step re-validates the two before it. */
 const stepFields: Record<CheckoutStep, (keyof FormState)[]> = {
   shipping: [
-    "email",
-    "phone",
     "name",
+    "phone",
     "address",
     "city",
     "province",
@@ -227,9 +226,8 @@ export default function CheckoutPage() {
         if (cancelled) return;
         setSessionUser(user);
         if (!user) return;
-        setForm((prev) =>
-          prev.email ? prev : { ...prev, email: user.email }
-        );
+        // The account's email, never typed: only the confirmation page reads it.
+        setForm((prev) => ({ ...prev, email: user.email }));
         getCustomerProfile()
           .then((loaded) => {
             if (cancelled) return;
@@ -601,11 +599,6 @@ export default function CheckoutPage() {
       }
     }
 
-    if (fields.includes("email") && form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      next.email = t("checkout.validEmail");
-      firstInvalidField ??= "email";
-    }
-
     if (fields.includes("phone") && form.phone.trim() && !isValidKRPhone(form.phone)) {
       next.phone = t("checkout.validPhone");
       firstInvalidField ??= "phone";
@@ -937,33 +930,7 @@ export default function CheckoutPage() {
           <div className="space-y-8">
             {activeStep === "shipping" && (
               <CheckoutSection step="01" title={t("checkout.stepShipping")}>
-                <FieldGroup title={t("checkout.contact")}>
-                  <Field
-                    label={t("checkout.email")}
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    error={errors.email}
-                    onChange={(v) => updateField("email", v)}
-                    autoComplete="email"
-                    required
-                  />
-                  <Field
-                    label={t("checkout.phone")}
-                    id="phone"
-                    type="tel"
-                    value={form.phone}
-                    error={errors.phone}
-                    onChange={(v) => updateField("phone", formatKRPhoneInput(v))}
-                    autoComplete="tel"
-                    inputMode="numeric"
-                    maxLength={13}
-                    placeholder="010-1234-5678"
-                    required
-                  />
-                </FieldGroup>
-
-                <FieldGroup title={t("checkout.shipping")} divided>
+                <FieldGroup>
                   {profile !== null && (
                     <ShippingAddressSelect
                       addresses={savedAddresses}
@@ -983,6 +950,19 @@ export default function CheckoutPage() {
                     error={errors.name}
                     onChange={(v) => updateField("name", v)}
                     autoComplete="name"
+                    required
+                  />
+                  <Field
+                    label={t("checkout.phone")}
+                    id="phone"
+                    type="tel"
+                    value={form.phone}
+                    error={errors.phone}
+                    onChange={(v) => updateField("phone", formatKRPhoneInput(v))}
+                    autoComplete="tel"
+                    inputMode="numeric"
+                    maxLength={13}
+                    placeholder="010-1234-5678"
                     required
                   />
                   <Field
@@ -1152,18 +1132,11 @@ export default function CheckoutPage() {
                 </p>
 
                 <ReviewBlock
-                  title={t("checkout.contact")}
-                  onEdit={() => goToStep("shipping")}
-                >
-                  <p>{form.email}</p>
-                  <p>{form.phone}</p>
-                </ReviewBlock>
-
-                <ReviewBlock
                   title={t("checkout.stepShipping")}
                   onEdit={() => goToStep("shipping")}
                 >
                   <p className="font-medium text-zinc-950">{form.name}</p>
+                  <p>{form.phone}</p>
                   <p>
                     ({form.zip}) {form.province} {form.city} {form.address}
                     {form.apartment ? ` ${form.apartment}` : ""}
@@ -1746,15 +1719,18 @@ function FieldGroup({
   children,
   divided = false,
 }: {
-  title: string;
+  /** Omitted when the section heading already names the group. */
+  title?: string;
   children: React.ReactNode;
   divided?: boolean;
 }) {
   return (
     <div className={divided ? "space-y-4 border-t border-zinc-100 pt-8" : "space-y-4"}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-        {title}
-      </p>
+      {title && (
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+          {title}
+        </p>
+      )}
       {children}
     </div>
   );
