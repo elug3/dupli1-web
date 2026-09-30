@@ -119,7 +119,7 @@ export async function evaluatePromotion(
 
   let body: EvaluateResponse;
   try {
-    const res = await fetch("/api/promotions/evaluate", {
+    const res = await fetch("/api/v1/products/promotions/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",

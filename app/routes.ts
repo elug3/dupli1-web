@@ -19,11 +19,16 @@ export default [
   route("api/categories", "routes/api/categories.ts"),
   route("api/filters", "routes/api/filters.ts"),
   route("api/promotions/redeem", "routes/api/promotions.redeem.ts"),
-  route("api/promotions/evaluate", "routes/api/promotions.evaluate.ts"),
   // Public catalog: browser hits `/api/v1/products*` so production ALB can
   // forward to the gateway. These BFF handlers cover local `npm run dev` only.
   // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.
   route("api/v1/products", "routes/api/v1/products/index.ts"),
+  // Promo preview. Must stay under /api/v1: `/api/promotions/*` is sent to the
+  // gateway too and 404s there, which the bag shows as "unavailable".
+  route(
+    "api/v1/products/promotions/evaluate",
+    "routes/api/v1/products/promotions.evaluate.ts"
+  ),
   route("api/v1/products/:id/images", "routes/api/v1/products/$id.images.ts"),
   route(
     "api/v1/products/:id/recommendations",
