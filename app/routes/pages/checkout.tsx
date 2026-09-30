@@ -244,7 +244,7 @@ export default function CheckoutPage() {
                 next.name = loaded.displayName;
               }
               if (!prev.phone && loaded.phone) {
-                next.phone = loaded.phone;
+                next.phone = formatKRPhoneInput(loaded.phone);
               }
               if (defaultAddr && !prev.address) {
                 next = applyAddressToForm(next, defaultAddr);
@@ -964,7 +964,7 @@ export default function CheckoutPage() {
                 </FieldGroup>
 
                 <FieldGroup title={t("checkout.shipping")} divided>
-                  {savedAddresses.length > 0 && (
+                  {profile !== null && (
                     <ShippingAddressSelect
                       addresses={savedAddresses}
                       value={selectedAddressId}

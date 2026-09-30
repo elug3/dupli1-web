@@ -14,7 +14,9 @@ function addressTitle(address: CustomerAddress): string {
 
 /**
  * "Select shipping address" dropdown for checkout: the shopper's saved
- * addresses (default first), then "Enter a new address".
+ * addresses (default first), then "Enter a new address". Shown to every
+ * signed-in shopper, so an empty book still offers the one choice and says
+ * why there is nothing else.
  *
  * `editedFrom` is the saved address the form was filled from before the
  * shopper changed a field: the choice is then "new", but the button keeps
@@ -201,6 +203,14 @@ export function ShippingAddressSelect({
           onKeyDown={onListKey}
           className="absolute inset-x-0 top-full z-30 -mt-px max-h-80 overflow-y-auto border border-ink bg-white outline-none"
         >
+          {sorted.length === 0 && (
+            <li
+              role="presentation"
+              className="px-4 pb-1 pt-3 text-caption text-mute"
+            >
+              {t("checkout.noSavedAddresses")}
+            </li>
+          )}
           {choices.map((choice, index) => {
             const address = sorted.find((a) => a.id === choice);
             const isSelected = value === choice;
@@ -215,7 +225,7 @@ export function ShippingAddressSelect({
                 onClick={() => choose(choice)}
                 className={[
                   "flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors duration-300 ease-lux",
-                  index > 0 ? "border-t border-rule" : "",
+                  index > 0 || sorted.length === 0 ? "border-t border-rule" : "",
                   index === active ? "bg-ground" : "",
                 ].join(" ")}
               >
