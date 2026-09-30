@@ -406,6 +406,7 @@ export function OrderSummary({
   checkoutHref,
   checkoutLabel,
   disabled = false,
+  showPromo = true,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
   promotion: AppliedPromotion | null;
@@ -418,9 +419,12 @@ export function OrderSummary({
   onApplyPromo: (code?: string) => void;
   onRemovePromo: () => void;
   walletEntries: WalletEntry[];
-  checkoutHref: string;
-  checkoutLabel: string;
+  /** Omit both to leave the action to the page (checkout places the order). */
+  checkoutHref?: string;
+  checkoutLabel?: string;
   disabled?: boolean;
+  /** Checkout picks the code in its own dropdown instead. */
+  showPromo?: boolean;
 }) {
   const { t, formatCurrency } = useLanguage();
   const shippingFeeWon = useShippingFeeWon();
@@ -471,60 +475,62 @@ export function OrderSummary({
         </div>
       </dl>
 
-      <div className="mt-6">
-        <label
-          htmlFor="promo-code"
-          className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600"
-        >
-          {t("cart.promoCode")}
-        </label>
-        <div className="mt-2 flex gap-2">
-          <input
-            id="promo-code"
-            type="text"
-            value={promoInput}
-            onChange={(e) => onPromoInputChange(e.target.value)}
-            placeholder={t("cart.promoCode")}
-            disabled={applyingPromo}
-            className="h-11 flex-1 border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
-          />
-          <button
-            type="button"
-            onClick={() => onApplyPromo()}
-            disabled={applyingPromo}
-            className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-60"
+      {showPromo && (
+        <div className="mt-6">
+          <label
+            htmlFor="promo-code"
+            className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600"
           >
-            {t("cart.apply")}
-          </button>
-        </div>
-        {promoError && (
-          <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
-        )}
-        <PromotionWallet
-          entries={walletEntries}
-          appliedCode={promotion?.code}
-          onApply={(code) => onApplyPromo(code)}
-          formatCurrency={formatCurrency}
-        />
-        {split.codeWon > 0 && promotion && (
-          <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
-            <span>
-              {t("cart.discountApplied", {
-                amount: formatCurrency(split.codeWon),
-              })}
-            </span>
+            {t("cart.promoCode")}
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="promo-code"
+              type="text"
+              value={promoInput}
+              onChange={(e) => onPromoInputChange(e.target.value)}
+              placeholder={t("cart.promoCode")}
+              disabled={applyingPromo}
+              className="h-11 flex-1 border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+            />
             <button
               type="button"
-              onClick={onRemovePromo}
-              className="text-[10px] uppercase tracking-[0.12em] text-zinc-400 underline transition hover:text-zinc-950"
+              onClick={() => onApplyPromo()}
+              disabled={applyingPromo}
+              className="h-11 border border-zinc-950 px-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-950 transition hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-60"
             >
-              {t("cart.removePromo")}
+              {t("cart.apply")}
             </button>
-          </p>
-        )}
-      </div>
+          </div>
+          {promoError && (
+            <p className="mt-2 text-[11px] text-red-600">{promoError}</p>
+          )}
+          <PromotionWallet
+            entries={walletEntries}
+            appliedCode={promotion?.code}
+            onApply={(code) => onApplyPromo(code)}
+            formatCurrency={formatCurrency}
+          />
+          {split.codeWon > 0 && promotion && (
+            <p className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700">
+              <span>
+                {t("cart.discountApplied", {
+                  amount: formatCurrency(split.codeWon),
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={onRemovePromo}
+                className="text-[10px] uppercase tracking-[0.12em] text-zinc-400 underline transition hover:text-zinc-950"
+              >
+                {t("cart.removePromo")}
+              </button>
+            </p>
+          )}
+        </div>
+      )}
 
-      {disabled ? (
+      {!checkoutLabel ? null : disabled || !checkoutHref ? (
         <button
           type="button"
           disabled
