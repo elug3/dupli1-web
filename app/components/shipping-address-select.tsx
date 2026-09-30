@@ -16,6 +16,10 @@ function addressTitle(address: CustomerAddress): string {
  * "Select shipping address" dropdown for checkout: the shopper's saved
  * addresses (default first), then "Enter a new address".
  *
+ * `editedFrom` is the saved address the form was filled from before the
+ * shopper changed a field: the choice is then "new", but the button keeps
+ * naming where it came from instead of reading as a blank new address.
+ *
  * A listbox rather than a native <select> so each option can show who, where
  * and the default badge on two lines. Keyboard: Enter / Space / ↓ opens,
  * ↑ ↓ Home End move, Enter picks, Esc closes (focus returns to the button).
@@ -23,11 +27,13 @@ function addressTitle(address: CustomerAddress): string {
 export function ShippingAddressSelect({
   addresses,
   value,
+  editedFrom = null,
   onSelectAddress,
   onSelectNew,
 }: {
   addresses: CustomerAddress[];
   value: AddressChoice | null;
+  editedFrom?: CustomerAddress | null;
   onSelectAddress: (address: CustomerAddress) => void;
   onSelectNew: () => void;
 }) {
@@ -128,7 +134,7 @@ export function ShippingAddressSelect({
     <div ref={rootRef} className="relative">
       <p
         id={labelId}
-        className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400"
+        className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-mute"
       >
         {t("checkout.selectShippingAddress")}
       </p>
@@ -142,14 +148,25 @@ export function ShippingAddressSelect({
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onButtonKey}
         className={[
-          "flex w-full items-center justify-between gap-3 border bg-white px-4 py-3 text-left transition",
-          open ? "border-zinc-950" : "border-zinc-300 hover:border-zinc-500",
+          "flex min-h-12 w-full items-center justify-between gap-3 border bg-white px-4 py-3 text-left outline-none transition-colors duration-300 ease-lux",
+          open
+            ? "border-ink"
+            : "border-rule hover:border-mute focus-visible:border-ink",
         ].join(" ")}
       >
         {selected ? (
-          <AddressLines address={selected} />
+          <AddressLines address={selected} showPccc />
+        ) : value === NEW && editedFrom ? (
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-ink">
+              {addressTitle(editedFrom)}
+            </span>
+            <span className="mt-0.5 block text-caption text-mute">
+              {t("checkout.addressEdited")}
+            </span>
+          </span>
         ) : (
-          <span className="text-sm text-zinc-950">
+          <span className="text-sm text-ink">
             {value === NEW
               ? t("checkout.useNewAddress")
               : t("checkout.selectShippingAddressPlaceholder")}
@@ -159,7 +176,7 @@ export function ShippingAddressSelect({
           aria-hidden="true"
           viewBox="0 0 20 20"
           className={[
-            "size-4 shrink-0 text-zinc-500 transition-transform",
+            "size-4 shrink-0 text-mute transition-transform duration-300 ease-lux",
             open ? "rotate-180" : "",
           ].join(" ")}
         >
@@ -182,7 +199,7 @@ export function ShippingAddressSelect({
           aria-labelledby={labelId}
           aria-activedescendant={`${id}-opt-${active}`}
           onKeyDown={onListKey}
-          className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-y-auto border border-zinc-950 bg-white shadow-lg outline-none"
+          className="absolute inset-x-0 top-full z-30 -mt-px max-h-80 overflow-y-auto border border-ink bg-white outline-none"
         >
           {choices.map((choice, index) => {
             const address = sorted.find((a) => a.id === choice);
@@ -197,15 +214,15 @@ export function ShippingAddressSelect({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(choice)}
                 className={[
-                  "flex cursor-pointer items-start gap-3 px-4 py-3",
-                  choice === NEW ? "border-t border-zinc-200" : "",
-                  index === active ? "bg-zinc-100" : "",
+                  "flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors duration-300 ease-lux",
+                  index > 0 ? "border-t border-rule" : "",
+                  index === active ? "bg-ground" : "",
                 ].join(" ")}
               >
                 <span
                   aria-hidden="true"
                   className={[
-                    "mt-1 size-3.5 shrink-0 text-zinc-950",
+                    "mt-1 size-3.5 shrink-0 text-ink",
                     isSelected ? "" : "invisible",
                   ].join(" ")}
                 >
@@ -223,7 +240,7 @@ export function ShippingAddressSelect({
                 {address ? (
                   <AddressLines address={address} showPccc />
                 ) : (
-                  <span className="text-sm font-medium text-zinc-950">
+                  <span className="text-sm font-medium text-ink">
                     + {t("checkout.useNewAddress")}
                   </span>
                 )}
@@ -247,23 +264,23 @@ function AddressLines({
   return (
     <span className="min-w-0">
       <span className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-zinc-950">
+        <span className="text-sm font-medium text-ink">
           {addressTitle(address)}
         </span>
         {address.isDefault && (
-          <span className="bg-zinc-950 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white">
+          <span className="rounded-full border border-ink px-2 py-px text-[10px] font-medium uppercase tracking-wider text-ink">
             {t("profile.defaultAddress")}
           </span>
         )}
       </span>
-      <span className="mt-0.5 block text-xs text-zinc-500">
+      <span className="mt-0.5 block text-caption text-mute">
         {address.recipientName} · {formatKRPhoneInput(address.recipientPhone)}
       </span>
-      <span className="mt-0.5 block truncate text-xs text-zinc-600">
+      <span className="mt-0.5 block truncate text-caption text-mute">
         ({address.postalCode}) {formatAddressSummary(address)}
       </span>
       {showPccc && !address.pccc && (
-        <span className="mt-0.5 block text-[11px] text-amber-700">
+        <span className="mt-0.5 block text-caption text-alert">
           {t("checkout.savedAddressMissingPccc")}
         </span>
       )}

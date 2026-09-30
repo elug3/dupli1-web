@@ -182,6 +182,8 @@ export default function CheckoutPage() {
     null
   );
   const [saveAddress, setSaveAddress] = useState(false);
+  // The saved address the form was filled from before the shopper edited it.
+  const [editedAddressId, setEditedAddressId] = useState<string | null>(null);
   const [resumeOrder, setResumeOrder] = useState<Order | null>(null);
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [resumeNotice, setResumeNotice] = useState<string | null>(null);
@@ -505,6 +507,7 @@ export default function CheckoutPage() {
       selectedAddressId !== "new" &&
       addressFields.includes(key)
     ) {
+      setEditedAddressId(selectedAddressId);
       setSelectedAddressId("new");
       setSaveAddress(false);
     }
@@ -516,6 +519,7 @@ export default function CheckoutPage() {
   }
 
   function selectSavedAddress(address: CustomerAddress) {
+    setEditedAddressId(null);
     setSelectedAddressId(address.id);
     setSaveAddress(false);
     setForm((prev) => applyAddressToForm(prev, address));
@@ -526,6 +530,21 @@ export default function CheckoutPage() {
   }
 
   function selectNewAddress() {
+    // Leaving a saved (or edited) address empties the location fields, so
+    // "Enter a new address" does not show the last address as if it were
+    // new. Recipient, phone and PCCC stay: they usually belong to the
+    // shopper, not the place.
+    if ((selectedAddressId && selectedAddressId !== "new") || editedAddressId) {
+      setForm((prev) => ({
+        ...prev,
+        address: "",
+        apartment: "",
+        city: "",
+        province: "",
+        zip: "",
+      }));
+    }
+    setEditedAddressId(null);
     setSelectedAddressId("new");
     // A new address is saved by default (opt-out); editing a pre-filled saved
     // one also becomes "new" but stays unticked (see updateField), so small
@@ -949,6 +968,10 @@ export default function CheckoutPage() {
                     <ShippingAddressSelect
                       addresses={savedAddresses}
                       value={selectedAddressId}
+                      editedFrom={
+                        savedAddresses.find((a) => a.id === editedAddressId) ??
+                        null
+                      }
                       onSelectAddress={selectSavedAddress}
                       onSelectNew={selectNewAddress}
                     />
