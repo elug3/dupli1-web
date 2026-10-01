@@ -5,6 +5,7 @@ import {
   handleSessionGatewayProxy,
   proxyNanoCheckout,
 } from "./bff-session.server";
+import { memorySessionStore, redisSessionStore } from "./session-store.server";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -22,7 +23,7 @@ function upstreamResponse(body: unknown, status = 200): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete globalThis.__dupli1BffSessions;
+  delete globalThis.__dupli1SessionStore;
 });
 
 describe("handleSessionGatewayProxy profile routing", () => {
@@ -384,5 +385,112 @@ describe("login client", () => {
     expect(res.status).toBe(403);
     expect(res.headers.get("Set-Cookie")).toBeNull();
     expect(await res.json()).toMatchObject({ error: message, code: "account_type_not_allowed" });
+  });
+});
+
+describe("a deploy does not end sessions", () => {
+  async function loginCookie(mod: typeof import("./bff-session.server")) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ access_token: "a-1", refresh_token: "rt-1" }))
+    );
+    const login = await mod.handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "u@example.com", password: "x" }),
+      })
+    );
+    return login.headers.get("Set-Cookie")!.split(";")[0];
+  }
+
+  it("honours a cookie issued by a previous process sharing the store", async () => {
+    const shared = memorySessionStore();
+    globalThis.__dupli1SessionStore = shared;
+    vi.resetModules();
+    const cookie = await loginCookie(await import("./bff-session.server"));
+
+    // A fresh module instance stands in for the replacement task.
+    vi.resetModules();
+    const after = await import("./bff-session.server");
+    const seen: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        seen.push(String((init?.headers as Record<string, string>).Authorization));
+        return jsonResponse({ id: "u1" });
+      })
+    );
+    const me = await after.handleMe(
+      new Request("http://localhost/auth/session/me", { headers: { Cookie: cookie } })
+    );
+
+    expect(me.status).toBe(200);
+    expect(seen).toEqual(["Bearer a-1"]);
+  });
+
+  it("keeps the cookie when the session store is down", async () => {
+    const mod = await import("./bff-session.server");
+    const cookie = await loginCookie(mod);
+    globalThis.__dupli1SessionStore = {
+      get: async () => {
+        throw new Error("redis down");
+      },
+      set: async () => {},
+      delete: async () => {},
+    };
+
+    const response = await mod.handleMe(
+      new Request("http://localhost/auth/session/me", { headers: { Cookie: cookie } })
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Set-Cookie") ?? "").not.toContain("Max-Age=0");
+  });
+
+  it("uses the successor token when a parallel request already rotated it", async () => {
+    const mod = await import("./bff-session.server");
+    const cookie = await loginCookie(mod);
+    const id = decodeURIComponent(cookie.split("=")[1]);
+    const store = globalThis.__dupli1SessionStore!;
+    const stale = (await store.get(id))!;
+
+    // Auth refuses rt-1 because the other request spent it and stored rt-2.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        await store.set(id, { ...stale, refreshToken: "rt-2", accessToken: "a-2" }, 60);
+        return jsonResponse({ error: "reused" }, 401);
+      })
+    );
+    const response = await mod.handleRefresh(
+      new Request("http://localhost/auth/session/refresh", {
+        method: "POST",
+        headers: { Cookie: cookie },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect((await store.get(id))?.refreshToken).toBe("rt-2");
+  });
+});
+
+const REDIS_URL = process.env.DUPLI1_TEST_REDIS_URL;
+
+describe.skipIf(!REDIS_URL)("redis session store", () => {
+  it("round-trips a record and expires it", async () => {
+    const store = redisSessionStore(REDIS_URL!);
+    const record = {
+      refreshToken: "r",
+      accessToken: "a",
+      accessTokenExpiresAt: 1,
+      expiresAt: Date.now() + 1000,
+    };
+    await store.set("t-1", record, 1);
+    expect(await store.get("t-1")).toEqual(record);
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(await store.get("t-1")).toBeNull();
+    await store.set("t-2", record, 60);
+    await store.delete("t-2");
+    expect(await store.get("t-2")).toBeNull();
   });
 });

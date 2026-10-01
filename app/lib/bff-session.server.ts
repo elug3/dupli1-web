@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { User } from "./auth";
 import { getServiceAccountAccessToken, serviceAccountConfigured } from "./service-account.server";
 import "./tls-ca.server";
+import { sessionStore, type SessionRecord } from "./session-store.server";
 
 const SESSION_COOKIE_NAME = "dupli1_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -28,26 +29,10 @@ interface TokenResponse {
   [key: string]: unknown;
 }
 
-interface SessionRecord {
-  refreshToken: string;
-  accessToken: string;
-  accessTokenExpiresAt: number;
-  expiresAt: number;
-  user?: User;
-}
-
 interface AccessTokenResult {
   token: string;
   setCookie?: string;
 }
-
-declare global {
-  // Keep the cache stable across Vite server reloads during local development.
-  // Production deployments should replace this with shared server-side storage.
-  var __dupli1BffSessions: Map<string, SessionRecord> | undefined;
-}
-
-const sessions = (globalThis.__dupli1BffSessions ??= new Map());
 
 function now(): number {
   return Date.now();
@@ -169,19 +154,26 @@ function sessionIdFromRequest(request: Request): string | null {
   return parseCookies(request.headers.get("Cookie")).get(SESSION_COOKIE_NAME) ?? null;
 }
 
-function readSession(request: Request): { id: string; record: SessionRecord } | null {
-  const sessionId = sessionIdFromRequest(request);
-  if (!sessionId) return null;
+/**
+ * `null` is "no such session"; a rejection is "the store did not answer", which
+ * says nothing about the session and must not clear it.
+ */
+async function readSession(
+  request: Request
+): Promise<{ id: string; record: SessionRecord } | null> {
+  const id = sessionIdFromRequest(request);
+  if (!id) return null;
 
-  const record = sessions.get(sessionId);
+  const store = sessionStore();
+  const record = await store.get(id);
   if (!record) return null;
 
   if (record.expiresAt <= now()) {
-    sessions.delete(sessionId);
+    await store.delete(id).catch(() => {});
     return null;
   }
 
-  return { id: sessionId, record };
+  return { id, record };
 }
 
 /**
@@ -270,7 +262,7 @@ async function createSessionFromRefreshToken(
       : json({ error: "Auth server did not issue an access token" }, { status: 502 });
   }
 
-  return createSession({
+  return await createSession({
     access_token: exchanged.accessToken,
     refresh_token: exchanged.refreshToken,
     expires_in: exchanged.expiresIn,
@@ -298,33 +290,25 @@ function accessTokenExpiresAt(expiresIn?: number): number {
   return now() + seconds * 1000;
 }
 
-function createSession(tokens: {
+async function saveSession(id: string, record: SessionRecord): Promise<void> {
+  await sessionStore().set(id, record, SESSION_TTL_SECONDS);
+}
+
+async function createSession(tokens: {
   access_token: string;
   refresh_token: string;
   expires_in?: number;
   user?: User;
-}): { setCookie: string } {
+}): Promise<{ setCookie: string }> {
   const sessionId = randomUUID();
-  sessions.set(sessionId, {
+  await saveSession(sessionId, {
     refreshToken: tokens.refresh_token,
     accessToken: tokens.access_token,
     accessTokenExpiresAt: accessTokenExpiresAt(tokens.expires_in),
     expiresAt: now() + SESSION_TTL_SECONDS * 1000,
-    user: tokens.user,
   });
 
   return { setCookie: sessionCookie(sessionId) };
-}
-
-function touchSession(sessionId: string, record: SessionRecord): string {
-  record.expiresAt = now() + SESSION_TTL_SECONDS * 1000;
-  sessions.set(sessionId, record);
-  return sessionCookie(sessionId);
-}
-
-function forgetSession(request: Request): void {
-  const sessionId = sessionIdFromRequest(request);
-  if (sessionId) sessions.delete(sessionId);
 }
 
 async function parseJsonBody(request: Request): Promise<Record<string, unknown>> {
@@ -549,7 +533,7 @@ export async function handleLogin(request: Request): Promise<Response> {
 
   const tokens = (await upstream.json()) as TokenResponse;
   if (isTokenResponse(tokens)) {
-    const { setCookie } = createSession(tokens);
+    const { setCookie } = await createSession(tokens);
     return json({ ok: true, user: tokens.user ?? null }, { status: 200 }, setCookie);
   }
 
@@ -618,7 +602,7 @@ export async function handleRegister(request: Request): Promise<Response> {
 
   const loginBody = (await loginResponse.json()) as TokenResponse;
   if (isTokenResponse(loginBody)) {
-    const { setCookie } = createSession(loginBody);
+    const { setCookie } = await createSession(loginBody);
     return json({ ok: true, user: loginBody.user ?? null }, { status: 200 }, setCookie);
   }
 
@@ -636,7 +620,14 @@ export async function getAccessToken(
   request: Request,
   options: { forceRefresh?: boolean } = {}
 ): Promise<AccessTokenResult | Response> {
-  const session = readSession(request);
+  let session: Awaited<ReturnType<typeof readSession>>;
+  try {
+    session = await readSession(request);
+  } catch {
+    // The store did not answer; the session's standing is unknown, so keep
+    // the cookie exactly as with an unreachable auth.
+    return authUnavailable();
+  }
   if (!session) {
     return json(
       { error: "Not authenticated" },
@@ -644,16 +635,17 @@ export async function getAccessToken(
       clearSessionCookie()
     );
   }
+  const { id, record } = session;
 
   const shouldRefresh =
     options.forceRefresh ||
-    session.record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS <= now();
+    record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS <= now();
 
   if (!shouldRefresh) {
-    return { token: session.record.accessToken };
+    return { token: record.accessToken };
   }
 
-  const exchanged = await exchangeRefreshToken(session.record.refreshToken);
+  const exchanged = await exchangeRefreshToken(record.refreshToken);
 
   if (!exchanged.ok) {
     // Only auth's own verdict ends the session. On `unavailable` the record
@@ -662,7 +654,16 @@ export async function getAccessToken(
     if (exchanged.reason === "unavailable") {
       return authUnavailable();
     }
-    sessions.delete(session.id);
+
+    // Refresh tokens are single use and the store is shared, so a parallel
+    // request (possibly on another task) may have just spent this one and
+    // saved its successor. That request's tokens are good; use them.
+    const current = await sessionStore().get(id).catch(() => null);
+    if (current && current.refreshToken !== record.refreshToken) {
+      return { token: current.accessToken, setCookie: sessionCookie(id) };
+    }
+
+    await sessionStore().delete(id).catch(() => {});
     return json(
       { error: "Session expired. Please sign in again." },
       { status: 401 },
@@ -670,14 +671,21 @@ export async function getAccessToken(
     );
   }
 
-  session.record.accessToken = exchanged.accessToken;
-  session.record.refreshToken = exchanged.refreshToken;
-  session.record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
+  record.accessToken = exchanged.accessToken;
+  record.refreshToken = exchanged.refreshToken;
+  record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
+  record.expiresAt = now() + SESSION_TTL_SECONDS * 1000;
 
-  return {
-    token: session.record.accessToken,
-    setCookie: touchSession(session.id, session.record),
-  };
+  // The rotated refresh token must be stored before it is used again. If the
+  // write fails the old one is already spent, so surface the failure as
+  // retryable rather than hand back a session that cannot refresh again.
+  try {
+    await saveSession(id, record);
+  } catch {
+    return authUnavailable();
+  }
+
+  return { token: record.accessToken, setCookie: sessionCookie(id) };
 }
 
 export async function handleRefresh(request: Request): Promise<Response> {
@@ -712,7 +720,6 @@ export async function handleMe(request: Request): Promise<Response> {
 
     me = await fetchAuthMe(refreshed.token, refreshed.setCookie);
     if (me.status === 401) {
-      forgetSession(request);
       return json(
         { error: "Not authenticated" },
         { status: 401 },
@@ -725,18 +732,19 @@ export async function handleMe(request: Request): Promise<Response> {
 }
 
 export async function handleLogout(request: Request): Promise<Response> {
-  const session = readSession(request);
+  const session = await readSession(request).catch(() => null);
 
   if (session) {
+    const { id, record } = session;
     await fetch(upstreamUrl("auth", "/api/v1/auth/logout"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        refresh_token: session.record.refreshToken,
+        refresh_token: record.refreshToken,
         audience: TOKEN_AUDIENCE,
       }),
     }).catch(() => {});
-    sessions.delete(session.id);
+    await sessionStore().delete(id).catch(() => {});
   }
 
   return json({ ok: true }, { status: 200 }, clearSessionCookie());

@@ -171,7 +171,12 @@ values; `admin` is a permission tier such as `admin.*`, not an account type).
 only collects money; order ship commits the reservation.
 
 Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
-and refresh tokens are cached server-side by the BFF; access tokens are reused
+and refresh tokens are stored server-side by the BFF in Redis
+(`DUPLI1_WEB_REDIS_URL`, key `dupli1:web:session:<id>`, 7-day TTL), so a deploy
+or a second replica keeps every session. Unset, they live in process memory and
+end on restart (local development only). If Redis is unreachable the BFF answers
+`503` `auth_unavailable` and keeps the cookie. Rotated refresh tokens are saved
+before use; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The
 BFF includes `audience: "web"` in token requests for the backend contract, but
 the current Go auth service must also support/enforce that claim and configure
