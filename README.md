@@ -170,8 +170,12 @@ values; `admin` is a permission tier such as `admin.*`, not an account type).
 `…/by-sku-id/{skuId}`). Checkout `complete` reserves stock there; payment
 only collects money; order ship commits the reservation.
 
-Authenticated browser sessions use an opaque `HttpOnly` session cookie. Access
-and refresh tokens are cached server-side by the BFF; access tokens are reused
+Authenticated browser sessions use an `HttpOnly` session cookie that carries the
+session itself, sealed with AES-256-GCM under `DUPLI1_WEB_SESSION_SECRET` (set
+the same value on every task; without it each process invents one and sessions
+end on restart). Nothing is held in server memory, so a deploy does not sign
+anyone out. Access and refresh tokens ride in that cookie, resealed whenever
+the refresh token rotates; access tokens are reused
 for at most five minutes and refreshed with the cached refresh token pair. The
 BFF includes `audience: "web"` in token requests for the backend contract, but
 the current Go auth service must also support/enforce that claim and configure

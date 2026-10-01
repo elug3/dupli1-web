@@ -22,7 +22,6 @@ function upstreamResponse(body: unknown, status = 200): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete globalThis.__dupli1BffSessions;
 });
 
 describe("handleSessionGatewayProxy profile routing", () => {
@@ -384,5 +383,69 @@ describe("login client", () => {
     expect(res.status).toBe(403);
     expect(res.headers.get("Set-Cookie")).toBeNull();
     expect(await res.json()).toMatchObject({ error: message, code: "account_type_not_allowed" });
+  });
+});
+
+describe("a deploy does not end sessions", () => {
+  it("honours a cookie issued by a previous process", async () => {
+    vi.stubEnv("DUPLI1_WEB_SESSION_SECRET", "shared-across-tasks");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ access_token: "a-1", refresh_token: "rt-1" })
+      )
+    );
+
+    vi.resetModules();
+    const before = await import("./bff-session.server");
+    const login = await before.handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "u@example.com", password: "x" }),
+      })
+    );
+    const cookie = login.headers.get("Set-Cookie")!.split(";")[0];
+
+    // A fresh module instance stands in for the replacement task.
+    vi.resetModules();
+    const after = await import("./bff-session.server");
+    const seen: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        seen.push(String((init?.headers as Record<string, string>)?.Authorization));
+        return jsonResponse({ id: "u1" });
+      })
+    );
+    const me = await after.handleMe(
+      new Request("http://localhost/auth/session/me", { headers: { Cookie: cookie } })
+    );
+
+    expect(me.status).toBe(200);
+    expect(seen).toEqual(["Bearer a-1"]);
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects a cookie sealed under another secret", async () => {
+    vi.stubEnv("DUPLI1_WEB_SESSION_SECRET", "one");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ access_token: "a", refresh_token: "r" }))
+    );
+    vi.resetModules();
+    const one = await import("./bff-session.server");
+    const login = await one.handleLogin(
+      new Request("http://localhost/x", { method: "POST", body: "{}" })
+    );
+    const cookie = login.headers.get("Set-Cookie")!.split(";")[0];
+
+    vi.stubEnv("DUPLI1_WEB_SESSION_SECRET", "two");
+    vi.resetModules();
+    const two = await import("./bff-session.server");
+    const me = await two.handleMe(
+      new Request("http://localhost/me", { headers: { Cookie: cookie } })
+    );
+    expect(me.status).toBe(401);
+    vi.unstubAllEnvs();
   });
 });

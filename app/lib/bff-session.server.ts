@@ -1,4 +1,9 @@
-import { randomUUID } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 
 import type { User } from "./auth";
 import { getServiceAccountAccessToken, serviceAccountConfigured } from "./service-account.server";
@@ -33,7 +38,6 @@ interface SessionRecord {
   accessToken: string;
   accessTokenExpiresAt: number;
   expiresAt: number;
-  user?: User;
 }
 
 interface AccessTokenResult {
@@ -41,13 +45,65 @@ interface AccessTokenResult {
   setCookie?: string;
 }
 
-declare global {
-  // Keep the cache stable across Vite server reloads during local development.
-  // Production deployments should replace this with shared server-side storage.
-  var __dupli1BffSessions: Map<string, SessionRecord> | undefined;
+/**
+ * The session lives in the cookie itself, sealed with AES-256-GCM, rather than
+ * in a server-side map. A map dies with the process, so every deploy signed
+ * every shopper out while their browser still held a cookie for a session that
+ * no longer existed. Sealed, any task of any version can read it, as long as
+ * they share DUPLI1_WEB_SESSION_SECRET.
+ *
+ * Without the secret each process invents its own, which is only fit for local
+ * development: sessions then end with the process, as they used to.
+ */
+let sealKey: Buffer | undefined;
+
+function sessionKey(): Buffer {
+  if (sealKey) return sealKey;
+  const secret = process.env.DUPLI1_WEB_SESSION_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    console.warn(
+      "DUPLI1_WEB_SESSION_SECRET is not set: sessions will not survive a restart or span tasks"
+    );
+  }
+  sealKey = createHash("sha256")
+    .update(secret || randomBytes(32))
+    .digest();
+  return sealKey;
 }
 
-const sessions = (globalThis.__dupli1BffSessions ??= new Map());
+function sealSession(record: SessionRecord): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", sessionKey(), iv);
+  const body = Buffer.concat([
+    cipher.update(JSON.stringify(record), "utf8"),
+    cipher.final(),
+  ]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64url");
+}
+
+function openSession(sealed: string): SessionRecord | null {
+  try {
+    const raw = Buffer.from(sealed, "base64url");
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      sessionKey(),
+      raw.subarray(0, 12)
+    );
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const plain = Buffer.concat([
+      decipher.update(raw.subarray(28)),
+      decipher.final(),
+    ]);
+    const record = JSON.parse(plain.toString("utf8")) as SessionRecord;
+    return typeof record.refreshToken === "string" &&
+      typeof record.accessToken === "string"
+      ? record
+      : null;
+  } catch {
+    // Tampered, truncated, or sealed under another secret.
+    return null;
+  }
+}
 
 function now(): number {
   return Date.now();
@@ -145,9 +201,9 @@ function parseCookies(header: string | null): Map<string, string> {
   return cookies;
 }
 
-function sessionCookie(sessionId: string, maxAge = SESSION_TTL_SECONDS): string {
+function sessionCookie(value: string, maxAge = SESSION_TTL_SECONDS): string {
   const parts = [
-    `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(value)}`,
     "Path=/",
     "HttpOnly",
     "SameSite=Lax",
@@ -165,23 +221,14 @@ export function clearSessionCookie(): string {
   return sessionCookie("", 0);
 }
 
-function sessionIdFromRequest(request: Request): string | null {
-  return parseCookies(request.headers.get("Cookie")).get(SESSION_COOKIE_NAME) ?? null;
-}
+function sessionFromRequest(request: Request): SessionRecord | null {
+  const sealed = parseCookies(request.headers.get("Cookie")).get(SESSION_COOKIE_NAME);
+  if (!sealed) return null;
 
-function readSession(request: Request): { id: string; record: SessionRecord } | null {
-  const sessionId = sessionIdFromRequest(request);
-  if (!sessionId) return null;
+  const record = openSession(sealed);
+  if (!record || record.expiresAt <= now()) return null;
 
-  const record = sessions.get(sessionId);
-  if (!record) return null;
-
-  if (record.expiresAt <= now()) {
-    sessions.delete(sessionId);
-    return null;
-  }
-
-  return { id: sessionId, record };
+  return record;
 }
 
 /**
@@ -304,27 +351,23 @@ function createSession(tokens: {
   expires_in?: number;
   user?: User;
 }): { setCookie: string } {
-  const sessionId = randomUUID();
-  sessions.set(sessionId, {
-    refreshToken: tokens.refresh_token,
-    accessToken: tokens.access_token,
-    accessTokenExpiresAt: accessTokenExpiresAt(tokens.expires_in),
-    expiresAt: now() + SESSION_TTL_SECONDS * 1000,
-    user: tokens.user,
-  });
-
-  return { setCookie: sessionCookie(sessionId) };
+  return {
+    setCookie: sessionCookie(
+      sealSession({
+        refreshToken: tokens.refresh_token,
+        accessToken: tokens.access_token,
+        accessTokenExpiresAt: accessTokenExpiresAt(tokens.expires_in),
+        expiresAt: now() + SESSION_TTL_SECONDS * 1000,
+      })
+    ),
+  };
 }
 
-function touchSession(sessionId: string, record: SessionRecord): string {
+// Reseal after a refresh: the cookie must carry the rotated refresh token, or
+// the next request would replay the spent one and auth would reject it.
+function touchSession(record: SessionRecord): string {
   record.expiresAt = now() + SESSION_TTL_SECONDS * 1000;
-  sessions.set(sessionId, record);
-  return sessionCookie(sessionId);
-}
-
-function forgetSession(request: Request): void {
-  const sessionId = sessionIdFromRequest(request);
-  if (sessionId) sessions.delete(sessionId);
+  return sessionCookie(sealSession(record));
 }
 
 async function parseJsonBody(request: Request): Promise<Record<string, unknown>> {
@@ -636,8 +679,8 @@ export async function getAccessToken(
   request: Request,
   options: { forceRefresh?: boolean } = {}
 ): Promise<AccessTokenResult | Response> {
-  const session = readSession(request);
-  if (!session) {
+  const record = sessionFromRequest(request);
+  if (!record) {
     return json(
       { error: "Not authenticated" },
       { status: 401 },
@@ -647,13 +690,13 @@ export async function getAccessToken(
 
   const shouldRefresh =
     options.forceRefresh ||
-    session.record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS <= now();
+    record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS <= now();
 
   if (!shouldRefresh) {
-    return { token: session.record.accessToken };
+    return { token: record.accessToken };
   }
 
-  const exchanged = await exchangeRefreshToken(session.record.refreshToken);
+  const exchanged = await exchangeRefreshToken(record.refreshToken);
 
   if (!exchanged.ok) {
     // Only auth's own verdict ends the session. On `unavailable` the record
@@ -662,7 +705,6 @@ export async function getAccessToken(
     if (exchanged.reason === "unavailable") {
       return authUnavailable();
     }
-    sessions.delete(session.id);
     return json(
       { error: "Session expired. Please sign in again." },
       { status: 401 },
@@ -670,13 +712,13 @@ export async function getAccessToken(
     );
   }
 
-  session.record.accessToken = exchanged.accessToken;
-  session.record.refreshToken = exchanged.refreshToken;
-  session.record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
+  record.accessToken = exchanged.accessToken;
+  record.refreshToken = exchanged.refreshToken;
+  record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
 
   return {
-    token: session.record.accessToken,
-    setCookie: touchSession(session.id, session.record),
+    token: record.accessToken,
+    setCookie: touchSession(record),
   };
 }
 
@@ -712,7 +754,6 @@ export async function handleMe(request: Request): Promise<Response> {
 
     me = await fetchAuthMe(refreshed.token, refreshed.setCookie);
     if (me.status === 401) {
-      forgetSession(request);
       return json(
         { error: "Not authenticated" },
         { status: 401 },
@@ -725,18 +766,17 @@ export async function handleMe(request: Request): Promise<Response> {
 }
 
 export async function handleLogout(request: Request): Promise<Response> {
-  const session = readSession(request);
+  const record = sessionFromRequest(request);
 
-  if (session) {
+  if (record) {
     await fetch(upstreamUrl("auth", "/api/v1/auth/logout"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        refresh_token: session.record.refreshToken,
+        refresh_token: record.refreshToken,
         audience: TOKEN_AUDIENCE,
       }),
     }).catch(() => {});
-    sessions.delete(session.id);
   }
 
   return json({ ok: true }, { status: 200 }, clearSessionCookie());
