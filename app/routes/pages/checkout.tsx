@@ -1202,6 +1202,25 @@ export default function CheckoutPage() {
             <div className="space-y-6 lg:hidden">
               <MiniBag
                 items={items}
+                subtotal={summary.subtotal}
+                discounts={[
+                  ...(discountSplit.codeWon > 0 && promotion
+                    ? [
+                        {
+                          label: t("cart.promo", { code: promotion.code }),
+                          won: discountSplit.codeWon,
+                        },
+                      ]
+                    : []),
+                  ...(discountSplit.tierWon > 0 && tier
+                    ? [
+                        {
+                          label: t("cart.memberTier", { code: tier.code }),
+                          won: discountSplit.tierWon,
+                        },
+                      ]
+                    : []),
+                ]}
                 shipping={summary.shipping}
                 total={checkoutTotal}
                 mutation={mutation}
@@ -1699,11 +1718,16 @@ function PlaceOrderButton({
 
 function MiniBag({
   items,
+  subtotal,
+  discounts,
   shipping,
   total,
   mutation,
 }: {
   items: ReturnType<typeof useCart>["items"];
+  subtotal: number;
+  /** Code and tier discounts, already taken off `total`. */
+  discounts: { label: string; won: number }[];
   shipping: number;
   total: number;
   mutation: ReturnType<typeof useCartMutation>;
@@ -1772,6 +1796,23 @@ function MiniBag({
         })}
       </ul>
       <dl className="mt-4 space-y-2 border-t border-zinc-200 pt-4 text-sm">
+        {discounts.length > 0 && (
+          <div className="flex justify-between text-zinc-600">
+            <dt>{t("cart.subtotal")}</dt>
+            <dd className="font-medium text-zinc-950">
+              {formatCurrency(subtotal)}
+            </dd>
+          </div>
+        )}
+        {discounts.map((discount) => (
+          <div
+            key={discount.label}
+            className="flex justify-between text-emerald-700"
+          >
+            <dt>{discount.label}</dt>
+            <dd className="font-medium">−{formatCurrency(discount.won)}</dd>
+          </div>
+        ))}
         <div className="flex justify-between text-zinc-600">
           <dt>{t("cart.shipping")}</dt>
           <dd className="font-medium text-zinc-950">
