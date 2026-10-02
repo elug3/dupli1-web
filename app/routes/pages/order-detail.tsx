@@ -26,6 +26,7 @@ import {
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { carrierDisplayName, carrierTrackingUrl } from "~/lib/shipment-tracking";
 
 /** Same palette as the orders list, extended to the statuses only detail shows. */
 const STATUS_STYLES: Record<string, string> = {
@@ -414,18 +415,7 @@ function OrderDetail({
 
       {(order.carrier || order.trackingNumber) && (
         <Section title={t("orderDetail.tracking")}>
-          <dl className="space-y-3 text-sm">
-            {order.carrier && (
-              <SummaryRow label={t("orderDetail.carrier")} value={order.carrier} />
-            )}
-            {order.trackingNumber && (
-              <SummaryRow
-                label={t("orderDetail.trackingNumber")}
-                value={order.trackingNumber}
-                mono
-              />
-            )}
-          </dl>
+          <ShipmentTracking order={order} />
         </Section>
       )}
 
@@ -599,6 +589,69 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+/**
+ * Carrier, waybill number and a link out to the carrier's own tracking page.
+ * The link only appears for a carrier dupli1 knows the page of and a number
+ * that reads as a waybill; otherwise the shopper still gets the number to copy.
+ */
+function ShipmentTracking({ order }: { order: Order }) {
+  const { t } = useLanguage();
+  const [copied, setCopied] = useState(false);
+  const carrier = carrierDisplayName(order.carrier, order.carrierNote, t);
+  const trackingUrl = carrierTrackingUrl(order.carrier, order.trackingNumber);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  function copyTrackingNumber() {
+    if (!order.trackingNumber) return;
+    navigator.clipboard
+      ?.writeText(order.trackingNumber)
+      .then(() => setCopied(true))
+      .catch(() => {});
+  }
+
+  return (
+    <>
+      <dl className="space-y-3 text-sm">
+        {carrier && <SummaryRow label={t("orderDetail.carrier")} value={carrier} />}
+        {order.trackingNumber && (
+          <div className="flex justify-between gap-6">
+            <dt className="shrink-0 text-zinc-400">{t("orderDetail.trackingNumber")}</dt>
+            <dd className="flex min-w-0 items-center gap-3 text-right">
+              <span className="break-all font-mono text-zinc-950">
+                {order.trackingNumber}
+              </span>
+              <button
+                type="button"
+                onClick={copyTrackingNumber}
+                aria-label={t("orderDetail.copyTrackingNumber")}
+                className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+              >
+                {copied ? t("profile.copied") : t("profile.copy")}
+              </button>
+            </dd>
+          </div>
+        )}
+      </dl>
+      {trackingUrl && (
+        <a
+          href={trackingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={carrier ? t("orderDetail.trackParcelHint", { carrier }) : undefined}
+          className="mt-5 inline-flex h-11 items-center justify-center border border-zinc-950 px-6 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-950 transition hover:bg-zinc-950 hover:text-white"
+        >
+          {t("orderDetail.trackParcel")}
+        </a>
+      )}
+    </>
   );
 }
 

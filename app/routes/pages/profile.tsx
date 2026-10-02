@@ -32,6 +32,7 @@ import { useCart } from "~/lib/useCart";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { usePromotionWallet } from "~/components/promotion-wallet";
 import { type WalletEntry, promotionMessageKey } from "~/lib/promotions";
+import { carrierTrackingUrl } from "~/lib/shipment-tracking";
 
 type Section = AccountSection;
 
@@ -560,6 +561,12 @@ function OrdersSection({ user }: { user: User }) {
         <div className="space-y-3">
           {orders.map((order) => {
             const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
+            // Only while the parcel is moving; after delivery the order page
+            // still has the link.
+            const trackingUrl =
+              order.status === "in_transit"
+                ? carrierTrackingUrl(order.carrier, order.trackingNumber)
+                : null;
             return (
               <div key={order.id} className="border border-zinc-100 p-5">
                 <div className="flex items-start justify-between gap-4">
@@ -624,6 +631,16 @@ function OrdersSection({ user }: { user: User }) {
                   >
                     {t("profile.viewOrderDetails")}
                   </Link>
+                  {trackingUrl && (
+                    <a
+                      href={trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+                    >
+                      {t("orderDetail.trackParcel")}
+                    </a>
+                  )}
                   {canCustomerCancelOrder(order) && (
                     <button
                       type="button"

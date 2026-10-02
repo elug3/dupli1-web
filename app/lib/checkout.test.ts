@@ -802,7 +802,9 @@ describe("order detail mapping", () => {
         province: "서울특별시",
         pccc: "P123456789012",
       },
-      carrier: "CJ대한통운",
+      // Order stores a carrier code, never a display name.
+      carrier: "other",
+      carrier_note: "경동택배",
       tracking_number: "1234567890",
       created_at: "2026-09-10T01:00:00Z",
       paid_at: "2026-09-10T01:05:00Z",
@@ -824,7 +826,8 @@ describe("order detail mapping", () => {
       province: "서울특별시",
       pccc: "P123456789012",
     });
-    expect(order.carrier).toBe("CJ대한통운");
+    expect(order.carrier).toBe("other");
+    expect(order.carrierNote).toBe("경동택배");
     expect(order.trackingNumber).toBe("1234567890");
     expect(order.createdAt).toBe("2026-09-10T01:00:00Z");
     expect(order.paidAt).toBe("2026-09-10T01:05:00Z");
