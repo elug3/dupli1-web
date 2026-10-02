@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   isRouteErrorResponse,
   Link,
@@ -23,6 +23,7 @@ import { ShippingNote, SiteHeader } from "./components/site-header";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { VISIBLE_NAV_GROUPS } from "./lib/nav";
+import { recordBrowserVisit } from "./lib/visit-beacon";
 
 export const links = () => [
   // Pretendard (Latin + Hangul, all text): the dynamic-subset build fetches
@@ -64,6 +65,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Unique-visitor count for the admin reports: once per page load, and the
+  // beacon itself skips the call after the first one of the KST day.
+  useEffect(() => {
+    recordBrowserVisit();
+  }, []);
+
   return (
     <LanguageProvider>
       <div className="min-h-screen bg-white text-zinc-950">

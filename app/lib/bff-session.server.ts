@@ -6,6 +6,8 @@ import "./tls-ca.server";
 import { sessionStore, type SessionRecord } from "./session-store.server";
 
 const SESSION_COOKIE_NAME = "dupli1_session";
+/** Anonymous browser id minted by dupli1-product (unique views and visitors). */
+const GUEST_COOKIE_NAME = "dupli1_guest";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 5;
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 15_000;
@@ -880,6 +882,37 @@ export async function handleSessionGatewayProxy(
     requireAuth: true,
     noStore: true,
   });
+}
+
+/**
+ * Local-dev mirror of the visit beacon (`POST /api/v1/products/visits`).
+ * Unlike proxyBackendApi it carries the `dupli1_guest` cookie both ways, since
+ * that cookie is the visitor's identity. Production sends `/api/*` straight to
+ * the gateway and never reaches this. Always 204: a lost count is not the
+ * shopper's problem.
+ */
+export async function proxyVisitBeacon(request: Request): Promise<Response> {
+  const headers = new Headers();
+  const guest = parseCookies(request.headers.get("Cookie")).get(GUEST_COOKIE_NAME);
+  if (guest) headers.set("Cookie", `${GUEST_COOKIE_NAME}=${encodeURIComponent(guest)}`);
+  for (const name of ["User-Agent", "X-Forwarded-For", "Sec-Purpose", "Purpose"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  const out = new Headers({ "Cache-Control": "no-store" });
+  try {
+    const upstream = await fetch(upstreamUrl("products", "/api/v1/products/visits"), {
+      method: "POST",
+      headers,
+    });
+    for (const cookie of upstream.headers.getSetCookie()) {
+      if (cookie.startsWith(`${GUEST_COOKIE_NAME}=`)) out.append("Set-Cookie", cookie);
+    }
+  } catch {
+    // Product unreachable: the visit simply goes uncounted.
+  }
+  return new Response(null, { status: 204, headers: out });
 }
 
 export async function proxyProductApi(
