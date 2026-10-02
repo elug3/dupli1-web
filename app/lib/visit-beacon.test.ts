@@ -76,6 +76,16 @@ describe("recordVisit", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("does not remember the day on 429, so a throttled IP can retry later", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 429 }));
+    const storage = memoryStorage();
+
+    await recordVisit({ fetch, storage, userAgent: BROWSER_UA, now });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(storage.data.has(VISIT_STORAGE_KEY)).toBe(false);
+  });
+
   it("still sends when storage throws", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     const storage = {
