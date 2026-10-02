@@ -23,6 +23,8 @@ export default [
   // forward to the gateway. These BFF handlers cover local `npm run dev` only.
   // Authenticated cart/checkout/orders/payments go through `/auth/session/gateway`.
   route("api/v1/products", "routes/api/v1/products/index.ts"),
+  // Unique-visitor beacon; local-dev mirror (production sends it to the gateway).
+  route("api/v1/products/visits", "routes/api/v1/products/visits.ts"),
   // Promo preview. Must stay under /api/v1: `/api/promotions/*` is sent to the
   // gateway too and 404s there, which the bag shows as "unavailable".
   route(

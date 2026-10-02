@@ -4,6 +4,7 @@ import {
   handleRefresh,
   handleSessionGatewayProxy,
   proxyNanoCheckout,
+  proxyVisitBeacon,
 } from "./bff-session.server";
 import { memorySessionStore, redisSessionStore } from "./session-store.server";
 
@@ -492,5 +493,51 @@ describe.skipIf(!REDIS_URL)("redis session store", () => {
     await store.set("t-2", record, 60);
     await store.delete("t-2");
     expect(await store.get("t-2")).toBeNull();
+  });
+});
+
+describe("proxyVisitBeacon", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("carries only the guest cookie both ways and answers 204", async () => {
+    const upstream = new Response(null, {
+      status: 204,
+      headers: [
+        ["Set-Cookie", "dupli1_guest=01J9ZZZZZZZZZZZZZZZZZZZZZZ; Path=/; HttpOnly; SameSite=Lax"],
+        ["Set-Cookie", "other=1; Path=/"],
+      ],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(upstream);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await proxyVisitBeacon(
+      new Request("http://localhost/api/v1/products/visits", {
+        method: "POST",
+        headers: {
+          Cookie: "dupli1_session=secret; dupli1_guest=01J9AAAAAAAAAAAAAAAAAAAAAA",
+          "User-Agent": "Mozilla/5.0",
+        },
+      })
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.getSetCookie()).toEqual([
+      "dupli1_guest=01J9ZZZZZZZZZZZZZZZZZZZZZZ; Path=/; HttpOnly; SameSite=Lax",
+    ]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/v1\/products\/visits$/);
+    const sent = new Headers(init.headers);
+    expect(sent.get("Cookie")).toBe("dupli1_guest=01J9AAAAAAAAAAAAAAAAAAAAAA");
+    expect(sent.get("User-Agent")).toBe("Mozilla/5.0");
+  });
+
+  it("answers 204 when product is unreachable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    const response = await proxyVisitBeacon(
+      new Request("http://localhost/api/v1/products/visits", { method: "POST" })
+    );
+    expect(response.status).toBe(204);
   });
 });
