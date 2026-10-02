@@ -201,7 +201,10 @@ export interface Order {
   recipientName?: string;
   recipientPhone?: string;
   shippingAddress?: OrderShippingAddress;
+  /** Carrier code (`cj`, `hanjin`, …, `other`); see `lib/shipment-tracking`. */
   carrier?: string;
+  /** Free-text carrier name, set only when `carrier` is `other`. */
+  carrierNote?: string;
   trackingNumber?: string;
   createdAt?: string;
   paidAt?: string;
@@ -350,6 +353,7 @@ interface RawOrder {
   recipient_phone?: string;
   shipping_address?: RawShippingAddress | null;
   carrier?: string;
+  carrier_note?: string;
   tracking_number?: string;
   created_at?: string;
   paid_at?: string;
@@ -430,6 +434,7 @@ function mapOrder(raw: RawOrder): Order {
     recipientPhone: raw.recipient_phone || undefined,
     shippingAddress: mapShippingAddress(raw.shipping_address),
     carrier: raw.carrier || undefined,
+    carrierNote: raw.carrier_note || undefined,
     trackingNumber: raw.tracking_number || undefined,
     createdAt: raw.created_at || undefined,
     paidAt: raw.paid_at || undefined,
