@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
   myAccountOrderPath,
@@ -9,6 +9,8 @@ import {
 import { type User, getMe, logout } from "~/lib/auth";
 import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
 import { OrderItemThumb } from "~/components/order-item-thumb";
+import { useSupportChat } from "~/components/support-chat";
+import { openSupportChat } from "~/lib/support-chat";
 import { ProductPrice } from "~/components/product-price";
 import { ShippingAddressBook } from "~/components/shipping-address-book";
 import {
@@ -213,6 +215,57 @@ export default function Profile() {
         </div>
       </div>
     </main>
+  );
+}
+
+// ── Consultation ───────────────────────────────────────────────────────────
+
+/**
+ * Where the reply-notice email links (`/profile/support`): the chat opens on
+ * arrival, so the shopper lands on the answer rather than on a menu.
+ */
+function ConsultationCard() {
+  const { t, formatDateTime } = useLanguage();
+  const chat = useSupportChat();
+  const inquiry = chat.conversation?.inquiry ?? null;
+  const unread = chat.conversation?.unread ?? 0;
+  const last = chat.conversation?.messages.at(-1);
+  const autoOpened = useRef(false);
+
+  useEffect(() => {
+    if (chat.status === "ready" && !autoOpened.current) {
+      autoOpened.current = true;
+      openSupportChat();
+    }
+  }, [chat.status]);
+
+  if (chat.status !== "ready") return null;
+  return (
+    <div>
+      <p className="mb-4 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+        {t("chat.title")}
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-4 border border-zinc-200 px-5 py-4">
+        <div className="min-w-0">
+          <p className="text-sm text-zinc-950">
+            {inquiry ? t(`chat.status.${inquiry.status}`) : t("chat.noConsultation")}
+            {unread > 0 && (
+              <span className="ml-2 text-xs text-red-600">{t("chat.unread", { count: unread })}</span>
+            )}
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {last ? formatDateTime(last.created_at) : t("chat.profileIntro")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => openSupportChat()}
+          className="bg-zinc-950 px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
+        >
+          {t("chat.openChat")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1005,13 +1058,6 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 function SupportSection() {
   const { t } = useLanguage();
   const [open, setOpen] = useState<number | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
-  }
 
   return (
     <section className="space-y-10">
@@ -1045,36 +1091,8 @@ function SupportSection() {
         </div>
       </div>
 
-      {/* Contact form */}
-      <div>
-        <p className="mb-4 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-          {t("profile.contactUs")}
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t("profile.subject")} placeholder="e.g. Return request" />
-            <Field label={t("profile.orderId")} placeholder="SCK-2026-XXXX" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-400">
-              {t("profile.message")}
-            </label>
-            <textarea
-              rows={5}
-              placeholder={t("profile.messagePlaceholder")}
-              className="w-full border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-950 outline-none transition focus:border-zinc-400 placeholder:text-zinc-300 resize-none"
-            />
-          </div>
-          <div className="pt-1">
-            <button
-              type="submit"
-              className="bg-zinc-950 px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] text-white transition hover:bg-zinc-800"
-            >
-              {submitted ? t("profile.messageSent") : t("profile.sendMessage")}
-            </button>
-          </div>
-        </form>
-      </div>
+      {/* 1:1 consultation — the web chat (dupli1 docs/support-web-chat.md) */}
+      <ConsultationCard />
     </section>
   );
 }

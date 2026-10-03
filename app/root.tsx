@@ -20,8 +20,14 @@ import {
   TelegramFloat,
 } from "./components/telegram-float";
 import { ShippingNote, SiteHeader } from "./components/site-header";
+import {
+  SupportChatLauncher,
+  SupportChatPanel,
+  useSupportChat,
+} from "./components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
+import { startSupportChat } from "./lib/support-chat";
 import { VISIBLE_NAV_GROUPS } from "./lib/nav";
 import { recordBrowserVisit } from "./lib/visit-beacon";
 
@@ -88,13 +94,31 @@ export default function App() {
   );
 }
 
-/** Floating Telegram chat, on the home and category pages only. */
+/**
+ * Floating consultation button, on the home and category pages only: the web
+ * chat for a signed-in shopper, the Telegram bot for everyone else. The chat
+ * panel itself can open on any page (product and order pages open it too).
+ */
 function TelegramChat() {
   const { pathname } = useLocation();
   const { language } = useLanguage();
+  const chat = useSupportChat();
 
-  if (!isTelegramFloatRoute(pathname)) return null;
-  return <TelegramFloat context={storefrontContext(pathname, language)} />;
+  // Checked once per tab; again only after sign-in or sign-out resets it.
+  useEffect(() => {
+    void startSupportChat();
+  }, [pathname]);
+
+  const float = isTelegramFloatRoute(pathname);
+  return (
+    <>
+      {float && chat.status === "ready" && <SupportChatLauncher />}
+      {float && (chat.status === "guest" || chat.status === "unavailable" || chat.status === "error") && (
+        <TelegramFloat context={storefrontContext(pathname, language)} />
+      )}
+      <SupportChatPanel />
+    </>
+  );
 }
 
 /**
