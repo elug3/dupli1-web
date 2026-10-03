@@ -36,6 +36,12 @@ interface AccessTokenResult {
   setCookie?: string;
 }
 
+/** One refresh exchange per session id at a time within this process. */
+const exchangesInFlight = new Map<
+  string,
+  Promise<AccessTokenResult | Response>
+>();
+
 function now(): number {
   return Date.now();
 }
@@ -647,7 +653,24 @@ export async function getAccessToken(
     return { token: record.accessToken };
   }
 
-  const exchanged = await exchangeRefreshToken(record.refreshToken);
+  const joined = exchangesInFlight.get(id);
+  if (joined) return joined;
+
+  const exchange = performAccessTokenRefresh(id, record);
+  exchangesInFlight.set(id, exchange);
+  try {
+    return await exchange;
+  } finally {
+    exchangesInFlight.delete(id);
+  }
+}
+
+async function performAccessTokenRefresh(
+  id: string,
+  record: SessionRecord
+): Promise<AccessTokenResult | Response> {
+  const refreshToken = record.refreshToken;
+  const exchanged = await exchangeRefreshToken(refreshToken);
 
   if (!exchanged.ok) {
     // Only auth's own verdict ends the session. On `unavailable` the record
@@ -661,7 +684,7 @@ export async function getAccessToken(
     // request (possibly on another task) may have just spent this one and
     // saved its successor. That request's tokens are good; use them.
     const current = await sessionStore().get(id).catch(() => null);
-    if (current && current.refreshToken !== record.refreshToken) {
+    if (current && current.refreshToken !== refreshToken) {
       return { token: current.accessToken, setCookie: sessionCookie(id) };
     }
 
