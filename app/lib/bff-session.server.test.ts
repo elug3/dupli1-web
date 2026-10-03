@@ -448,6 +448,58 @@ describe("a deploy does not end sessions", () => {
     expect(response.headers.get("Set-Cookie") ?? "").not.toContain("Max-Age=0");
   });
 
+  it("coalesces parallel refreshes onto one auth exchange", async () => {
+    globalThis.__dupli1SessionStore = memorySessionStore();
+    let refreshCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        const target = String(url);
+        if (target.endsWith("/api/v1/auth/login")) {
+          return jsonResponse({ refresh_token: "rt-1" });
+        }
+        if (target.endsWith("/api/v1/auth/refresh")) {
+          refreshCalls++;
+          return jsonResponse({ token: "a-2", refresh_token: "rt-2" });
+        }
+        throw new Error(`unexpected fetch: ${target}`);
+      })
+    );
+    vi.resetModules();
+    const mod = await import("./bff-session.server");
+    const login = await mod.handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "u@example.com", password: "x" }),
+      })
+    );
+    expect(login.status).toBe(200);
+    const cookie = login.headers.get("Set-Cookie")!.split(";")[0];
+    const id = decodeURIComponent(cookie.split("=")[1]);
+    const store = globalThis.__dupli1SessionStore!;
+    const record = (await store.get(id))!;
+    await store.set(
+      id,
+      { ...record, accessTokenExpiresAt: 0, accessToken: "stale" },
+      3600
+    );
+    const before = refreshCalls;
+
+    const refresh = () =>
+      mod.handleRefresh(
+        new Request("http://localhost/auth/session/refresh", {
+          method: "POST",
+          headers: { Cookie: cookie },
+        })
+      );
+
+    const responses = await Promise.all([refresh(), refresh(), refresh(), refresh()]);
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+    }
+    expect(refreshCalls - before).toBe(1);
+  });
+
   it("uses the successor token when a parallel request already rotated it", async () => {
     const mod = await import("./bff-session.server");
     const cookie = await loginCookie(mod);
