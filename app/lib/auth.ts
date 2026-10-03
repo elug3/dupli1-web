@@ -1,5 +1,6 @@
 import { resetCart } from "./cart";
 import { clearCheckoutDraft } from "./checkout-draft";
+import { resetSupportChat } from "./support-chat";
 
 export type AccountType = "customer" | "manager" | "service" | "admin";
 
@@ -123,6 +124,7 @@ export async function login(email: string, password: string): Promise<void> {
   // status cached while signed out survives, and /checkout redirects back here.
   resetCart();
   clearCheckoutDraft();
+  resetSupportChat();
 }
 
 export async function register(
@@ -134,6 +136,7 @@ export async function register(
   // Register also establishes the session cookie, so it changes sessions too.
   resetCart();
   clearCheckoutDraft();
+  resetSupportChat();
 }
 
 /** Authenticated API calls go through the cookie session gateway, which
@@ -162,4 +165,5 @@ export async function logout(): Promise<void> {
   // Never leave the previous customer's lines on screen for the next session.
   resetCart();
   clearCheckoutDraft();
+  resetSupportChat();
 }

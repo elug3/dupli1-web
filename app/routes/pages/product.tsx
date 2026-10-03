@@ -5,6 +5,7 @@ import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
+import { ConsultButton, useSupportChat } from "~/components/support-chat";
 import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
 import { brandToSlug } from "~/lib/catalog";
 import { telegramContactUrl } from "~/lib/contact";
@@ -25,6 +26,7 @@ import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
 import { formatDimensionsCm } from "~/lib/product-dimensions";
 import { defaultVariant, withVariant } from "~/lib/product-variants";
+import { openSupportChat, type PendingRef } from "~/lib/support-chat";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import {
   hasSellableVariant,
@@ -385,6 +387,18 @@ function ProductInfo({
   const inquireUrl = telegramContactUrl({
     context: { surface: "product", ref: product.id, language },
   });
+  // The chat attaches the exact variant (skuId): that is what staff can check
+  // stock and price on, and the lookup support makes for it counts no PDP view.
+  const chat = useSupportChat();
+  const productPending: PendingRef | undefined = product.skuId
+    ? {
+        kind: "product",
+        productId: product.id,
+        skuId: product.skuId,
+        name: translateProductName(product.id, product.name),
+        color: product.color || undefined,
+      }
+    : undefined;
   const dimensions = formatDimensionsCm(product.dimensions, (axis) =>
     t(`product.dimension.${axis}`)
   );
@@ -515,7 +529,17 @@ function ProductInfo({
       <div className="flex flex-col gap-3 max-lg:order-1 max-lg:mt-4">
         <div>
           {inquireStock ? (
-            <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
+            chat.status === "ready" ? (
+              <button
+                type="button"
+                onClick={() => openSupportChat(productPending)}
+                className="flex h-12 w-full items-center justify-center rounded-md bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800 lg:h-14"
+              >
+                {t("product.inquireStock")}
+              </button>
+            ) : (
+              <InquireStockLink href={inquireUrl} label={t("product.inquireStock")} />
+            )
           ) : (
             <button
               type="button"
@@ -563,6 +587,15 @@ function ProductInfo({
           <p className="text-center text-[11px] text-red-600" role="alert">
             {cartError}
           </p>
+        )}
+        {!inquireStock && (
+          <ConsultButton
+            pending={productPending}
+            telegramContext={{ surface: "product", ref: product.id, language }}
+            className="text-center text-xs text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+          >
+            {t("chat.askProduct")}
+          </ConsultButton>
         )}
       </div>
 
