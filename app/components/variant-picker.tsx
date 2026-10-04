@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { ProductVariant } from "~/lib/api";
 import { useLanguage } from "~/lib/i18n";
 import { formatDimensionsCm, formatDimensionsCompactCm } from "~/lib/product-dimensions";
@@ -8,11 +10,16 @@ import {
   variantColors,
   variantSizes,
 } from "~/lib/product-variants";
+import type { SizeChartRow } from "~/lib/size-chart";
+
+import { SizeGuideDialog } from "./size-guide";
 
 type VariantPickerProps = {
   variants: ProductVariant[];
   selected: ProductVariant | undefined;
   onSelect: (variant: ProductVariant) => void;
+  /** The parent's size chart; a non-empty one adds the "Size guide" link. */
+  sizeChart?: SizeChartRow[];
 };
 
 /**
@@ -20,8 +27,9 @@ type VariantPickerProps = {
  * the current combination stays pickable (the page then offers the stock
  * inquiry instead of the bag button) but is struck through.
  */
-export function VariantPicker({ variants, selected, onSelect }: VariantPickerProps) {
+export function VariantPicker({ variants, selected, onSelect, sizeChart }: VariantPickerProps) {
   const { t, translateValue } = useLanguage();
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const colors = variantColors(variants);
   const sizes = variantSizes(variants);
   const selectedDimensions = formatDimensionsCm(selected?.dimensions, (axis) =>
@@ -77,50 +85,71 @@ export function VariantPicker({ variants, selected, onSelect }: VariantPickerPro
       )}
 
       {sizes.length > 0 && (
-        <fieldset>
-          <legend className="text-xs text-zinc-950">
-            <span className="font-semibold">{t("product.size")}</span>
-            {selected?.size && <span className="ml-2 text-zinc-500">{selected.size}</span>}
-          </legend>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sizes.map((size) => {
-              const active = selected?.size === size;
-              const exists = variants.some((v) => v.size === size && v.color === selected?.color);
-              const available = isCombinationAvailable(variants, exists ? selected?.color : undefined, size);
-              const dims = formatDimensionsCompactCm(variantForSize(size)?.dimensions);
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  aria-pressed={active}
-                  aria-label={`${size}${dims ? ` · ${dims} cm` : ""}${available ? "" : ` · ${t("product.variantSoldOut")}`}`}
-                  onClick={() => pick({ size })}
-                  className={[
-                    "flex min-h-10 min-w-12 flex-col items-center justify-center rounded-md border px-4 py-1.5 text-xs font-semibold uppercase transition",
-                    active
-                      ? "border-zinc-950 bg-zinc-950 text-white"
-                      : available
-                        ? "border-zinc-200 text-zinc-950 hover:border-zinc-950"
-                        : "border-zinc-100 text-zinc-300 line-through",
-                  ].join(" ")}
-                >
-                  {size}
-                  {dims && (
-                    <span
-                      aria-hidden="true"
-                      className={[
-                        "mt-0.5 text-[10px] font-normal normal-case tabular-nums",
-                        active ? "text-white/70" : "text-zinc-400",
-                      ].join(" ")}
-                    >
-                      {dims}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+        // The size guide link sits beside the legend, outside the fieldset,
+        // so it is not read as part of the size group's name.
+        <div className="relative">
+          {sizeChart && sizeChart.length > 0 && (
+            <>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => setSizeGuideOpen(true)}
+                className="absolute right-0 top-0 text-xs text-zinc-500 underline underline-offset-4 transition hover:text-zinc-950"
+              >
+                {t("product.sizeGuide")}
+              </button>
+              <SizeGuideDialog
+                open={sizeGuideOpen}
+                rows={sizeChart}
+                onClose={() => setSizeGuideOpen(false)}
+              />
+            </>
+          )}
+          <fieldset>
+            <legend className="text-xs text-zinc-950">
+              <span className="font-semibold">{t("product.size")}</span>
+              {selected?.size && <span className="ml-2 text-zinc-500">{selected.size}</span>}
+            </legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {sizes.map((size) => {
+                const active = selected?.size === size;
+                const exists = variants.some((v) => v.size === size && v.color === selected?.color);
+                const available = isCombinationAvailable(variants, exists ? selected?.color : undefined, size);
+                const dims = formatDimensionsCompactCm(variantForSize(size)?.dimensions);
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={`${size}${dims ? ` · ${dims} cm` : ""}${available ? "" : ` · ${t("product.variantSoldOut")}`}`}
+                    onClick={() => pick({ size })}
+                    className={[
+                      "flex min-h-10 min-w-12 flex-col items-center justify-center rounded-md border px-4 py-1.5 text-xs font-semibold uppercase transition",
+                      active
+                        ? "border-zinc-950 bg-zinc-950 text-white"
+                        : available
+                          ? "border-zinc-200 text-zinc-950 hover:border-zinc-950"
+                          : "border-zinc-100 text-zinc-300 line-through",
+                    ].join(" ")}
+                  >
+                    {size}
+                    {dims && (
+                      <span
+                        aria-hidden="true"
+                        className={[
+                          "mt-0.5 text-[10px] font-normal normal-case tabular-nums",
+                          active ? "text-white/70" : "text-zinc-400",
+                        ].join(" ")}
+                      >
+                        {dims}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
       )}
 
       {/* The selected size's measurements, labeled (W/H/D are easy to mix

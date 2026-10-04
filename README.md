@@ -126,8 +126,8 @@ Product catalog reads call the Dupli1 product service
 ([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the ALB
 already routes (`/api/*` → nginx proxy). The browser uses:
 
-- Public bag search: `GET /api/v1/products?category=bags`
-- Public product detail: `GET /api/v1/products/{id}` (active products only)
+- Public search: `GET /api/v1/products?category=bags` — the category comes from the page (`categoryForFacet` in `app/lib/catalog.ts`): `/category/product-type/padded-jackets` sends `category=clothing&subcategory=padded`, every other page `category=bags`
+- Public product detail: `GET /api/v1/products/{id}` (active products only). Clothing parents may carry `sizeChart` (cm per size → the PDP "Size guide") and free-form `attributes` (fill, lining, care…), shown on the PDP in place of bag dimensions
 - Admin product create: `POST /api/v1/products` (requires `product.create`; body needs existing catalog `brandCode` + `styleCode`)
 - Admin image upload: `POST /api/v1/products/{id}/images` (multipart field `image`)
 

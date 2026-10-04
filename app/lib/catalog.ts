@@ -55,6 +55,7 @@ export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
   "shoulder-bags": "Shoulder Bags",
   crossbody: "Crossbody",
   "mini-bags": "Mini Bags",
+  "padded-jackets": "Padded Jackets",
 };
 
 /**
@@ -67,7 +68,47 @@ export const PRODUCT_TYPE_TO_SUBCATEGORY: Record<string, string> = {
   "shoulder-bags": "shoulder",
   crossbody: "cross",
   "mini-bags": "mini",
+  "padded-jackets": "padded",
 };
+
+/** Upstream top-level `category` codes the storefront sells (dupli1 taxonomy.go). */
+export const STOREFRONT_CATEGORIES = ["bags", "clothing"] as const;
+
+export type StorefrontCategory = (typeof STOREFRONT_CATEGORIES)[number];
+
+export const DEFAULT_CATEGORY: StorefrontCategory = "bags";
+
+export function isStorefrontCategory(value: string): value is StorefrontCategory {
+  return (STOREFRONT_CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * Product-type slugs outside bags. A subcategory code is only unique within
+ * its category, so these must search with their own `category`.
+ */
+export const PRODUCT_TYPE_TO_CATEGORY: Record<string, StorefrontCategory> = {
+  "padded-jackets": "clothing",
+};
+
+/** Where a category's breadcrumb goes, and its title. */
+export const CATEGORY_LISTINGS: Record<StorefrontCategory, { to: string; labelKey: string }> = {
+  bags: { to: "/category/product-type/handbags", labelKey: "product.bags" },
+  clothing: { to: "/category/product-type/padded-jackets", labelKey: "category.clothing" },
+};
+
+/** Upstream category for a page: a product type's own, else bags (brand, style, family). */
+export function categoryForFacet(facet: CategoryFacet, value?: string): StorefrontCategory {
+  if (facet === "product-type" && value) {
+    return PRODUCT_TYPE_TO_CATEGORY[value] ?? DEFAULT_CATEGORY;
+  }
+  return DEFAULT_CATEGORY;
+}
+
+/** A product's category listing; unknown or legacy (empty) categories are bags. */
+export function categoryListing(category: string | undefined) {
+  const code = (category ?? "").trim().toLowerCase();
+  return CATEGORY_LISTINGS[isStorefrontCategory(code) ? code : DEFAULT_CATEGORY];
+}
 
 export const STYLE_SLUGS: Record<string, string> = {
   casual: "Casual",
@@ -188,6 +229,7 @@ export function categoryTitleKey(
       if (value === "shoulder-bags") return "category.shoulderBags";
       if (value === "crossbody") return "category.crossbody";
       if (value === "mini-bags") return "category.miniBags";
+      if (value === "padded-jackets") return "category.paddedJackets";
       return "home.categoryBags";
     case "style":
       return value && value in STYLE_SLUGS ? `category.${value}` : "nav.style";

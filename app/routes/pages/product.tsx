@@ -7,14 +7,13 @@ import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
 import { ConsultButton, useSupportChat } from "~/components/support-chat";
 import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
-import { brandToSlug } from "~/lib/catalog";
+import { brandToSlug, categoryListing } from "~/lib/catalog";
 import { telegramContactUrl } from "~/lib/contact";
 import {
   type Bag,
   type ProductVariant,
   type ServerProduct,
   addToWishlist,
-  bagImage,
   fetchAvailableStock,
   fetchProduct,
   fetchRecommendations,
@@ -24,6 +23,7 @@ import {
 } from "~/lib/api";
 import { getMe } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
+import { attributeRows } from "~/lib/product-attributes";
 import { formatDimensionsCm } from "~/lib/product-dimensions";
 import { defaultVariant, withVariant } from "~/lib/product-variants";
 import { openSupportChat, type PendingRef } from "~/lib/support-chat";
@@ -102,6 +102,7 @@ function Breadcrumb({
 }) {
   const { t, translateProductName } = useLanguage();
   const brandSlug = brandToSlug(product.brand);
+  const listing = categoryListing(product.category);
 
   // Lives inside the info column rather than in a full-width band above the
   // page: against a full-bleed gallery there is no left edge to align to, so
@@ -115,15 +116,12 @@ function Breadcrumb({
         {t("product.home")}
       </Link>
       <ChevronIcon />
-      <Link
-        to="/category/product-type/handbags"
-        className="shrink-0 transition hover:text-zinc-950"
-      >
-        {t("product.bags")}
+      <Link to={listing.to} className="shrink-0 transition hover:text-zinc-950">
+        {t(listing.labelKey)}
       </Link>
       <ChevronIcon />
       <Link
-        to={brandSlug ? `/category/brand/${brandSlug}` : "/category/product-type/handbags"}
+        to={brandSlug ? `/category/brand/${brandSlug}` : listing.to}
         className="shrink-0 transition hover:text-zinc-950"
       >
         {product.brand}
@@ -405,7 +403,41 @@ function ProductInfo({
   const brandSlug = brandToSlug(product.brand);
   const brandLink = brandSlug
     ? `/category/brand/${brandSlug}`
-    : "/category/product-type/handbags";
+    : categoryListing(product.category).to;
+  // Clothing has no leather default and no W×H×D: its specs (fill, lining,
+  // care…) arrive as free-form attributes and take the dimensions row's place.
+  const isClothing = product.category.toLowerCase() === "clothing";
+  const details: Array<{ label: string; value: string; wide?: boolean }> = [
+    { label: t("product.brand"), value: product.brand },
+    {
+      label: t("product.category"),
+      value: isClothing
+        ? t("category.clothing")
+        : translateValue("category", product.category || "Bags"),
+    },
+    {
+      label: t("product.material"),
+      value: product.material
+        ? translateValue("material", product.material)
+        : isClothing
+          ? "—"
+          : t("product.premiumLeather"),
+    },
+    { label: t("product.color"), value: product.color ? translateValue("color", product.color) : "—" },
+    ...(isClothing
+      ? attributeRows(product.attributes).map((row) => {
+          const key = `product.attribute.${row.key}`;
+          const translated = t(key);
+          // Long values (care instructions) get the full row.
+          return {
+            label: translated === key ? row.label : translated,
+            value: row.value,
+            wide: row.value.length > 24,
+          };
+        })
+      : // "W 34 × H 22 × D 8 cm" does not fit half the info column on a phone.
+        [{ label: t("product.dimensions"), value: dimensions || "—", wide: true }]),
+  ];
 
   useEffect(() => {
     if (authRequired) {
@@ -492,7 +524,12 @@ function ProductInfo({
           sheet, right after the bag button (the head shows color dots) */}
       {variants.length > 0 && (
         <div className="mt-6 max-lg:order-2">
-          <VariantPicker variants={variants} selected={selectedVariant} onSelect={onSelectVariant} />
+          <VariantPicker
+            variants={variants}
+            selected={selectedVariant}
+            onSelect={onSelectVariant}
+            sizeChart={product.sizeChart}
+          />
         </div>
       )}
 
@@ -505,18 +542,10 @@ function ProductInfo({
 
       {/* Details */}
       <dl className="mt-6 grid grid-cols-2 max-lg:order-2 gap-x-6 gap-y-4 text-xs">
-        {[
-          [t("product.brand"), product.brand],
-          [t("product.category"), translateValue("category", product.category || "Bags")],
-          [t("product.material"), product.material ? translateValue("material", product.material) : t("product.premiumLeather")],
-          [t("product.color"), product.color ? translateValue("color", product.color) : "—"],
-          [t("product.dimensions"), dimensions || "—"],
-        ].map(([dt, dd], index, rows) => (
-          // The last row (dimensions) spans both columns: "W 34 × H 22 × D 8 cm"
-          // does not fit half the info column on a phone.
-          <div key={dt} className={index === rows.length - 1 ? "col-span-2" : undefined}>
-            <dt className="font-semibold uppercase tracking-widest text-zinc-400">{dt}</dt>
-            <dd className="mt-0.5 text-zinc-700">{dd}</dd>
+        {details.map(({ label, value, wide }, index) => (
+          <div key={`${index}-${label}`} className={wide ? "col-span-2" : undefined}>
+            <dt className="font-semibold uppercase tracking-widest text-zinc-400">{label}</dt>
+            <dd className="mt-0.5 break-words text-zinc-700">{value}</dd>
           </div>
         ))}
       </dl>
@@ -705,7 +734,7 @@ function RelatedProducts({ seedId }: { seedId: string }) {
                 style={{ paddingBottom: "120%" }}
               >
                 <img
-                  src={bagImage(product.brand, product.image)}
+                  src={productImage(product.category, product.brand, product.image)}
                   alt={translateProductName(product.id, product.name)}
                   className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                 />
