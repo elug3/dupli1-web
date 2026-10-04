@@ -14,6 +14,8 @@ Money fields are `*_won` and nothing else. `*_krw` and `*_cents` are dead names 
 
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
+Categories: product sells `bags` and `clothing` (only subcategory `padded`, sizes XXS–XXL). A product-type slug outside bags maps its category in `PRODUCT_TYPE_TO_CATEGORY` (`app/lib/catalog.ts`); brand/style/family pages stay bags. Padded jackets are wired (`/category/product-type/padded-jackets`, PDP breadcrumb, attributes, size guide) but their menu entry stays `launched: false` in `app/lib/nav.ts` until products exist.
+
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.
 
 Non-auth upstream `401` → BFF force-refreshes with auth and retries once; do not treat that as logout unless auth refresh/`/me` fails (then `401`). Persistent upstream rejection after refresh → `502` `upstream_unauthorized`.

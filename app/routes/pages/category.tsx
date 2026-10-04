@@ -14,6 +14,7 @@ import {
   brandDisplayName,
   buildCategorySearchParams,
   categoryDisplayLabel,
+  categoryForFacet,
   isCategoryFacet,
   isFeaturedBrandSlug,
 } from "~/lib/catalog";
@@ -53,6 +54,13 @@ export function meta({
         name: "description",
         content: `Browse ${name} bags at Dupli1.`,
       },
+    ];
+  }
+
+  if (facet === "product-type" && value === "padded-jackets") {
+    return [
+      { title: "Padded Jackets | Dupli1" },
+      { name: "description", content: "Browse padded jackets at Dupli1." },
     ];
   }
 
@@ -344,8 +352,9 @@ function FacetResults({
 
   useEffect(() => {
     setLoading(true);
+    // Bags unless the product type belongs elsewhere (padded jackets: clothing).
     const params = buildCategorySearchParams(facet, value);
-    searchProducts("bags", params)
+    searchProducts(categoryForFacet(facet, value), params)
       .then((data) => setProducts(data.results))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));

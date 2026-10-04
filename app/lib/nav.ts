@@ -1,5 +1,5 @@
-import { type BagSearchFilters, fetchBags, listingBagImage } from "./api";
-import { buildCategorySearchParams, isCategoryFacet } from "./catalog";
+import { type BagSearchFilters, fetchBags, listingProductImage } from "./api";
+import { buildCategorySearchParams, categoryForFacet, isCategoryFacet } from "./catalog";
 
 export type NavItem = { to: string } & ({ labelKey: string } | { label: string });
 
@@ -25,7 +25,10 @@ export interface NavGroup {
  *
  * Launching a planned subject: add its slugs to PRODUCT_TYPE_SLUGS and
  * PRODUCT_TYPE_TO_SUBCATEGORY (catalog.ts) with the subcategory codes product
- * uses, a title in categoryTitleKey, fill in `items`, then set `launched`.
+ * uses, PRODUCT_TYPE_TO_CATEGORY when it is not a bag, a title in
+ * categoryTitleKey, fill in `items`, then set `launched`. Padded jackets have
+ * everything but `items` and `launched`: /category/product-type/padded-jackets
+ * already lists them.
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -116,10 +119,13 @@ export function navItemImage(to: string): Promise<string | null> {
     facet && isCategoryFacet(facet)
       ? fetchBags({
           ...(buildCategorySearchParams(facet, value) as BagSearchFilters),
+          category: categoryForFacet(facet, value),
           sort: "views",
           limit: 1,
         })
-          .then((bags) => (bags[0] ? listingBagImage(bags[0].brand, bags[0].image) : null))
+          .then((bags) =>
+            bags[0] ? listingProductImage(bags[0].category, bags[0].brand, bags[0].image) : null
+          )
           .catch(() => null)
       : Promise.resolve(null);
 

@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchBags, fetchRecommendations, searchProducts } from "./api";
+import {
+  bagImage,
+  fetchBags,
+  fetchProduct,
+  fetchRecommendations,
+  productImage,
+  searchProducts,
+} from "./api";
+import { buildCategorySearchParams, categoryForFacet } from "./catalog";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -145,5 +153,119 @@ describe("listing image mapping", () => {
     expect(results[0]?.image).toBe(
       "http://localhost:8080/product-images/p1/full.w600.jpg"
     );
+  });
+});
+
+describe("category-aware product search", () => {
+  function stubSearch() {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return new Response(JSON.stringify({ total: 0, results: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      })
+    );
+    return urls;
+  }
+
+  it("keeps the bag listing query exactly as it was", async () => {
+    const urls = stubSearch();
+    await searchProducts("bags", buildCategorySearchParams("product-type", "totes"));
+    await fetchBags();
+    await fetchBags({ q: "galleria", limit: 6 });
+    expect(urls).toEqual([
+      "/api/v1/products?category=bags&subcategory=tote",
+      "/api/v1/products?category=bags",
+      "/api/v1/products?category=bags&q=galleria&limit=6",
+    ]);
+  });
+
+  it("lists padded jackets from clothing", async () => {
+    const urls = stubSearch();
+    await searchProducts(
+      categoryForFacet("product-type", "padded-jackets"),
+      buildCategorySearchParams("product-type", "padded-jackets")
+    );
+    await fetchBags({ category: "clothing", subcategory: "padded", sort: "views", limit: 1 });
+    expect(urls).toEqual([
+      "/api/v1/products?category=clothing&subcategory=padded",
+      "/api/v1/products?category=clothing&subcategory=padded&sort=views&limit=1",
+    ]);
+  });
+
+  it("returns nothing for a category the storefront does not sell", async () => {
+    const urls = stubSearch();
+    await expect(searchProducts("watches")).resolves.toEqual({ total: 0, results: [] });
+    expect(urls).toEqual([]);
+  });
+});
+
+describe("fetchProduct clothing fields", () => {
+  it("maps attributes and a sorted size chart", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            id: "j1",
+            name: "Down Jacket",
+            description: "",
+            price: 390000,
+            brand: "Moncler",
+            material: "",
+            category: "clothing",
+            attributes: { fill: "90% duck down", lining: "Nylon" },
+            sizeChart: [
+              { size: "L", chestCm: 62, lengthCm: 72 },
+              { size: "xs", chestCm: 53 },
+              { size: "M", chestCm: 59.5, lengthCm: 70 },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    );
+
+    const product = await fetchProduct("j1");
+    expect(product.category).toBe("clothing");
+    expect(product.attributes).toEqual({ fill: "90% duck down", lining: "Nylon" });
+    expect(product.sizeChart?.map((row) => row.size)).toEqual(["XS", "M", "L"]);
+  });
+
+  it("leaves sizeChart and attributes off a bag without them", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            id: "b1",
+            name: "Galleria",
+            description: "",
+            price: 480000,
+            brand: "Prada",
+            material: "Leather",
+            category: "bags",
+            attributes: {},
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    );
+
+    const product = await fetchProduct("b1");
+    expect(product.sizeChart).toBeUndefined();
+    expect(product.attributes).toBeUndefined();
+  });
+});
+
+describe("productImage fallback", () => {
+  it("gives clothing the outerwear picture, bags a bag", () => {
+    expect(productImage("clothing", "Moncler")).toBe(productImage("outerwear", "Moncler"));
+    expect(productImage("clothing", "Moncler")).not.toBe(productImage("bags", "Moncler"));
+    expect(productImage("bags", "Prada")).toBe(bagImage("Prada"));
   });
 });

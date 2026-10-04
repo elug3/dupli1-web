@@ -4,6 +4,8 @@ import {
   normalizeDimensions,
 } from "./product-dimensions";
 import { inventoryAvailableFromBody } from "./product-stock";
+import { type SizeChartRow, normalizeSizeChart } from "./size-chart";
+import { DEFAULT_CATEGORY, isStorefrontCategory } from "./catalog";
 
 // ── Bag types (mirrors server domain.Bag) ─────────────────────────────────
 
@@ -20,6 +22,8 @@ export interface Bag {
   material: string;
   capacity: string;
   stock: number;
+  /** Upstream category code (bags | clothing); legacy rows without one are bags. */
+  category: string;
   image?: string;
   wishlistCount?: number;
   soldCount?: number;
@@ -61,6 +65,10 @@ export interface ServerProduct {
   soldCount?: number;
   /** Active sellable variants (color × size), for the PDP pickers. */
   variants?: ProductVariant[];
+  /** Display-only spec map (jacket fill, lining, care…); keys are not fixed. */
+  attributes?: Record<string, string>;
+  /** Garment measurements per size (cm), XXS→XXL; absent when not catalogued. */
+  sizeChart?: SizeChartRow[];
 }
 
 /** One sellable SKU of a parent product, as the PDP pickers need it. */
@@ -110,6 +118,10 @@ interface UpstreamProduct {
   target?: string;
   wishlistCount?: number;
   soldCount?: number;
+  /** Display-only string map (dupli1 docs/product-attributes.md). */
+  attributes?: Record<string, string>;
+  /** Per-size garment measurements in cm (clothing); omitted when none. */
+  sizeChart?: unknown;
   variants?: Array<{
     sku: string;
     skuId?: string;
@@ -207,6 +219,7 @@ function toBag(product: UpstreamProduct): Bag {
     material: product.material,
     capacity: product.capacity ?? "",
     stock: product.stock ?? 0,
+    category: product.category || DEFAULT_CATEGORY,
     image: upstreamListingImage(product),
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
@@ -216,6 +229,7 @@ function toBag(product: UpstreamProduct): Bag {
 function toServerProduct(product: UpstreamProduct): ServerProduct {
   const images = upstreamImages(product);
   const variant = upstreamVariant(product);
+  const sizeChart = normalizeSizeChart(product.sizeChart);
   return {
     id: product.id,
     name: product.name,
@@ -239,7 +253,15 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
     variants: upstreamVariants(product),
+    attributes: upstreamAttributes(product),
+    sizeChart: sizeChart.length > 0 ? sizeChart : undefined,
   };
+}
+
+function upstreamAttributes(product: UpstreamProduct): Record<string, string> | undefined {
+  const attrs = product.attributes;
+  if (!attrs || typeof attrs !== "object") return undefined;
+  return Object.keys(attrs).length > 0 ? attrs : undefined;
 }
 
 function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
@@ -260,7 +282,7 @@ function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
 // ── Bag listing — public gateway path ──────────────────────────────────────
 // Production ALB routes `/api/*` to the nginx gateway (not the React BFF), so
 // the browser must call the product service paths from elug3/dupli1:
-//   GET /api/v1/products?category=bags
+//   GET /api/v1/products?category=bags   (or clothing; bags when unspecified)
 //   GET /api/v1/products/{id}
 
 /** Query params forwarded to `GET /api/v1/products` (dupli1 product service). */
@@ -292,6 +314,8 @@ export type BagSort =
   | "popular";
 
 export type BagSearchFilters = {
+  /** Upstream category code; bags when omitted. */
+  category?: string;
   brand?: string;
   color?: string;
   material?: string;
@@ -320,7 +344,7 @@ async function searchUpstream(
     if (trimmed.toLowerCase() === "__no_match__") return [];
     params.set(key, trimmed);
   }
-  if (!params.has("category")) params.set("category", "bags");
+  if (!params.has("category")) params.set("category", DEFAULT_CATEGORY);
 
   const res = await fetch(`/api/v1/products?${params}`);
   if (!res.ok) throw new Error(`Product search failed: ${res.status}`);
@@ -331,8 +355,8 @@ async function searchUpstream(
 function bagSearchToUpstream(
   filters?: BagSearchFilters
 ): Record<string, string> {
-  if (!filters) return { category: "bags" };
-  const out: Record<string, string> = { category: "bags" };
+  if (!filters) return { category: DEFAULT_CATEGORY };
+  const out: Record<string, string> = { category: filters.category || DEFAULT_CATEGORY };
   if (filters.brand) out.brand = filters.brand;
   if (filters.color) out.color = filters.color;
   if (filters.material) out.material = filters.material;
@@ -523,6 +547,16 @@ const PRODUCT_IMAGES: Record<string, string> = {
   outerwear: "https://images.unsplash.com/photo-1548883354-7622d03aca27?w=600&h=720&fit=crop",
 };
 
+/** Upstream categories whose fallback picture is filed under another name. */
+const IMAGE_CATEGORY_ALIASES: Record<string, string> = {
+  clothing: "outerwear",
+};
+
+function imageCategory(category: string): string {
+  const key = category.toLowerCase();
+  return IMAGE_CATEGORY_ALIASES[key] ?? key;
+}
+
 export function productImage(
   category: string,
   brand: string,
@@ -530,7 +564,7 @@ export function productImage(
 ): string {
   if (image) return image;
   if (category.toLowerCase() === "bags") return bagImage(brand);
-  return PRODUCT_IMAGES[category.toLowerCase()] ?? bagImage(brand);
+  return PRODUCT_IMAGES[imageCategory(category)] ?? bagImage(brand);
 }
 
 export interface DisplayProduct {
@@ -559,7 +593,7 @@ export const CATEGORY_IMAGES: Record<string, string> = {
 
 export function getCategoryImage(category: string): string {
   return (
-    CATEGORY_IMAGES[category.toLowerCase()] ??
+    CATEGORY_IMAGES[imageCategory(category)] ??
     "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"
   );
 }
@@ -618,7 +652,7 @@ export async function getCategories(): Promise<string[]> {
 }
 
 export async function getFilters(category: string): Promise<string[]> {
-  if (category.toLowerCase() !== "bags") return [];
+  if (!isStorefrontCategory(category.toLowerCase())) return [];
   return ["brand", "color", "material", "subcategory", "style", "target"];
 }
 
@@ -644,11 +678,14 @@ export async function searchProducts(
   category: string,
   params: Record<string, string> = {}
 ): Promise<{ total: number; results: DisplayProduct[] }> {
-  if (category.toLowerCase() !== "bags") {
+  // The category is the page's (bags, or clothing for padded jackets); the
+  // upstream query is exactly `category=<it>` plus the facet filters.
+  const categoryCode = category.toLowerCase();
+  if (!isStorefrontCategory(categoryCode)) {
     return { total: 0, results: [] };
   }
 
-  const upstream: Record<string, string> = { category: "bags" };
+  const upstream: Record<string, string> = { category: categoryCode };
   const local: Array<[string, string]> = [];
   const query =
     params.q?.trim().toLowerCase() ?? params.query?.trim().toLowerCase() ?? "";
@@ -697,7 +734,7 @@ export async function searchProducts(
         Material: product.material,
         Capacity: product.capacity ?? "",
         Stock: product.stock ?? 0,
-        Category: product.category || "bags",
+        Category: product.category || categoryCode,
         Type: product.subCategory ?? product.productType ?? "",
         Style: product.style ?? "",
         Gender: product.target ?? product.family ?? "",

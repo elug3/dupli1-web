@@ -59,15 +59,20 @@ export function variantColors(variants: ProductVariant[]): string[] {
   return unique(variants.map((v) => v.color));
 }
 
-/** Distinct sizes, S→L order; empty when the style is one-size. */
-export function variantSizes(variants: ProductVariant[]): string[] {
-  const sizes = unique(variants.map((v) => v.size));
-  if (sizes.every((size) => ONE_SIZE.has(size.toUpperCase()))) return [];
+/** Orders size labels XXS→XXL (then bag sizes); unknown labels last, A→Z. */
+export function compareSizes(a: string, b: string): number {
   const rank = (size: string) => {
     const i = SIZE_ORDER.indexOf(size.toUpperCase());
     return i === -1 ? SIZE_ORDER.length : i;
   };
-  return sizes.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  return rank(a) - rank(b) || a.localeCompare(b);
+}
+
+/** Distinct sizes, S→L order; empty when the style is one-size. */
+export function variantSizes(variants: ProductVariant[]): string[] {
+  const sizes = unique(variants.map((v) => v.size));
+  if (sizes.every((size) => ONE_SIZE.has(size.toUpperCase()))) return [];
+  return sizes.sort(compareSizes);
 }
 
 export function isVariantAvailable(variant: ProductVariant): boolean {
