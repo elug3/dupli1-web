@@ -98,6 +98,23 @@ export const NAV_GROUPS: NavGroup[] = [
 /** The groups a shopper sees: planned subjects stay out until they launch. */
 export const VISIBLE_NAV_GROUPS: NavGroup[] = NAV_GROUPS.filter((g) => g.launched);
 
+/**
+ * Upstream categories header search covers: those of launched subjects, read
+ * from where each one's "View all" lists. A planned subject (jackets before
+ * their menu entry launches) stays out of search as well as the menu.
+ */
+export function searchCategories(groups: NavGroup[] = NAV_GROUPS): string[] {
+  const out: string[] = [];
+  for (const g of groups) {
+    if (!g.launched || g.kind !== "subject") continue;
+    const [, , facet, value] = g.to.split("/");
+    if (!isCategoryFacet(facet)) continue;
+    const category = categoryForFacet(facet, value);
+    if (!out.includes(category)) out.push(category);
+  }
+  return out;
+}
+
 export function navItemLabel(item: NavItem, t: (key: string) => string): string {
   return "labelKey" in item ? t(item.labelKey) : item.label;
 }

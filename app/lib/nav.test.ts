@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { facetOptions, isCategoryFacet } from "./catalog";
-import { NAV_GROUPS, VISIBLE_NAV_GROUPS } from "./nav";
+import { NAV_GROUPS, VISIBLE_NAV_GROUPS, searchCategories } from "./nav";
 
 function categoryExists(to: string): boolean {
   const [, root, facet, value] = to.split("/");
@@ -28,5 +28,11 @@ describe("nav tree", () => {
       expect(group.items.length).toBeGreaterThan(0);
       for (const item of group.items) expect(categoryExists(item.to), item.to).toBe(true);
     }
+  });
+
+  it("searches only the categories of launched subjects", () => {
+    expect(searchCategories()).toEqual(["bags"]);
+    const launched = NAV_GROUPS.map((g) => (g.id === "paddedJackets" ? { ...g, launched: true } : g));
+    expect(searchCategories(launched)).toEqual(["bags", "clothing"]);
   });
 });

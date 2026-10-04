@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { type Bag, fetchBags, listingBagImage } from "~/lib/api";
 import { brandDisplayName } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
-import { NAV_GROUPS, navItemLabel } from "~/lib/nav";
+import { NAV_GROUPS, navItemLabel, searchCategories } from "~/lib/nav";
 import { useWishlist } from "~/lib/useWishlist";
 import { PRODUCT_GRID_CLASS, ProductCard, ProductCardSkeleton } from "./product-card";
 
 const SEARCH_DEBOUNCE_MS = 250;
 const SEARCH_LIMIT = 24;
+const SEARCH_CATEGORIES = searchCategories();
 
 type SearchState =
   | { status: "idle" }
@@ -51,7 +52,8 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
     setState({ status: "loading" });
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      fetchBags({ q, limit: SEARCH_LIMIT })
+      Promise.all(SEARCH_CATEGORIES.map((category) => fetchBags({ q, category, limit: SEARCH_LIMIT })))
+        .then((pages) => pages.flat().slice(0, SEARCH_LIMIT))
         .then((results) => {
           if (!cancelled) setState({ status: "done", results });
         })
