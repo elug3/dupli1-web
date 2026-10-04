@@ -475,6 +475,86 @@ describe("a deploy does not end sessions", () => {
   });
 });
 
+describe("parallel refreshes share one exchange", () => {
+  async function loginCookie(mod: typeof import("./bff-session.server")) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ access_token: "a-1", refresh_token: "rt-1" }))
+    );
+    const login = await mod.handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "u@example.com", password: "x" }),
+      })
+    );
+    return login.headers.get("Set-Cookie")!.split(";")[0];
+  }
+
+  function refresh(mod: typeof import("./bff-session.server"), cookie: string) {
+    return mod.handleRefresh(
+      new Request("http://localhost/auth/session/refresh", {
+        method: "POST",
+        headers: { Cookie: cookie },
+      })
+    );
+  }
+
+  it("spends the refresh token once for many concurrent requests", async () => {
+    const mod = await import("./bff-session.server");
+    const cookie = await loginCookie(mod);
+    const id = decodeURIComponent(cookie.split("=")[1]);
+
+    // Auth rotates: rt-1 works once, then is refused.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const spent = new Set<string>();
+    const exchange = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const { refresh_token } = JSON.parse(String(init?.body));
+      if (spent.has(refresh_token)) return jsonResponse({ error: "reused" }, 401);
+      spent.add(refresh_token);
+      await held;
+      return jsonResponse({ token: "a-2", refresh_token: "rt-2" });
+    });
+    vi.stubGlobal("fetch", exchange);
+
+    const pending = [refresh(mod, cookie), refresh(mod, cookie), refresh(mod, cookie)];
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+    const responses = await Promise.all(pending);
+
+    expect(responses.map((r) => r.status)).toEqual([200, 200, 200]);
+    for (const response of responses) {
+      expect(response.headers.get("Set-Cookie") ?? "").not.toContain("Max-Age=0");
+    }
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect((await globalThis.__dupli1SessionStore!.get(id))?.refreshToken).toBe("rt-2");
+  });
+
+  it("adopts a refresh that finished after this request read the session", async () => {
+    const mod = await import("./bff-session.server");
+    const cookie = await loginCookie(mod);
+    const id = decodeURIComponent(cookie.split("=")[1]);
+    const store = globalThis.__dupli1SessionStore!;
+    const stale = (await store.get(id))!;
+    await store.set(id, { ...stale, refreshToken: "rt-2", accessToken: "a-2" }, 60);
+
+    // This request's first read predates the winner's save.
+    let reads = 0;
+    globalThis.__dupli1SessionStore = {
+      ...store,
+      get: async (key) => (reads++ === 0 ? stale : store.get(key)),
+    };
+    const exchange = vi.fn(async () => jsonResponse({ error: "reused" }, 401));
+    vi.stubGlobal("fetch", exchange);
+
+    const response = await refresh(mod, cookie);
+
+    expect(response.status).toBe(200);
+    expect(exchange).not.toHaveBeenCalled();
+    expect((await store.get(id))?.refreshToken).toBe("rt-2");
+  });
+});
+
 const REDIS_URL = process.env.DUPLI1_TEST_REDIS_URL;
 
 describe.skipIf(!REDIS_URL)("redis session store", () => {

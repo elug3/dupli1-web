@@ -670,47 +670,129 @@ export async function getAccessToken(
     return { token: record.accessToken };
   }
 
-  const exchanged = await exchangeRefreshToken(record.refreshToken);
-
-  if (!exchanged.ok) {
-    // Only auth's own verdict ends the session. On `unavailable` the record
-    // and the cookie both stay, so the shopper keeps their cart and is signed
-    // in again the moment auth answers.
-    if (exchanged.reason === "unavailable") {
+  const outcome = await refreshSessionTokens(id, record);
+  switch (outcome.kind) {
+    case "ok":
+      return { token: outcome.accessToken, setCookie: sessionCookie(id) };
+    case "unavailable":
+      // Only auth's own verdict ends the session. On `unavailable` the record
+      // and the cookie both stay, so the shopper keeps their cart and is
+      // signed in again the moment auth answers.
       return authUnavailable();
-    }
+    case "rejected":
+      return json(
+        { error: "Session expired. Please sign in again." },
+        { status: 401 },
+        clearSessionCookie()
+      );
+  }
+}
 
-    // Refresh tokens are single use and the store is shared, so a parallel
-    // request (possibly on another task) may have just spent this one and
-    // saved its successor. That request's tokens are good; use them.
-    const current = await sessionStore().get(id).catch(() => null);
-    if (current && current.refreshToken !== record.refreshToken) {
-      return { token: current.accessToken, setCookie: sessionCookie(id) };
-    }
+/**
+ * What a refresh established. Joiners share one outcome, so it is plain data:
+ * a Response body can only be read once, and each caller builds its own.
+ */
+type RefreshOutcome =
+  | { kind: "ok"; accessToken: string }
+  | { kind: "unavailable" }
+  | { kind: "rejected" };
 
-    await sessionStore().delete(id).catch(() => {});
-    return json(
-      { error: "Session expired. Please sign in again." },
-      { status: 401 },
-      clearSessionCookie()
-    );
+/**
+ * One in-flight refresh per session in this process.
+ *
+ * Refresh tokens are single use. One page render fires several loaders, and
+ * when the access token has just expired each of them would spend the same
+ * refresh token: auth answers the first and refuses the rest with a 401, and a
+ * refused request that reads the store before the winner has saved its
+ * successor signs the shopper out. Joiners attach to the winner's attempt and
+ * resolve with its outcome instead.
+ */
+const refreshesInFlight = new Map<string, Promise<RefreshOutcome>>();
+
+async function refreshSessionTokens(
+  id: string,
+  seen: SessionRecord
+): Promise<RefreshOutcome> {
+  const joined = refreshesInFlight.get(id);
+  if (joined) return joined;
+
+  // No await between creating the attempt and registering it, so no other
+  // request can find the map empty while this one is already exchanging.
+  const attempt = refreshFromStore(id, seen);
+  refreshesInFlight.set(id, attempt);
+  try {
+    return await attempt;
+  } finally {
+    // On every outcome, or the session is pinned to this result forever.
+    refreshesInFlight.delete(id);
+  }
+}
+
+function accessTokenFresh(record: SessionRecord): boolean {
+  return record.accessTokenExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > now();
+}
+
+async function refreshFromStore(
+  id: string,
+  seen: SessionRecord
+): Promise<RefreshOutcome> {
+  // The caller read the record before reaching the map, so a refresh that
+  // finished in between has already spent `seen.refreshToken`. Start from what
+  // the store holds now; that is also how a rotation by another process that
+  // shares the store is picked up.
+  let record: SessionRecord | null;
+  try {
+    record = await sessionStore().get(id);
+  } catch {
+    return { kind: "unavailable" };
+  }
+  if (!record || record.expiresAt <= now()) return { kind: "rejected" };
+  if (record.refreshToken !== seen.refreshToken && accessTokenFresh(record)) {
+    return { kind: "ok", accessToken: record.accessToken };
   }
 
-  record.accessToken = exchanged.accessToken;
-  record.refreshToken = exchanged.refreshToken;
-  record.accessTokenExpiresAt = accessTokenExpiresAt(exchanged.expiresIn);
-  record.expiresAt = now() + SESSION_TTL_SECONDS * 1000;
+  const first = await exchangeAndSave(id, record);
+  if (first.kind !== "rejected") return first;
+
+  // Rejected. If something else rotated the token between our read and our
+  // call, the session is healthy and the 401 was only about our copy.
+  const current = await sessionStore().get(id).catch(() => null);
+  if (current && current.refreshToken !== record.refreshToken) {
+    if (accessTokenFresh(current)) {
+      return { kind: "ok", accessToken: current.accessToken };
+    }
+    const retried = await exchangeAndSave(id, current);
+    if (retried.kind !== "rejected") return retried;
+  }
+
+  await sessionStore().delete(id).catch(() => {});
+  return { kind: "rejected" };
+}
+
+async function exchangeAndSave(
+  id: string,
+  record: SessionRecord
+): Promise<RefreshOutcome> {
+  const exchanged = await exchangeRefreshToken(record.refreshToken);
+  if (!exchanged.ok) return { kind: exchanged.reason };
+
+  const next: SessionRecord = {
+    accessToken: exchanged.accessToken,
+    refreshToken: exchanged.refreshToken,
+    accessTokenExpiresAt: accessTokenExpiresAt(exchanged.expiresIn),
+    expiresAt: now() + SESSION_TTL_SECONDS * 1000,
+  };
 
   // The rotated refresh token must be stored before it is used again. If the
   // write fails the old one is already spent, so surface the failure as
   // retryable rather than hand back a session that cannot refresh again.
   try {
-    await saveSession(id, record);
+    await saveSession(id, next);
   } catch {
-    return authUnavailable();
+    return { kind: "unavailable" };
   }
 
-  return { token: record.accessToken, setCookie: sessionCookie(id) };
+  return { kind: "ok", accessToken: next.accessToken };
 }
 
 export async function handleRefresh(request: Request): Promise<Response> {
