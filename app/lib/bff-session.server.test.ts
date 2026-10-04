@@ -541,3 +541,89 @@ describe("proxyVisitBeacon", () => {
     expect(response.status).toBe(204);
   });
 });
+
+describe("handleSessionGatewayProxy consultation chat", () => {
+  async function signedIn(upstream: (target: string, init?: RequestInit) => Response) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const target = String(url);
+        if (target.endsWith("/api/v1/auth/login")) return jsonResponse({ refresh_token: "rt-1" });
+        if (target.endsWith("/api/v1/auth/refresh")) {
+          return jsonResponse({ token: "access-1", refresh_token: "rt-2" });
+        }
+        return upstream(target, init);
+      })
+    );
+    const login = await handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com", password: "secret" }),
+      })
+    );
+    return login.headers.get("Set-Cookie")!.split(";")[0];
+  }
+
+  it("streams the shopper's events through without buffering", async () => {
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({ start: (c) => (controller = c) });
+    let signal: AbortSignal | undefined;
+    const cookie = await signedIn((target, init) => {
+      expect(target).toMatch(/\/api\/v1\/support\/web\/events$/);
+      expect((init?.headers as Headers).get("Authorization")).toBe("Bearer access-1");
+      signal = init?.signal ?? undefined;
+      return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
+    });
+
+    const res = await handleSessionGatewayProxy(
+      new Request("http://localhost/auth/session/gateway/api/v1/support/web/events", {
+        headers: { Cookie: cookie, Accept: "text/event-stream" },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    expect(res.headers.get("X-Accel-Buffering")).toBe("no");
+    // The stream must close upstream when the tab goes away.
+    expect(signal).toBeDefined();
+
+    // The first frame arrives while the upstream is still open: a buffered
+    // proxy would hang here until the stream ended.
+    controller.enqueue(new TextEncoder().encode("event: ready\ndata: {}\n\n"));
+    const reader = res.body!.getReader();
+    const { value } = await reader.read();
+    expect(new TextDecoder().decode(value)).toContain("event: ready");
+    controller.close();
+  });
+
+  it("passes a 429's Retry-After through", async () => {
+    const cookie = await signedIn(() =>
+      new Response(JSON.stringify({ error: "slow down", code: "rate_limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "60" },
+      })
+    );
+    const res = await handleSessionGatewayProxy(
+      new Request("http://localhost/auth/session/gateway/api/v1/support/web/messages", {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "hi" }),
+      })
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("60");
+    expect(await res.json()).toMatchObject({ code: "rate_limited" });
+  });
+
+  it("does not reach the staff inbox", async () => {
+    const cookie = await signedIn((target) => {
+      throw new Error(`unexpected fetch: ${target}`);
+    });
+    const res = await handleSessionGatewayProxy(
+      new Request("http://localhost/auth/session/gateway/api/v1/support/inquiries", {
+        headers: { Cookie: cookie },
+      })
+    );
+    expect(res.status).toBe(404);
+  });
+});

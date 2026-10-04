@@ -20,7 +20,8 @@ type ApiService =
   | "checkout"
   | "orders"
   | "payments"
-  | "profile";
+  | "profile"
+  | "support";
 
 interface TokenResponse {
   access_token?: unknown;
@@ -93,6 +94,15 @@ function profileApiBaseUrl(): string {
   );
 }
 
+// Web consultation chat (dupli1 docs/support-web-chat.md).
+function supportApiBaseUrl(): string {
+  return (
+    process.env.DUPLI1_SUPPORT_API_BASE_URL ??
+    sharedApiBaseUrl() ??
+    "http://localhost:8080"
+  );
+}
+
 function apiBaseUrl(service: ApiService): string {
   switch (service) {
     case "auth":
@@ -108,6 +118,8 @@ function apiBaseUrl(service: ApiService): string {
       return paymentsApiBaseUrl();
     case "profile":
       return profileApiBaseUrl();
+    case "support":
+      return supportApiBaseUrl();
   }
 }
 
@@ -412,6 +424,17 @@ async function proxyResponse(
   if (contentType) headers.set("Content-Type", contentType);
   if (options.noStore) headers.set("Cache-Control", "no-store");
   if (options.setCookie) headers.append("Set-Cookie", options.setCookie);
+  // Tells the shopper when to send again after a 429.
+  const retryAfter = upstream.headers.get("Retry-After");
+  if (retryAfter) headers.set("Retry-After", retryAfter);
+
+  // A Server-Sent Events stream (the consultation chat) is passed through as
+  // it arrives; buffering it would hold every frame until the stream ends.
+  if (upstream.ok && upstream.body && contentType?.startsWith("text/event-stream")) {
+    headers.set("Cache-Control", "no-cache, no-transform");
+    headers.set("X-Accel-Buffering", "no");
+    return new Response(upstream.body, { status: upstream.status, headers });
+  }
 
   const body = NULL_BODY_STATUSES.has(upstream.status)
     ? null
@@ -785,10 +808,14 @@ export async function proxyBackendApi(
     setCookie = result.setCookie;
   }
 
+  // A stream must close upstream when the shopper's tab goes away, or support
+  // keeps writing to a subscriber nobody reads until its token expires.
+  const streaming = headers.get("Accept")?.includes("text/event-stream") ?? false;
   let upstream = await fetch(target, {
     method: request.method,
     headers,
     body,
+    ...(streaming ? { signal: request.signal } : {}),
   });
 
   // Non-auth services are not the source of truth for login state. If one
@@ -805,6 +832,7 @@ export async function proxyBackendApi(
       method: request.method,
       headers,
       body,
+      ...(streaming ? { signal: request.signal } : {}),
     });
 
     if (upstream.status === 401) {
@@ -857,6 +885,8 @@ function serviceForApiPath(path: string): ApiService | null {
     return "orders";
   }
   if (path.startsWith("/api/v1/payments")) return "payments";
+  // Only the shopper's own consultation; the staff inbox stays manage-web's.
+  if (path.startsWith("/api/v1/support/web/")) return "support";
   return null;
 }
 

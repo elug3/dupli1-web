@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 
 import { OrderItemThumb } from "~/components/order-item-thumb";
+import { ConsultButton, orderLabel } from "~/components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { type User, getMe } from "~/lib/auth";
 import {
@@ -249,6 +250,12 @@ function OrderDetail({
         >
           {statusKey ? t(statusKey) : order.status}
         </span>
+        <ConsultButton
+          pending={{ kind: "order", orderId: order.id, label: orderLabel(order, t) }}
+          className="w-full text-left text-xs text-zinc-500 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+        >
+          {t("chat.askOrder")}
+        </ConsultButton>
       </header>
 
       {isResumableOrder(order) && (

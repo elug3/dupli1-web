@@ -5,6 +5,7 @@ import { useLanguage, type LanguageCode } from "~/lib/i18n";
 import { useCart } from "~/lib/useCart";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { MenuDrawer } from "./menu-drawer";
+import { useSupportChat } from "./support-chat";
 import { SearchOverlay } from "./search-overlay";
 
 /** Scroll distance after which the home header turns solid white. */
@@ -18,6 +19,8 @@ const SOLID_AFTER_PX = 120;
 export function SiteHeader() {
   const { t } = useLanguage();
   const { count } = useCart();
+  const chat = useSupportChat();
+  const chatUnread = chat.conversation?.unread ?? 0;
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -84,8 +87,20 @@ export function SiteHeader() {
 
           <div className="flex items-center justify-end">
             <LanguageSelector className="mr-2 hidden sm:flex" />
-            <NavLink to="/profile" aria-label={t("nav.profile")} className="p-2">
+            <NavLink
+              to={chatUnread > 0 ? "/profile/support" : "/profile"}
+              aria-label={
+                chatUnread > 0
+                  ? `${t("nav.profile")} (${t("chat.unread", { count: chatUnread })})`
+                  : t("nav.profile")
+              }
+              className="relative p-2"
+            >
               <ProfileIcon />
+              {/* An unread consultation reply, wherever the shopper is. */}
+              {chatUnread > 0 && (
+                <span className="absolute right-1 top-1 size-2 rounded-full bg-red-600" />
+              )}
             </NavLink>
             <NavLink to="/cart" aria-label={t("nav.shoppingBag")} className="relative p-2">
               <BagIcon />
