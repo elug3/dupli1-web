@@ -13,7 +13,7 @@
  * settings, the checkout session, and the order. Storefront copy and totals
  * read those; leaving this constant on screen is how the two silently drift.
  */
-export const SHIPPING_FEE = 30000;
+export const SHIPPING_FEE = 0;
 
 export class CartAuthRequiredError extends Error {
   constructor() {
