@@ -17,6 +17,8 @@ import {
 } from "~/lib/promotions";
 import { useLanguage } from "~/lib/i18n";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
+import { useCardSurchargeBps } from "~/lib/useCardSurcharge";
+import { formatSurchargeRate } from "~/lib/checkout";
 import { CartLineControls } from "~/components/cart-line-controls";
 import { ProductPrice } from "~/components/product-price";
 import { useCart } from "~/lib/useCart";
@@ -407,6 +409,7 @@ export function OrderSummary({
   checkoutLabel,
   disabled = false,
   showPromo = true,
+  cardSurcharge,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
   promotion: AppliedPromotion | null;
@@ -425,9 +428,16 @@ export function OrderSummary({
   disabled?: boolean;
   /** Checkout picks the code in its own dropdown instead. */
   showPromo?: boolean;
+  /**
+   * Checkout's card surcharge, added on top of `summary.total`. The bag does
+   * not know the payment method yet, so it only notes the surcharge below.
+   */
+  cardSurcharge?: { label: string; won: number };
 }) {
   const { t, formatCurrency } = useLanguage();
   const shippingFeeWon = useShippingFeeWon();
+  const surchargeBps = useCardSurchargeBps();
+  const total = summary.total + (cardSurcharge?.won ?? 0);
   const split = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
 
   return (
@@ -465,12 +475,20 @@ export function OrderSummary({
             {summary.shipping === 0 ? t("cart.complimentary") : formatCurrency(summary.shipping)}
           </dd>
         </div>
+        {cardSurcharge && (
+          <div className="flex justify-between text-zinc-600">
+            <dt>{cardSurcharge.label}</dt>
+            <dd className="font-medium text-zinc-950">
+              {formatCurrency(cardSurcharge.won)}
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between border-t border-zinc-200 pt-4 text-base">
           <dt className="font-semibold uppercase tracking-widest text-zinc-950">
             {t("cart.total")}
           </dt>
           <dd className="text-xl font-semibold text-zinc-950">
-            {formatCurrency(summary.total)}
+            {formatCurrency(total)}
           </dd>
         </div>
       </dl>
@@ -558,6 +576,12 @@ export function OrderSummary({
             ? t("cart.shippingFeeNoteFree")
             : t("cart.shippingFeeNote", { amount: formatCurrency(shippingFeeWon) })}
         </li>
+        {surchargeBps > 0 && !cardSurcharge && (
+          <li className="flex items-center gap-2">
+            <CardIcon />
+            {t("cart.cardSurchargeNote", { rate: formatSurchargeRate(surchargeBps) })}
+          </li>
+        )}
         <li className="flex items-center gap-2">
           <ReturnIcon />
           {t("cart.returns")}
@@ -613,6 +637,14 @@ function TruckIcon() {
   return (
     <svg aria-hidden="true" className="size-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none">
       <path d="M5 17H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2m0 0h3l3 4v4h-2m-4-6H14m0 0v6m0-6h7m-7 6H8m12 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm-12 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function CardIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none">
+      <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M7 15h3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
   );
 }

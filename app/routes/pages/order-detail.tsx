@@ -371,6 +371,12 @@ function OrderDetail({
                 : formatCurrency(order.shippingFeeWon)
             }
           />
+          {(order.cardSurchargeWon ?? 0) > 0 && (
+            <SummaryRow
+              label={t("cart.cardSurchargeOrder")}
+              value={formatCurrency(order.cardSurchargeWon ?? 0)}
+            />
+          )}
           <SummaryRow
             label={t("confirmation.total")}
             value={formatCurrency(order.totalWon)}
