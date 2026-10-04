@@ -14,7 +14,7 @@ export function resetShippingFeeCache(): void {
   inflight = null;
 }
 
-/** Treat a missing/failed settings read as the display fallback, never as free. */
+/** Treat a missing/failed settings read as the display fallback (free delivery). */
 export function resolvedShippingFee(fee: number | null | undefined): number {
   return typeof fee === "number" && fee >= 0 ? fee : SHIPPING_FEE;
 }

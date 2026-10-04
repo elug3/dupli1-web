@@ -129,7 +129,7 @@ export function SiteHeader() {
   );
 }
 
-/** "Shipping ₩30,000 on all orders", now in the drawer and footer instead of a bar. */
+/** "Complimentary shipping on all orders" (or the fee, if one is set), in the drawer and footer. */
 export function ShippingNote({ className = "text-caption text-mute" }: { className?: string }) {
   const { t, formatCurrency } = useLanguage();
   const shippingFeeWon = useShippingFeeWon();
