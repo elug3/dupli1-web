@@ -16,7 +16,9 @@ import {
   applySessionPromotion,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
+  cardSurchargeWon,
   cartHasUnpurchasableItems,
+  formatSurchargeRate,
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
@@ -61,6 +63,7 @@ import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { useLanguage } from "~/lib/i18n";
 import { KR_PROVINCES, districtsForProvince } from "~/lib/kr-regions";
 import { useCart } from "~/lib/useCart";
+import { useCardSurchargeBps } from "~/lib/useCardSurcharge";
 import type { CartItem } from "~/lib/cart";
 import { useCartMutation } from "~/lib/useCartMutation";
 import { OrderSummary } from "./cart";
@@ -409,7 +412,17 @@ export default function CheckoutPage() {
   const tier = useMemberTier(items, totals().shipping);
   const summary = totals((promotion?.discountWon ?? 0) + (tier?.discountWon ?? 0));
   const discountSplit = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
-  const checkoutTotal = summary.total;
+  // A card payment adds the surcharge on everything else the order costs;
+  // complete prices it for the chosen method and is what is charged.
+  const surchargeBps = useCardSurchargeBps();
+  const cardSurcharge =
+    form.paymentMethod === "credit_card"
+      ? cardSurchargeWon(summary.total, surchargeBps)
+      : 0;
+  const cardSurchargeLabel = t("cart.cardSurcharge", {
+    rate: formatSurchargeRate(surchargeBps),
+  });
+  const checkoutTotal = summary.total + cardSurcharge;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
   // Only a signed-in shopper with a loaded, not-full address book can save.
@@ -751,7 +764,8 @@ export default function CheckoutPage() {
           province: form.province,
           pccc: form.pccc,
           addressId,
-        })
+        }),
+        form.paymentMethod
       );
       const payment = await createPayment(order.id, form.paymentMethod, {
         note: form.bypassNote,
@@ -1058,7 +1072,9 @@ export default function CheckoutPage() {
                         detail={
                           method === "bypass"
                             ? t("checkout.methodBypassHint")
-                            : t("checkout.methodCreditCardHint")
+                            : surchargeBps > 0
+                              ? `${t("checkout.methodCreditCardHint")} · ${t("checkout.methodCreditCardSurcharge", { rate: formatSurchargeRate(surchargeBps) })}`
+                              : t("checkout.methodCreditCardHint")
                         }
                       />
                     ),
@@ -1222,6 +1238,11 @@ export default function CheckoutPage() {
                     : []),
                 ]}
                 shipping={summary.shipping}
+                cardSurcharge={
+                  cardSurcharge > 0
+                    ? { label: cardSurchargeLabel, won: cardSurcharge }
+                    : undefined
+                }
                 total={checkoutTotal}
                 mutation={mutation}
               />
@@ -1279,6 +1300,11 @@ export default function CheckoutPage() {
               onRemovePromo={removePromo}
               walletEntries={wallet.entries}
               showPromo={false}
+              cardSurcharge={
+                cardSurcharge > 0
+                  ? { label: cardSurchargeLabel, won: cardSurcharge }
+                  : undefined
+              }
             />
 
             <div className="mt-4">
@@ -1721,6 +1747,7 @@ function MiniBag({
   subtotal,
   discounts,
   shipping,
+  cardSurcharge,
   total,
   mutation,
 }: {
@@ -1729,6 +1756,8 @@ function MiniBag({
   /** Code and tier discounts, already taken off `total`. */
   discounts: { label: string; won: number }[];
   shipping: number;
+  /** Card surcharge, already added to `total`. */
+  cardSurcharge?: { label: string; won: number };
   total: number;
   mutation: ReturnType<typeof useCartMutation>;
 }) {
@@ -1819,6 +1848,14 @@ function MiniBag({
             {shipping === 0 ? t("cart.complimentary") : formatCurrency(shipping)}
           </dd>
         </div>
+        {cardSurcharge && (
+          <div className="flex justify-between text-zinc-600">
+            <dt>{cardSurcharge.label}</dt>
+            <dd className="font-medium text-zinc-950">
+              {formatCurrency(cardSurcharge.won)}
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between font-semibold text-zinc-950">
           <dt>{t("cart.total")}</dt>
           <dd>{formatCurrency(total)}</dd>

@@ -156,6 +156,14 @@ export default function CheckoutConfirmationPage() {
                       : formatCurrency(order.shippingFeeWon)}
                   </dd>
                 </div>
+                {(order.cardSurchargeWon ?? 0) > 0 && (
+                  <div className="flex justify-between gap-8">
+                    <dt className="text-zinc-400">{t("cart.cardSurchargeOrder")}</dt>
+                    <dd className="font-medium text-zinc-950">
+                      {formatCurrency(order.cardSurchargeWon ?? 0)}
+                    </dd>
+                  </div>
+                )}
               </>
             )}
             {total != null && (

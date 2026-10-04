@@ -191,6 +191,10 @@ export interface Order {
   tierDiscountWon?: number;
   /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
   shippingFeeWon: number;
+  /** What the order was priced for; empty on orders from before the card surcharge. */
+  paymentMethod?: string;
+  /** Card surcharge (JSON `card_surcharge_won`), already inside `totalWon`. */
+  cardSurchargeWon?: number;
   totalWon: number;
   promotionCode?: string;
   items: OrderItem[];
@@ -228,7 +232,8 @@ export function orderHasPricingBreakdown(order: Order): boolean {
   return (
     order.subtotalWon > 0 ||
     order.discountWon > 0 ||
-    order.shippingFeeWon > 0
+    order.shippingFeeWon > 0 ||
+    (order.cardSurchargeWon ?? 0) > 0
   );
 }
 
@@ -275,6 +280,41 @@ export async function getShippingFeeWon(): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Display fallback for the card surcharge, in basis points (1000 = 10%), used
+ * until order's settings answer. Mirrors the backend default so a failed read
+ * never quotes a card payment cheaper than it will be.
+ */
+export const CARD_SURCHARGE_BPS = 1000;
+
+/**
+ * Fetches the card surcharge order adds to a card payment, in basis points of
+ * the goods after discounts plus delivery. Null when the service cannot be
+ * reached or does not publish it, so callers fall back to CARD_SURCHARGE_BPS.
+ */
+export async function getCardSurchargeBps(): Promise<number | null> {
+  try {
+    const res = await fetch("/api/v1/orders/settings");
+    if (!res.ok) return null;
+    const body = (await res.json()) as { limits?: { card_surcharge_bps?: number } };
+    const bps = body.limits?.card_surcharge_bps;
+    return typeof bps === "number" && bps >= 0 ? bps : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The surcharge order will add: `bps` of `baseWon`, rounded down like the backend. */
+export function cardSurchargeWon(baseWon: number, bps: number): number {
+  if (baseWon <= 0 || bps <= 0) return 0;
+  return Math.floor((baseWon * bps) / 10000);
+}
+
+/** "10%" or "2.5%" for a rate in basis points. */
+export function formatSurchargeRate(bps: number): string {
+  return `${Number((bps / 100).toFixed(2))}%`;
 }
 
 export interface Payment {
@@ -340,6 +380,8 @@ interface RawOrder {
   subtotal_won?: number;
   discount_won?: number;
   shipping_fee_won?: number;
+  payment_method?: string;
+  card_surcharge_won?: number;
   total_won?: number;
   /** Canonical since the 2026-09-16 rename; `coupon_code` is the pre-rename alias. */
   promotion_code?: string;
@@ -413,6 +455,8 @@ function mapOrder(raw: RawOrder): Order {
     subtotalWon: raw.subtotal_won ?? 0,
     discountWon: raw.discount_won ?? 0,
     shippingFeeWon: raw.shipping_fee_won ?? 0,
+    paymentMethod: raw.payment_method || undefined,
+    cardSurchargeWon: raw.card_surcharge_won ?? 0,
     totalWon: raw.total_won ?? 0,
     // promotion_code is canonical; coupon_code is the pre-rename alias order
     // still emits for one release (dupli1 docs/product-promotion-rename.md).
@@ -623,13 +667,25 @@ export function buildCheckoutFulfillment(input: {
   };
 }
 
+/**
+ * Completes the session into a pending order priced for `paymentMethod`: order
+ * adds the card surcharge for `credit_card` (also its default) and none for
+ * `bypass`, and payment then accepts only that method.
+ */
 export async function completeCheckoutSession(
   sessionId: string,
-  fulfillment: CheckoutFulfillment
+  fulfillment: CheckoutFulfillment,
+  paymentMethod: PaymentMethod = "credit_card"
 ): Promise<{ session: CheckoutSession; order: Order }> {
   const res = await request(
     `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/complete`,
-    { method: "POST", body: JSON.stringify(mapFulfillmentBody(fulfillment)) }
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...mapFulfillmentBody(fulfillment),
+        payment_method: paymentMethod,
+      }),
+    }
   );
   const body = (await res.json()) as { session: RawSession; order: RawOrder };
   return { session: mapSession(body.session), order: mapOrder(body.order) };
