@@ -81,7 +81,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "nav.productType": "Product Type",
     "nav.bags": "Bags",
     "nav.wallets": "Wallets",
-    "nav.paddedJackets": "Padded Jackets",
+    "nav.jackets": "Jackets",
     "nav.brand": "Brand",
     "nav.style": "Style",
     "nav.family": "Family",
@@ -121,6 +121,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.bags": "Bags",
     "category.clothing": "Clothing",
     "category.paddedJackets": "Padded Jackets",
+    "category.jackets": "Jackets",
 
     "footer.description":
       "Authentic luxury bags from the world's most coveted brands, curated for the modern wardrobe.",
@@ -832,7 +833,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "nav.productType": "카테고리",
     "nav.bags": "가방",
     "nav.wallets": "지갑",
-    "nav.paddedJackets": "패딩",
+    "nav.jackets": "재킷",
     "nav.brand": "브랜드",
     "nav.style": "스타일",
     "nav.family": "대상",
@@ -872,6 +873,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.bags": "가방",
     "category.clothing": "의류",
     "category.paddedJackets": "패딩",
+    "category.jackets": "재킷",
 
     "footer.description":
       "세계적인 럭셔리 브랜드의 정품 가방을 현대적인 옷장에 맞게 엄선했습니다.",
@@ -1578,7 +1580,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "nav.productType": "产品类型",
     "nav.bags": "包袋",
     "nav.wallets": "钱包",
-    "nav.paddedJackets": "羽绒服",
+    "nav.jackets": "夹克",
     "nav.brand": "品牌",
     "nav.style": "风格",
     "nav.family": "人群",
@@ -1618,6 +1620,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "category.bags": "包袋",
     "category.clothing": "服装",
     "category.paddedJackets": "羽绒服",
+    "category.jackets": "夹克",
 
     "footer.description":
       "来自全球热门奢侈品牌的正品包袋，为现代衣橱精心甄选。",

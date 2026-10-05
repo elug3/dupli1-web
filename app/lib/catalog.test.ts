@@ -36,6 +36,14 @@ describe("padded jackets catalog wiring", () => {
     expect(categoryTitleKey("product-type", "padded-jackets")).toBe("category.paddedJackets");
   });
 
+  it("searches clothing's jackets subcategory", () => {
+    expect(categoryForFacet("product-type", "jackets")).toBe("clothing");
+    expect(buildCategorySearchParams("product-type", "jackets")).toEqual({
+      subcategory: "jackets",
+    });
+    expect(categoryTitleKey("product-type", "jackets")).toBe("category.jackets");
+  });
+
   it("keeps every other page on bags", () => {
     expect(categoryForFacet("product-type", "totes")).toBe("bags");
     expect(categoryForFacet("brand", "prada")).toBe("bags");
@@ -44,7 +52,7 @@ describe("padded jackets catalog wiring", () => {
   });
 
   it("points a product's breadcrumb at its category listing", () => {
-    expect(categoryListing("clothing").to).toBe("/category/product-type/padded-jackets");
+    expect(categoryListing("clothing").to).toBe("/category/product-type/jackets");
     expect(categoryListing("bags").to).toBe("/category/product-type/handbags");
     expect(categoryListing("").to).toBe("/category/product-type/handbags");
   });
