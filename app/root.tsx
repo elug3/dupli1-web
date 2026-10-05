@@ -9,6 +9,7 @@ import {
   Scripts,
   ScrollRestoration,
   useLocation,
+  useRouteLoaderData,
 } from "react-router";
 
 import "./app.css";
@@ -30,6 +31,8 @@ import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { startSupportChat } from "./lib/support-chat";
 import { VISIBLE_NAV_GROUPS } from "./lib/nav";
 import { recordBrowserVisit } from "./lib/visit-beacon";
+import { sentryConfigScript } from "./lib/sentry";
+import { loadSentryBrowserConfig } from "./lib/sentry.server";
 
 export const links = () => [
   // Pretendard (Latin + Hangul, all text): the dynamic-subset build fetches
@@ -52,7 +55,18 @@ export const links = () => [
   },
 ];
 
+export function loader() {
+  return { sentry: loadSentryBrowserConfig() };
+}
+
+// The root loader only carries static process config, so navigations never
+// need to re-run it.
+export function shouldRevalidate() {
+  return false;
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const sentry = useRouteLoaderData<typeof loader>("root")?.sentry;
   return (
     <html lang="ko">
       <head>
@@ -60,6 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {sentry && <script dangerouslySetInnerHTML={{ __html: sentryConfigScript(sentry) }} />}
       </head>
       <body>
         {children}

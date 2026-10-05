@@ -323,3 +323,17 @@ build/
 ```
 
 Deploy the built output with the production dependencies from `package.json`, or use the included Dockerfile on platforms that support Node containers.
+
+### Error and log monitoring (Sentry)
+
+Off unless `SENTRY_DSN` is set at runtime; works with sentry.io or a self-hosted Sentry.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SENTRY_DSN` | unset (off) | The Sentry project's DSN |
+| `SENTRY_ENVIRONMENT` | `development` | e.g. `production` |
+| `SENTRY_RELEASE` | unset | e.g. the image tag |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0` | Share of requests/page loads traced, `0`–`1` |
+| `SENTRY_LOGS` | on | `false` stops sending server `console.warn`/`console.error` as Sentry Logs |
+
+The server initialises in `instrument.server.mjs` (loaded with `node --import` by `npm run start`); loader, action and render errors are reported from `app/entry.server.tsx`. The browser SDK reads the same DSN through the root loader, so one image works for any Sentry project. Request bodies, cookies and stack-frame locals are never sent (`SENTRY_DATA_COLLECTION` in `app/lib/sentry.ts`). `npm run dev` does not load the server SDK.
