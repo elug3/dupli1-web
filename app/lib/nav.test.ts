@@ -11,7 +11,7 @@ function categoryExists(to: string): boolean {
 describe("nav tree", () => {
   it("keeps planned subjects out of the menu until they launch", () => {
     const planned = NAV_GROUPS.filter((g) => !g.launched).map((g) => g.id);
-    expect(planned).toEqual(expect.arrayContaining(["wallets", "paddedJackets"]));
+    expect(planned).toEqual(expect.arrayContaining(["wallets"]));
     for (const id of planned) {
       expect(VISIBLE_NAV_GROUPS.some((g) => g.id === id)).toBe(false);
     }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { type Bag, fetchBags, listingBagImage } from "~/lib/api";
-import { brandDisplayName } from "~/lib/catalog";
+import { type Bag, fetchBags, listingProductImage } from "~/lib/api";
+import { STOREFRONT_CATEGORIES, brandDisplayName } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
 import { NAV_GROUPS, navItemLabel } from "~/lib/nav";
 import { useWishlist } from "~/lib/useWishlist";
@@ -51,7 +51,9 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
     setState({ status: "loading" });
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      fetchBags({ q, limit: SEARCH_LIMIT })
+      // One query per category we sell, bags first.
+      Promise.all(STOREFRONT_CATEGORIES.map((category) => fetchBags({ category, q, limit: SEARCH_LIMIT })))
+        .then((lists) => lists.flat().slice(0, SEARCH_LIMIT))
         .then((results) => {
           if (!cancelled) setState({ status: "done", results });
         })
@@ -140,7 +142,7 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
                     id={bag.id}
                     name={translateProductName(bag.id, bag.name)}
                     brand={brandDisplayName(bag.brand)}
-                    image={listingBagImage(bag.brand, bag.image)}
+                    image={listingProductImage(bag.category, bag.brand, bag.image)}
                     price={bag.price}
                     officialPrice={bag.officialPrice}
                     stock={bag.stock}

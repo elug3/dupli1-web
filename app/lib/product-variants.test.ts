@@ -60,6 +60,13 @@ describe("variantColors / variantSizes", () => {
   it("sorts unknown size labels after known ones", () => {
     expect(variantSizes([v("Black", "25"), v("Black", "M"), v("Black", "20")])).toEqual(["M", "20", "25"]);
   });
+
+  it("orders Italian sizes by number, short to long fit, after letter sizes", () => {
+    const sizes = ["48", "100", "36S", "4XL", "48L", "36", "XXXL", "48S", "48R", "XL"];
+    expect(variantSizes(sizes.map((s) => v("Black", s)))).toEqual([
+      "XL", "XXXL", "4XL", "36S", "36", "48S", "48", "48R", "48L", "100",
+    ]);
+  });
 });
 
 describe("pickVariant", () => {

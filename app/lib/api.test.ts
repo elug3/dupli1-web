@@ -178,7 +178,7 @@ describe("category-aware product search", () => {
     await fetchBags();
     await fetchBags({ q: "galleria", limit: 6 });
     expect(urls).toEqual([
-      "/api/v1/products?category=bags&subcategory=tote",
+      "/api/v1/products?category=bags&subcategory=tote&limit=100&offset=0",
       "/api/v1/products?category=bags",
       "/api/v1/products?category=bags&q=galleria&limit=6",
     ]);
@@ -192,8 +192,32 @@ describe("category-aware product search", () => {
     );
     await fetchBags({ category: "clothing", subcategory: "padded", sort: "views", limit: 1 });
     expect(urls).toEqual([
-      "/api/v1/products?category=clothing&subcategory=padded",
+      "/api/v1/products?category=clothing&subcategory=padded&limit=100&offset=0",
       "/api/v1/products?category=clothing&subcategory=padded&sort=views&limit=1",
+    ]);
+  });
+
+  it("pages through a category listing until a short page", async () => {
+    const urls: string[] = [];
+    const product = (id: number) => ({ id: `p${id}`, name: "", description: "", brand: "Prada", material: "", category: "clothing", price: 1 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        const offset = Number(new URL(url, "http://x").searchParams.get("offset"));
+        const count = offset === 0 ? 100 : 79;
+        const results = Array.from({ length: count }, (_, i) => product(offset + i));
+        return new Response(JSON.stringify({ total: count, results }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      })
+    );
+    const { results } = await searchProducts("clothing", { subcategory: "jackets" });
+    expect(results).toHaveLength(179);
+    expect(urls).toEqual([
+      "/api/v1/products?category=clothing&subcategory=jackets&limit=100&offset=0",
+      "/api/v1/products?category=clothing&subcategory=jackets&limit=100&offset=100",
     ]);
   });
 

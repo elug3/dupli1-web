@@ -10,7 +10,13 @@ import type { ProductVariant, ServerProduct } from "./api";
  */
 
 /** Sizes in the order a shopper reads them; unknown labels sort after, A→Z. */
-const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "MINI", "SMALL", "MEDIUM", "LARGE"];
+const SIZE_ORDER = [
+  "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL",
+  "MINI", "SMALL", "MEDIUM", "LARGE",
+];
+/** Italian tailoring sizes (36, 36S, 48R, 52L): by number, then short → long fit. */
+const ITALIAN_SIZE = /^(\d+)([SRL]?)$/;
+const ITALIAN_FITS = ["S", "", "R", "L"];
 /** Labels meaning "the style comes in one size" — no size picker for those. */
 const ONE_SIZE = new Set(["", "OS", "ONE SIZE", "ONESIZE", "FREE", "F", "U", "TU"]);
 
@@ -59,13 +65,23 @@ export function variantColors(variants: ProductVariant[]): string[] {
   return unique(variants.map((v) => v.color));
 }
 
-/** Orders size labels XXS→XXL (then bag sizes); unknown labels last, A→Z. */
+/**
+ * Orders size labels XXS→4XL (then bag sizes), then numeric sizes by number
+ * (Italian fits short → long: 46S, 46, 46R, 46L); anything else last, A→Z.
+ */
 export function compareSizes(a: string, b: string): number {
   const rank = (size: string) => {
     const i = SIZE_ORDER.indexOf(size.toUpperCase());
     return i === -1 ? SIZE_ORDER.length : i;
   };
-  return rank(a) - rank(b) || a.localeCompare(b);
+  const italian = (size: string) => {
+    const m = ITALIAN_SIZE.exec(size.toUpperCase());
+    return m ? [Number(m[1]), ITALIAN_FITS.indexOf(m[2])] : null;
+  };
+  const ia = italian(a);
+  const ib = italian(b);
+  if (ia && ib) return ia[0] - ib[0] || ia[1] - ib[1];
+  return rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true });
 }
 
 /** Distinct sizes, S→L order; empty when the style is one-size. */

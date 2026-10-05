@@ -9,7 +9,7 @@ import { NavImage } from "./nav-image";
 /**
  * The one menu for every width: a drawer from the left, full screen on
  * phones and 440px from md. Level one lists what we sell as pictured rows
- * (bags now; wallets and padded jackets once they launch), then brand and
+ * (bags and jackets now; wallets once they launch), then brand and
  * style as text. Choosing one replaces it with that group's items as image
  * tiles. Menu → group → item is three taps at most, and "View all" makes the
  * group itself two.

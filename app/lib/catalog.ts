@@ -56,6 +56,7 @@ export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
   crossbody: "Crossbody",
   "mini-bags": "Mini Bags",
   "padded-jackets": "Padded Jackets",
+  jackets: "Jackets",
 };
 
 /**
@@ -69,6 +70,7 @@ export const PRODUCT_TYPE_TO_SUBCATEGORY: Record<string, string> = {
   crossbody: "cross",
   "mini-bags": "mini",
   "padded-jackets": "padded",
+  jackets: "jackets",
 };
 
 /** Upstream top-level `category` codes the storefront sells (dupli1 taxonomy.go). */
@@ -88,12 +90,13 @@ export function isStorefrontCategory(value: string): value is StorefrontCategory
  */
 export const PRODUCT_TYPE_TO_CATEGORY: Record<string, StorefrontCategory> = {
   "padded-jackets": "clothing",
+  jackets: "clothing",
 };
 
 /** Where a category's breadcrumb goes, and its title. */
 export const CATEGORY_LISTINGS: Record<StorefrontCategory, { to: string; labelKey: string }> = {
   bags: { to: "/category/product-type/handbags", labelKey: "product.bags" },
-  clothing: { to: "/category/product-type/padded-jackets", labelKey: "category.clothing" },
+  clothing: { to: "/category/product-type/jackets", labelKey: "category.clothing" },
 };
 
 /** Upstream category for a page: a product type's own, else bags (brand, style, family). */
@@ -230,6 +233,7 @@ export function categoryTitleKey(
       if (value === "crossbody") return "category.crossbody";
       if (value === "mini-bags") return "category.miniBags";
       if (value === "padded-jackets") return "category.paddedJackets";
+      if (value === "jackets") return "category.jackets";
       return "home.categoryBags";
     case "style":
       return value && value in STYLE_SLUGS ? `category.${value}` : "nav.style";

@@ -352,6 +352,32 @@ async function searchUpstream(
   return data.results ?? [];
 }
 
+/** Page size and cap for listings that want every match (category pages). */
+const LISTING_PAGE_SIZE = 100;
+const LISTING_MAX_PAGES = 10;
+
+/**
+ * Every match, a page at a time: the catalog returns 50 by default and at
+ * most 100, which would cut a category page short (279 jackets). An explicit
+ * limit is a single request, as before.
+ */
+async function searchUpstreamAll(
+  filters: Record<string, string>
+): Promise<UpstreamProduct[]> {
+  if (filters.limit) return searchUpstream(filters);
+  const out: UpstreamProduct[] = [];
+  for (let page = 0; page < LISTING_MAX_PAGES; page++) {
+    const batch = await searchUpstream({
+      ...filters,
+      limit: String(LISTING_PAGE_SIZE),
+      offset: String(page * LISTING_PAGE_SIZE),
+    });
+    out.push(...batch);
+    if (batch.length < LISTING_PAGE_SIZE) break;
+  }
+  return out;
+}
+
 function bagSearchToUpstream(
   filters?: BagSearchFilters
 ): Record<string, string> {
@@ -703,7 +729,7 @@ export async function searchProducts(
     }
   }
 
-  const products = await searchUpstream(upstream);
+  const products = await searchUpstreamAll(upstream);
   const filtered = products.filter((product) => {
     for (const [key, wanted] of local) {
       const actual = taxonomyValue(product, key);
