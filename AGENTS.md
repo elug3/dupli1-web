@@ -14,7 +14,7 @@ Money fields are `*_won` and nothing else. `*_krw` and `*_cents` are dead names 
 
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
-Categories: product sells `bags` and `clothing` (only subcategory `padded`, sizes XXS–XXL). A product-type slug outside bags maps its category in `PRODUCT_TYPE_TO_CATEGORY` (`app/lib/catalog.ts`); brand/style/family pages stay bags. Padded jackets are wired (`/category/product-type/padded-jackets`, PDP breadcrumb, attributes, size guide) but their menu entry stays `launched: false` in `app/lib/nav.ts` until products exist.
+Categories: product sells `bags` and `clothing` (subcategories `jackets` and `padded`). A product-type slug outside bags maps its category in `PRODUCT_TYPE_TO_CATEGORY` (`app/lib/catalog.ts`); brand/style/family pages stay bags. The Jackets menu group (`/category/product-type/jackets` and `/padded-jackets`) is `launched: true` in `app/lib/nav.ts`; Wallets is still `launched: false`.
 
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.
 
