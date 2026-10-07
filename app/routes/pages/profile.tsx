@@ -12,6 +12,8 @@ import { OrderItemThumb } from "~/components/order-item-thumb";
 import { useSupportChat } from "~/components/support-chat";
 import { openSupportChat } from "~/lib/support-chat";
 import { ProductPrice } from "~/components/product-price";
+import { QuestionCard } from "~/components/product-questions";
+import { type ProductQuestion, listAllMyQuestions } from "~/lib/product-questions";
 import { ShippingAddressBook } from "~/components/shipping-address-book";
 import {
   type CustomerAddress,
@@ -66,6 +68,7 @@ const NAV_ITEMS: { id: Section; labelKey: string; icon: React.FC }[] = [
   { id: "promotions", labelKey: "profile.promotionCodes", icon: TagIcon },
   { id: "orders", labelKey: "profile.orders", icon: BoxIcon },
   { id: "settings", labelKey: "profile.accountSettings", icon: SettingsIcon },
+  { id: "questions", labelKey: "qna.title", icon: QuestionIcon },
   { id: "support", labelKey: "profile.support", icon: SupportIcon },
 ];
 
@@ -211,6 +214,7 @@ export default function Profile() {
           {section === "promotions" && <PromotionsSection />}
           {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
+          {section === "questions" && <QuestionsSection />}
           {section === "support" && <SupportSection />}
         </div>
       </div>
@@ -1053,6 +1057,57 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
   );
 }
 
+// ── Product questions ──────────────────────────────────────────────────────
+
+/** Every 상품 문의 the shopper has asked, each linking back to its product. */
+function QuestionsSection() {
+  const { t } = useLanguage();
+  const [questions, setQuestions] = useState<ProductQuestion[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listAllMyQuestions()
+      .then((items) => {
+        if (!cancelled) setQuestions(items);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section>
+      <SectionHeader title={t("qna.title")} count={questions?.length} />
+      <p className="-mt-3 mb-6 text-xs text-zinc-500">{t("qna.privacy")}</p>
+      {failed ? (
+        <EmptyState message={t("qna.unavailable")} />
+      ) : questions === null ? (
+        <p className="py-10 text-center text-sm text-zinc-400">{t("qna.loading")}</p>
+      ) : questions.length === 0 ? (
+        <EmptyState message={t("qna.myPage.empty")} />
+      ) : (
+        <ul className="divide-y divide-zinc-100 border-t border-zinc-100">
+          {questions.map((question) => (
+            <li key={question.id}>
+              <QuestionCard
+                question={question}
+                productLink={`/product/${encodeURIComponent(question.product_id)}?qna=${encodeURIComponent(question.id)}`}
+                onWithdrawn={() =>
+                  setQuestions((current) => current?.filter((q) => q.id !== question.id) ?? null)
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 // ── Support ────────────────────────────────────────────────────────────────
 
 function SupportSection() {
@@ -1166,6 +1221,14 @@ function SettingsIcon() {
     <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
       <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.5" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function QuestionIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
+      <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

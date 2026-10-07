@@ -706,4 +706,45 @@ describe("handleSessionGatewayProxy consultation chat", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("forwards the shopper's product questions", async () => {
+    const seen: string[] = [];
+    const cookie = await signedIn((target, init) => {
+      seen.push(`${init?.method ?? "GET"} ${new URL(target).pathname}`);
+      return jsonResponse({ questions: [] });
+    });
+    for (const [method, path] of [
+      ["GET", "/api/v1/support/products/P01/questions"],
+      ["POST", "/api/v1/support/products/P01/questions"],
+      ["GET", "/api/v1/support/me/product-questions"],
+      ["DELETE", "/api/v1/support/me/product-questions/Q1"],
+    ]) {
+      const res = await handleSessionGatewayProxy(
+        new Request(`http://localhost/auth/session/gateway${path}`, {
+          method,
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          ...(method === "POST" ? { body: "{}" } : {}),
+        })
+      );
+      expect(res.status).toBe(200);
+    }
+    expect(seen).toEqual([
+      "GET /api/v1/support/products/P01/questions",
+      "POST /api/v1/support/products/P01/questions",
+      "GET /api/v1/support/me/product-questions",
+      "DELETE /api/v1/support/me/product-questions/Q1",
+    ]);
+  });
+
+  it("does not reach the staff question queue", async () => {
+    const cookie = await signedIn((target) => {
+      throw new Error(`unexpected fetch: ${target}`);
+    });
+    for (const path of ["/api/v1/support/product-questions", "/api/v1/support/product-questions/Q1/answer"]) {
+      const res = await handleSessionGatewayProxy(
+        new Request(`http://localhost/auth/session/gateway${path}`, { headers: { Cookie: cookie } })
+      );
+      expect(res.status).toBe(404);
+    }
+  });
 });
