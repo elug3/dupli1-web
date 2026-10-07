@@ -38,7 +38,11 @@ The marketplace should not support:
 app/
   root.tsx              Root document layout and error boundary
   routes.ts            Route registration
-  routes/home.tsx      Home route
+  routes/pages/        Page routes (home, category, product, cart, checkout, profile, …)
+  routes/api/          BFF resource routes proxied to the gateway
+  routes/auth-session/ Session login/refresh/logout and the authenticated gateway proxy
+  components/          Shared UI (header, support chat, product questions, …)
+  lib/                 API helpers, i18n, catalog and checkout logic
   app.css              Global styles and Tailwind import
 public/
   favicon.ico          Public browser icon
@@ -123,20 +127,20 @@ The BFF sends the access token as `Authorization: Bearer <token>` when calling
 `POST /api/v1/auth/register`. Never expose these credentials to browsers.
 
 Product catalog reads call the Dupli1 product service
-([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the ALB
+([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the edge
 already routes (`/api/*` → nginx proxy). The browser uses:
 
-- Public search: `GET /api/v1/products?category=bags` — the category comes from the page (`categoryForFacet` in `app/lib/catalog.ts`): `/category/product-type/padded-jackets` sends `category=clothing&subcategory=padded`, every other page `category=bags`
+- Public search: `GET /api/v1/products?category=bags` — the category comes from the page (`categoryForFacet` in `app/lib/catalog.ts`): `/category/product-type/jackets` and `/category/product-type/padded-jackets` send `category=clothing` with `subcategory=jackets` / `padded` (`PRODUCT_TYPE_TO_CATEGORY`), every other page `category=bags`
 - Public product detail: `GET /api/v1/products/{id}` (active products only). Clothing parents may carry `sizeChart` (cm per size → the PDP "Size guide") and free-form `attributes` (fill, lining, care…), shown on the PDP in place of bag dimensions
 - Admin product create: `POST /api/v1/products` (requires `product.create`; body needs existing catalog `brandCode` + `styleCode`)
 - Admin image upload: `POST /api/v1/products/{id}/images` (multipart field `image`)
 
 Product `imageUrls` are absolute CDN/gateway URLs from the product service
-(CloudFront / `images.dupli1.com` in AWS; local Compose uses
+(production on VENUS serves them at `https://dupli1.com/product-images/...`; local Compose uses
 `/product-images/...`). The storefront does not rewrite or proxy them.
 
 Local `npm run dev` registers matching React Router BFF proxies at the same
-`/api/v1/products*` paths so the client code works without an ALB.
+`/api/v1/products*` paths so the client code works without the edge proxy.
 
 Authenticated cart, checkout, orders, and payments call
 `/auth/session/gateway/api/v1/...`. The BFF attaches the session Bearer token
@@ -158,7 +162,7 @@ NANO certified checkout when configured. Dupli1 never collects card PAN/CVC —
 the browser stays on dupli1-web at `/checkout/pay/:paymentId`. That resource
 route's BFF calls the payment-service bridge (`GET /api/v1/payments/{id}/nano/checkout`)
 over the internal gateway. Do not send the shopper to that `/api/v1/...` URL:
-production ALB forwards `/api/*` to `dupli1-proxy`, so it is a gateway endpoint,
+the production edge (VENUS) forwards `/api/*` to `dupli1-proxy`, so it is a gateway endpoint,
 not a storefront page. Staff sessions with
 `payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
 Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
@@ -238,9 +242,16 @@ The storefront supports **English**, Korean, and Chinese via the in-app language
 
 ## Customer Contact
 
-The home and category pages carry a floating **Telegram** chat button
+The home and category pages carry a floating consultation button. A signed-in
+shopper gets the **web consultation chat** (`app/components/support-chat.tsx`,
+`app/lib/support-chat.ts`), which product and order pages can also open with the
+item attached; everyone else gets the **Telegram** button
 (`app/components/telegram-float.tsx`) that opens the consultation bot,
-`@dupli1_support_bot`. The handle lives in `TELEGRAM_CONTACT_HANDLE`
+`@dupli1_support_bot`. Signed-in shoppers can also ask a private question about
+a product from its page (`app/components/product-questions.tsx`; their questions
+are listed on the profile page). Backend contracts:
+[support-web-chat.md](../dupli1/docs/support-web-chat.md),
+[support-product-questions.md](../dupli1/docs/support-product-questions.md). The handle lives in `TELEGRAM_CONTACT_HANDLE`
 (`app/lib/contact.ts`) — change it there; it is a constant, not an env var,
 because the client bundle is baked at image build time. It is a *bot* handle
 rather than the human `@Dupli1212` account because Telegram requires every bot
