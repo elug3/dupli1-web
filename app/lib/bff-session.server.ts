@@ -969,6 +969,12 @@ function serviceForApiPath(path: string): ApiService | null {
   if (path.startsWith("/api/v1/payments")) return "payments";
   // Only the shopper's own consultation; the staff inbox stays manage-web's.
   if (path.startsWith("/api/v1/support/web/")) return "support";
+  // Product questions: the shopper's own only. The staff queue
+  // (/api/v1/support/product-questions) stays manage-web's.
+  if (/^\/api\/v1\/support\/products\/[^/]+\/questions$/.test(path)) return "support";
+  if (path === "/api/v1/support/me/product-questions" || path.startsWith("/api/v1/support/me/product-questions/")) {
+    return "support";
+  }
   return null;
 }
 

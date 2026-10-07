@@ -5,6 +5,7 @@ import { NotFoundPage } from "~/components/not-found";
 import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
+import { ProductQuestionsRow } from "~/components/product-questions";
 import { ConsultButton, useSupportChat } from "~/components/support-chat";
 import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
 import { brandToSlug, categoryListing } from "~/lib/catalog";
@@ -651,6 +652,22 @@ function ProductInfo({
         ].map((item) => (
           <AccordionItem key={item.title} title={item.title} body={item.body} />
         ))}
+        {/* 상품 문의 — private to the shopper and staff */}
+        {product.skuId && (
+          <ProductQuestionsRow
+            productId={product.id}
+            skuId={product.skuId}
+            variantLabel={[
+              selectedVariant?.color ? translateValue("color", selectedVariant.color) : "",
+              selectedVariant?.size ?? "",
+            ]
+              .filter(Boolean)
+              .join(" / ")}
+            isClothing={isClothing}
+            chatPending={productPending}
+            telegramContext={{ surface: "product", ref: product.id, language }}
+          />
+        )}
       </div>
 
     </div>
