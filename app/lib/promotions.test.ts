@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CartItem } from "./cart";
 import {
+  describeConditions,
+  describeOffer,
   evaluatePromotion,
   fetchMyTier,
   fetchWallet,
@@ -8,6 +10,8 @@ import {
   promotionMessageKey,
   rejectionFromBody,
   splitDiscount,
+  toConditions,
+  toOffer,
 } from "./promotions";
 
 const ITEM: CartItem = {
@@ -296,5 +300,90 @@ describe("splitDiscount", () => {
     // Clamped total smaller than the code alone: no tier left.
     expect(splitDiscount(10000, 30000)).toEqual({ codeWon: 10000, tierWon: 0 });
     expect(splitDiscount(5000, 0)).toEqual({ codeWon: 0, tierWon: 5000 });
+  });
+});
+
+describe("toOffer", () => {
+  it("reads a percentage, keeping its cap", () => {
+    expect(
+      toOffer({ benefit: { discount_type: "percent", discount_fraction: 0.1, max_discount_won: 30000 } })
+    ).toEqual({ kind: "percent", percent: 10, maxDiscountWon: 30000 });
+  });
+
+  it("reads a fixed amount", () => {
+    expect(toOffer({ benefit: { discount_type: "fixed", discount_fixed_won: 50000 } })).toEqual({
+      kind: "fixed",
+      amountWon: 50000,
+    });
+  });
+
+  it("falls back to the legacy percentage only when no benefit is set", () => {
+    expect(toOffer({ discount: 0.15 })).toEqual({ kind: "percent", percent: 15 });
+    expect(toOffer({ discount: 0.15, benefit: { discount_type: "none" } })).toBeUndefined();
+    expect(toOffer(null)).toBeUndefined();
+  });
+});
+
+describe("toConditions", () => {
+  it("collects the rules a shopper can read", () => {
+    expect(
+      toConditions({
+        max_per_customer: 1,
+        conditions: {
+          all: [
+            { attr: "subtotal_won", op: "gte", value: 100000 },
+            { attr: "line.category", op: "in", value: ["bags"] },
+            { attr: "line.brandCode", op: "eq", value: "PRA" },
+            { attr: "line.skuId", op: "eq", value: "01J8SKU" },
+          ],
+          exclude: [{ attr: "line.on_sale", op: "eq", value: true }],
+        },
+      })
+    ).toEqual({
+      minSubtotalWon: 100000,
+      categories: ["bags"],
+      brandCodes: ["PRA"],
+      excludesSaleItems: true,
+      maxPerCustomer: 1,
+    });
+  });
+
+  it("is undefined for a code with no rules", () => {
+    expect(toConditions({ conditions: { all: [] }, max_per_customer: 0 })).toBeUndefined();
+  });
+});
+
+describe("describeOffer / describeConditions", () => {
+  const t = (key: string, v?: Record<string, string | number>) =>
+    key === "category.bags" ? "Bags" : `${key}${v ? JSON.stringify(v) : ""}`;
+  const won = (n: number) => `₩${n}`;
+
+  it("words each offer", () => {
+    expect(describeOffer({ kind: "fixed", amountWon: 50000 }, t, won)).toBe(
+      'promo.offerFixed{"amount":"₩50000"}'
+    );
+    expect(describeOffer({ kind: "percent", percent: 10, maxDiscountWon: 30000 }, t, won)).toBe(
+      'promo.offerPercent{"percent":10}, promo.offerCap{"amount":"₩30000"}'
+    );
+    expect(describeOffer(undefined, t, won)).toBe("");
+  });
+
+  it("lists conditions in display order", () => {
+    expect(
+      describeConditions(
+        {
+          conditions: { minSubtotalWon: 100000, categories: ["bags"], maxPerCustomer: 1 },
+          expiresAt: "2026-10-31T14:59:59Z",
+        },
+        t,
+        won,
+        () => "2026. 10. 31."
+      )
+    ).toEqual([
+      'promo.condMinSpend{"amount":"₩100000"}',
+      'promo.condCategory{"categories":"Bags"}',
+      "promo.condOnce",
+      'promo.condExpires{"date":"2026. 10. 31."}',
+    ]);
   });
 });
