@@ -6,10 +6,13 @@ import { canBypassPayment, getMe, type User } from "~/lib/auth";
 import { clearCart } from "~/lib/cart";
 import {
   type AppliedPromotion,
+  describeConditions,
+  describeOffer,
   evaluatePromotion,
   promotionMessageKey,
   PromotionRejectedError,
   splitDiscount,
+  type WalletEntry,
 } from "~/lib/promotions";
 import { useMemberTier, usePromotionWallet } from "~/components/promotion-wallet";
 import {
@@ -1133,15 +1136,7 @@ export default function CheckoutPage() {
                     content: (
                       <OptionLines
                         title={entry.code}
-                        detail={
-                          entry.eligible
-                            ? t("promo.walletSaves", {
-                                amount: formatCurrency(entry.discountWon),
-                              })
-                            : entry.rejection
-                              ? t(promotionMessageKey(entry.rejection))
-                              : entry.description
-                        }
+                        detail={<WalletOptionDetail entry={entry} />}
                       />
                     ),
                   })),
@@ -1910,5 +1905,27 @@ function BackIcon() {
     <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
       <path d="m15 18-6-6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
     </svg>
+  );
+}
+
+/**
+ * A wallet code's lines in the promotional-code dropdown: what the code gives
+ * and what it saves on this bag (or why it can't be used), then its conditions,
+ * so a shopper can choose between codes without leaving checkout.
+ */
+function WalletOptionDetail({ entry }: { entry: WalletEntry }) {
+  const { t, formatCurrency, formatDateTime } = useLanguage();
+  const offer = describeOffer(entry.offer, t, formatCurrency);
+  const verdict = entry.eligible
+    ? t("promo.walletSaves", { amount: formatCurrency(entry.discountWon) })
+    : entry.rejection
+      ? t(promotionMessageKey(entry.rejection))
+      : entry.description;
+  const conditions = describeConditions(entry, t, formatCurrency, formatDateTime);
+  return (
+    <>
+      <span className="block">{[offer, verdict].filter(Boolean).join(" · ")}</span>
+      {conditions.length > 0 && <span className="block">{conditions.join(" · ")}</span>}
+    </>
   );
 }

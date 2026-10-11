@@ -218,6 +218,155 @@ export interface WalletEntry {
   /** Whole KRW this bag earns with the code, as the service priced it. */
   discountWon: number;
   rejection?: PromotionRejection;
+  /** What the code gives as its definition states it, whatever the bag. */
+  offer?: PromotionOffer;
+  /** The rules a shopper can read before picking the code; absent when none. */
+  conditions?: PromotionConditions;
+}
+
+/** A code's benefit, e.g. 10% off up to ₩30,000, or ₩50,000 off. */
+export type PromotionOffer =
+  | { kind: "percent"; percent: number; maxDiscountWon?: number }
+  | { kind: "fixed"; amountWon: number };
+
+/**
+ * The parts of a code's eligibility a shopper can act on. Line rules naming a
+ * SKU or product are left out: there is nothing readable to say about them,
+ * and the service still judges them.
+ */
+export interface PromotionConditions {
+  minSubtotalWon?: number;
+  categories?: string[];
+  /** Brand codes (`PRA`), internal; shown only as "selected brands". */
+  brandCodes?: string[];
+  excludesSaleItems?: boolean;
+  maxPerCustomer?: number;
+}
+
+interface RawPredicate {
+  attr?: string;
+  op?: string;
+  value?: unknown;
+}
+
+interface RawPromotion {
+  description?: string;
+  terms?: string;
+  expires_at?: string | null;
+  max_per_customer?: number;
+  /** Legacy percentage (0.1 = 10%) on definitions written before `benefit`. */
+  discount?: number;
+  benefit?: {
+    discount_type?: string;
+    discount_fraction?: number;
+    discount_fixed_won?: number;
+    max_discount_won?: number | null;
+  } | null;
+  conditions?: { all?: RawPredicate[]; exclude?: RawPredicate[] } | null;
+}
+
+/** Reads the benefit document; undefined when it names no discount. */
+export function toOffer(promotion: RawPromotion | null | undefined): PromotionOffer | undefined {
+  const benefit = promotion?.benefit;
+  if (benefit?.discount_type === "fixed" && (benefit.discount_fixed_won ?? 0) > 0) {
+    return { kind: "fixed", amountWon: benefit.discount_fixed_won as number };
+  }
+  const fraction =
+    benefit?.discount_type === "percent"
+      ? benefit.discount_fraction
+      : benefit?.discount_type
+        ? undefined
+        : promotion?.discount;
+  if (!fraction || fraction <= 0 || fraction >= 1) return undefined;
+  const cap = benefit?.max_discount_won ?? undefined;
+  return {
+    kind: "percent",
+    // 0.1 → 10, without 10.000000000000002.
+    percent: Math.round(fraction * 1000) / 10,
+    ...(cap && cap > 0 ? { maxDiscountWon: cap } : {}),
+  };
+}
+
+function stringValues(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [value];
+  return list.filter((v): v is string => typeof v === "string" && v !== "");
+}
+
+/** Reads the conditions document; undefined when nothing is worth showing. */
+export function toConditions(
+  promotion: RawPromotion | null | undefined
+): PromotionConditions | undefined {
+  const out: PromotionConditions = {};
+  for (const p of promotion?.conditions?.all ?? []) {
+    const num = typeof p.value === "number" ? p.value : Number.NaN;
+    if (p.attr === "subtotal_won" && (p.op === "gte" || p.op === "gt") && num > 0) {
+      out.minSubtotalWon = p.op === "gt" ? num + 1 : num;
+    } else if (p.attr === "line.category" && (p.op === "eq" || p.op === "in")) {
+      out.categories = stringValues(p.value);
+    } else if (p.attr === "line.brandCode" && (p.op === "eq" || p.op === "in")) {
+      out.brandCodes = stringValues(p.value);
+    } else if (p.attr === "line.on_sale" && p.op === "eq" && p.value === false) {
+      out.excludesSaleItems = true;
+    }
+  }
+  for (const p of promotion?.conditions?.exclude ?? []) {
+    if (p.attr === "line.on_sale" && p.op === "eq" && p.value === true) {
+      out.excludesSaleItems = true;
+    }
+  }
+  if ((promotion?.max_per_customer ?? 0) > 0) {
+    out.maxPerCustomer = promotion?.max_per_customer;
+  }
+  if (!out.categories?.length) delete out.categories;
+  if (!out.brandCodes?.length) delete out.brandCodes;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/** "10% off, up to ₩30,000" / "₩50,000 off"; "" when the offer is unknown. */
+export function describeOffer(
+  offer: PromotionOffer | undefined,
+  t: Translate,
+  formatCurrency: (amount: number) => string
+): string {
+  if (!offer) return "";
+  if (offer.kind === "fixed") {
+    return t("promo.offerFixed", { amount: formatCurrency(offer.amountWon) });
+  }
+  const base = t("promo.offerPercent", { percent: offer.percent });
+  return offer.maxDiscountWon
+    ? `${base}, ${t("promo.offerCap", { amount: formatCurrency(offer.maxDiscountWon) })}`
+    : base;
+}
+
+/** The readable conditions in display order: spend, scope, uses, expiry. */
+export function describeConditions(
+  entry: Pick<WalletEntry, "conditions" | "expiresAt">,
+  t: Translate,
+  formatCurrency: (amount: number) => string,
+  formatDateTime: (iso: string) => string
+): string[] {
+  const c = entry.conditions ?? {};
+  const parts: string[] = [];
+  if (c.minSubtotalWon) {
+    parts.push(t("promo.condMinSpend", { amount: formatCurrency(c.minSubtotalWon) }));
+  }
+  if (c.categories?.length) {
+    const names = c.categories.map((code) => {
+      const key = `category.${code}`;
+      const name = t(key);
+      return name === key ? code : name;
+    });
+    parts.push(t("promo.condCategory", { categories: names.join(", ") }));
+  }
+  if (c.brandCodes?.length) parts.push(t("promo.condBrand"));
+  if (c.excludesSaleItems) parts.push(t("promo.condNoSale"));
+  if (c.maxPerCustomer === 1) parts.push(t("promo.condOnce"));
+  else if (c.maxPerCustomer) parts.push(t("promo.condUses", { count: c.maxPerCustomer }));
+  const expires = entry.expiresAt ? formatDateTime(entry.expiresAt) : "";
+  if (expires) parts.push(t("promo.condExpires", { date: expires }));
+  return parts;
 }
 
 interface RawWalletEntry {
@@ -227,7 +376,7 @@ interface RawWalletEntry {
     expires_at?: string | null;
     revoked_at?: string | null;
   };
-  promotion?: { description?: string; terms?: string } | null;
+  promotion?: RawPromotion | null;
   eligible?: boolean;
   discount_won?: number;
   reason?: string;
@@ -277,12 +426,15 @@ export async function fetchWallet(options: {
       code: raw.entitlement?.code ?? "",
       description: raw.promotion?.description ?? "",
       terms: raw.promotion?.terms ?? "",
-      expiresAt: raw.entitlement?.expires_at ?? undefined,
+      // The entitlement's own window wins; otherwise the campaign's.
+      expiresAt: raw.entitlement?.expires_at ?? raw.promotion?.expires_at ?? undefined,
       eligible: Boolean(raw.eligible),
       discountWon: raw.discount_won ?? 0,
       rejection: raw.eligible
         ? undefined
         : { reason: toReason(raw.reason), subReason: raw.sub_reason },
+      offer: toOffer(raw.promotion),
+      conditions: toConditions(raw.promotion),
     }));
 }
 
