@@ -14,7 +14,8 @@ import {
   brandDisplayName,
 } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
-import { NAV_GROUPS, VISIBLE_NAV_GROUPS, navItemLabel } from "~/lib/nav";
+import { VISIBLE_NAV_GROUPS, navItemLabel, visibleNavGroups, visibleNavItems } from "~/lib/nav";
+import { useNavShelves } from "~/lib/useNavShelves";
 import { NavImage } from "~/components/nav-image";
 import {
   PRODUCT_GRID_CLASS,
@@ -136,8 +137,16 @@ function Hero() {
  */
 function CategoryTiles() {
   const { t } = useLanguage();
-  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
-  const style = VISIBLE_NAV_GROUPS.find((g) => g.id === "style");
+  const shelves = useNavShelves();
+  const subjects = visibleNavGroups(
+    VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject"),
+    shelves
+  );
+  const styles = visibleNavItems(
+    VISIBLE_NAV_GROUPS.find((g) => g.id === "style")?.items ?? [],
+    shelves
+  );
+  if (subjects.length === 0 && styles.length === 0) return null;
 
   return (
     <section className="px-4 py-16 md:px-8 md:py-24">
@@ -145,32 +154,36 @@ function CategoryTiles() {
         <SectionHeading title={t("home.categoriesTitle")} />
 
         <div className="grid gap-12">
-          {subjects.map((subject) => (
-            <div key={subject.id} className="min-w-0">
-              {subjects.length > 1 && (
-                <h3 className="mb-4 text-small text-mute">{t(subject.labelKey)}</h3>
-              )}
-              <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
-                {subject.items.map((item) => (
-                  <li key={item.to} className="w-[42vw] shrink-0 snap-start md:w-auto">
-                    <Link to={item.to} className="group block">
-                      <NavImage
-                        to={item.to}
-                        className="aspect-square transition-opacity duration-300 ease-lux group-hover:opacity-85"
-                      />
-                      <p className="mt-3 text-small">{navItemLabel(item, t)}</p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {subjects.map((subject) => {
+            const items = visibleNavItems(subject.items, shelves);
+            if (items.length === 0) return null;
+            return (
+              <div key={subject.id} className="min-w-0">
+                {subjects.length > 1 && (
+                  <h3 className="mb-4 text-small text-mute">{t(subject.labelKey)}</h3>
+                )}
+                <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+                  {items.map((item) => (
+                    <li key={item.to} className="w-[42vw] shrink-0 snap-start md:w-auto">
+                      <Link to={item.to} className="group block">
+                        <NavImage
+                          to={item.to}
+                          className="aspect-square transition-opacity duration-300 ease-lux group-hover:opacity-85"
+                        />
+                        <p className="mt-3 text-small">{navItemLabel(item, t)}</p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </div>
 
-        {style && (
+        {styles.length > 0 && (
           <div className="mt-12 flex flex-wrap items-center justify-center gap-2">
             <span className="mr-2 text-small text-mute">{t("home.shopByStyle")}</span>
-            {style.items.map((item) => (
+            {styles.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -273,7 +286,12 @@ function Hub({
 /** The houses as a line of names: type does the work the logo tiles did. */
 function BrandRow() {
   const { t } = useLanguage();
-  const brands = NAV_GROUPS.find((g) => g.id === "brand")?.items ?? [];
+  const shelves = useNavShelves();
+  const brands = visibleNavItems(
+    VISIBLE_NAV_GROUPS.find((g) => g.id === "brand")?.items ?? [],
+    shelves
+  );
+  if (brands.length === 0) return null;
 
   return (
     <section className="border-y border-rule px-4 py-16 md:px-8 md:py-20">

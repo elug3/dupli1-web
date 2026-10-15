@@ -91,5 +91,8 @@ export default [
   route("login", "routes/pages/login.tsx"),
   route("products/new", "routes/pages/product-new.tsx"),
   route("category/:facet/:value", "routes/pages/category.tsx"),
+  // Menu/home category photos warmed at startup. Not under /api: production
+  // ALB sends /api/* to the gateway, and these bytes live in this process.
+  route("media/nav-image", "routes/media/nav-image.ts"),
   route("*", "routes/pages/not-found.tsx"),
 ] satisfies RouteConfig;

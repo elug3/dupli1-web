@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { useLanguage } from "~/lib/i18n";
-import { VISIBLE_NAV_GROUPS, type NavGroup, navItemLabel } from "~/lib/nav";
+import {
+  VISIBLE_NAV_GROUPS,
+  type NavGroup,
+  navCoverPath,
+  navGroupDestination,
+  navItemLabel,
+  visibleNavGroups,
+  visibleNavItems,
+} from "~/lib/nav";
+import { useNavShelves } from "~/lib/useNavShelves";
 
 import { NavImage } from "./nav-image";
 
@@ -32,10 +41,12 @@ export function MenuDrawer({
   // Bumped on every open so level one's rows replay their entrance, but not
   // on close, where they would fade while the drawer slides away.
   const [openCount, setOpenCount] = useState(0);
-  const group = VISIBLE_NAV_GROUPS.find((g) => g.id === groupId) ?? null;
+  const shelves = useNavShelves();
+  const groups = visibleNavGroups(VISIBLE_NAV_GROUPS, shelves);
+  const group = groups.find((g) => g.id === groupId) ?? null;
   const shownGroup = VISIBLE_NAV_GROUPS.find((g) => g.id === shownGroupId) ?? null;
-  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
-  const facets = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "facet");
+  const subjects = groups.filter((g) => g.kind === "subject");
+  const facets = groups.filter((g) => g.kind === "facet");
 
   useEffect(() => {
     if (groupId) setShownGroupId(groupId);
@@ -126,7 +137,7 @@ export function MenuDrawer({
                     onClick={() => setGroupId(g.id)}
                     className="group flex w-full items-center gap-4 text-left"
                   >
-                    <NavImage to={g.to} className="size-20 shrink-0" />
+                    <NavImage to={navCoverPath(g, shelves) ?? g.to} className="size-20 shrink-0" />
                     <span className="flex-1 text-xl">{t(g.labelKey)}</span>
                     <ChevronIcon className="transition-transform duration-300 ease-lux group-hover:translate-x-1" />
                   </button>
@@ -172,17 +183,23 @@ function stagger(index: number): React.CSSProperties {
 
 function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
   const { t } = useLanguage();
+  const shelves = useNavShelves();
+  const items = visibleNavItems(group.items, shelves);
 
   return (
     <div className="mt-6">
       <div className="mb-5 flex items-baseline justify-between gap-4">
         <h2 className="text-xl">{t(group.labelKey)}</h2>
-        <Link to={group.to} onClick={onNavigate} className="text-small text-mute underline underline-offset-4 hover:text-ink">
+        <Link
+          to={navGroupDestination(group, shelves)}
+          onClick={onNavigate}
+          className="text-small text-mute underline underline-offset-4 hover:text-ink"
+        >
           {t("nav.viewAll")}
         </Link>
       </div>
       <ul key={group.id} className="grid grid-cols-2 gap-x-3 gap-y-5">
-        {group.items.map((item, i) => (
+        {items.map((item, i) => (
           <li key={item.to} className="animate-menu-item-in" style={stagger(i + 1)}>
             <Link to={item.to} onClick={onNavigate} className="block">
               <NavImage to={item.to} className="aspect-square" />
