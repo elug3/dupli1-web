@@ -28,8 +28,10 @@ import {
 } from "./components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
+import { loadNavCatalog } from "./lib/nav-catalog.server";
 import { startSupportChat } from "./lib/support-chat";
-import { VISIBLE_NAV_GROUPS } from "./lib/nav";
+import { VISIBLE_NAV_GROUPS, navGroupDestination, navPreloadHrefs, visibleNavGroups } from "./lib/nav";
+import { useNavShelves } from "./lib/useNavShelves";
 import { recordBrowserVisit } from "./lib/visit-beacon";
 import { sentryConfigScript } from "./lib/sentry";
 import { loadSentryBrowserConfig } from "./lib/sentry.server";
@@ -55,8 +57,10 @@ export const links = () => [
   },
 ];
 
-export function loader() {
-  return { sentry: loadSentryBrowserConfig() };
+export async function loader() {
+  // Same sweep startNavCatalog began at process start. Usually already done.
+  const navShelves = await loadNavCatalog();
+  return { sentry: loadSentryBrowserConfig(), navShelves };
 }
 
 // The root loader only carries static process config, so navigations never
@@ -66,7 +70,9 @@ export function shouldRevalidate() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const sentry = useRouteLoaderData<typeof loader>("root")?.sentry;
+  const data = useRouteLoaderData<typeof loader>("root");
+  const sentry = data?.sentry;
+  const preloads = navPreloadHrefs(data?.navShelves ?? {});
   return (
     <html lang="ko">
       <head>
@@ -74,6 +80,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {preloads.map((href) => (
+          <link key={href} rel="preload" as="image" href={href} />
+        ))}
         {sentry && <script dangerouslySetInnerHTML={{ __html: sentryConfigScript(sentry) }} />}
       </head>
       <body>
@@ -157,7 +166,9 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 
 function Footer() {
   const { t } = useLanguage();
+  const shelves = useNavShelves();
   const linkClass = "transition hover:text-ink";
+  const groups = visibleNavGroups(VISIBLE_NAV_GROUPS, shelves);
 
   return (
     <footer className="border-t border-rule bg-white px-4 pt-10 pb-12 md:px-8 md:py-16">
@@ -175,10 +186,10 @@ function Footer() {
           </div>
 
           <FooterColumn title={t("footer.shop")}>
-            {VISIBLE_NAV_GROUPS.map(({ id, labelKey, to }) => (
-              <li key={id}>
-                <NavLink to={to} className={linkClass}>
-                  {t(labelKey)}
+            {groups.map((group) => (
+              <li key={group.id}>
+                <NavLink to={navGroupDestination(group, shelves)} className={linkClass}>
+                  {t(group.labelKey)}
                 </NavLink>
               </li>
             ))}
