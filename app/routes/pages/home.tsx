@@ -14,7 +14,8 @@ import {
   brandDisplayName,
 } from "~/lib/catalog";
 import { useLanguage } from "~/lib/i18n";
-import { NAV_GROUPS, VISIBLE_NAV_GROUPS, navItemLabel } from "~/lib/nav";
+import { NAV_GROUPS, VISIBLE_NAV_GROUPS, navItemLabel, visiblePicturedItems } from "~/lib/nav";
+import { useNavImages } from "~/lib/useNavImages";
 import { NavImage } from "~/components/nav-image";
 import {
   PRODUCT_GRID_CLASS,
@@ -130,13 +131,18 @@ function Hero() {
 // ── Category tiles ─────────────────────────────────────────────────────────
 
 /**
- * Every item of every launched subject as a picture tile, then the styles as
- * a row of links. Reads the menu's tree, so wallets and padded jackets get
- * their own row of tiles the day they launch.
+ * Every launched subject as picture tiles, then the styles as a row of links.
+ * A category with no product is left out, so an empty subject never leaves a
+ * blank tile. Reads the menu's tree, so a new subject gets a row when it launches.
  */
 function CategoryTiles() {
   const { t } = useLanguage();
-  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
+  const images = useNavImages();
+  // An empty category is a blank tile. Drop it here and in the drawer; drop
+  // the whole row when nothing in that subject is on sale.
+  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject")
+    .map((group) => ({ group, items: visiblePicturedItems(group.items, images) }))
+    .filter((subject) => subject.items.length > 0);
   const style = VISIBLE_NAV_GROUPS.find((g) => g.id === "style");
 
   return (
@@ -145,13 +151,13 @@ function CategoryTiles() {
         <SectionHeading title={t("home.categoriesTitle")} />
 
         <div className="grid gap-12">
-          {subjects.map((subject) => (
-            <div key={subject.id} className="min-w-0">
+          {subjects.map(({ group, items }) => (
+            <div key={group.id} className="min-w-0">
               {subjects.length > 1 && (
-                <h3 className="mb-4 text-small text-mute">{t(subject.labelKey)}</h3>
+                <h3 className="mb-4 text-small text-mute">{t(group.labelKey)}</h3>
               )}
               <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
-                {subject.items.map((item) => (
+                {items.map((item) => (
                   <li key={item.to} className="w-[42vw] shrink-0 snap-start md:w-auto">
                     <Link to={item.to} className="group block">
                       <NavImage

@@ -30,6 +30,7 @@ import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { startSupportChat } from "./lib/support-chat";
 import { VISIBLE_NAV_GROUPS } from "./lib/nav";
+import { readNavImages } from "./lib/nav-image-cache.server";
 import { recordBrowserVisit } from "./lib/visit-beacon";
 import { sentryConfigScript } from "./lib/sentry";
 import { loadSentryBrowserConfig } from "./lib/sentry.server";
@@ -55,8 +56,11 @@ export const links = () => [
   },
 ];
 
-export function loader() {
-  return { sentry: loadSentryBrowserConfig() };
+export async function loader() {
+  return {
+    sentry: loadSentryBrowserConfig(),
+    navImages: await readNavImages(),
+  };
 }
 
 // The root loader only carries static process config, so navigations never
@@ -66,7 +70,13 @@ export function shouldRevalidate() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const sentry = useRouteLoaderData<typeof loader>("root")?.sentry;
+  const data = useRouteLoaderData<typeof loader>("root");
+  const sentry = data?.sentry;
+  const preloadedImages = [
+    ...new Set(
+      Object.values(data?.navImages ?? {}).filter((url): url is string => typeof url === "string" && url.length > 0)
+    ),
+  ];
   return (
     <html lang="ko">
       <head>
@@ -74,6 +84,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {preloadedImages.map((href) => (
+          <link key={href} rel="preload" as="image" href={href} />
+        ))}
         {sentry && <script dangerouslySetInnerHTML={{ __html: sentryConfigScript(sentry) }} />}
       </head>
       <body>

@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { useLanguage } from "~/lib/i18n";
-import { VISIBLE_NAV_GROUPS, type NavGroup, navItemLabel } from "~/lib/nav";
+import {
+  VISIBLE_NAV_GROUPS,
+  type NavGroup,
+  navItemLabel,
+  navTargetEmpty,
+  subjectRowImageTo,
+  visiblePicturedItems,
+} from "~/lib/nav";
+import { useNavImages } from "~/lib/useNavImages";
 
 import { NavImage } from "./nav-image";
 
@@ -32,9 +40,14 @@ export function MenuDrawer({
   // Bumped on every open so level one's rows replay their entrance, but not
   // on close, where they would fade while the drawer slides away.
   const [openCount, setOpenCount] = useState(0);
+  const images = useNavImages();
   const group = VISIBLE_NAV_GROUPS.find((g) => g.id === groupId) ?? null;
   const shownGroup = VISIBLE_NAV_GROUPS.find((g) => g.id === shownGroupId) ?? null;
-  const subjects = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "subject");
+  // A subject row whose every category is empty is the blank tile in the
+  // drawer. One empty subcategory still leaves the row, with a sibling photo.
+  const subjects = VISIBLE_NAV_GROUPS.filter(
+    (g) => g.kind === "subject" && subjectRowImageTo(g, images) !== null
+  );
   const facets = VISIBLE_NAV_GROUPS.filter((g) => g.kind === "facet");
 
   useEffect(() => {
@@ -126,7 +139,7 @@ export function MenuDrawer({
                     onClick={() => setGroupId(g.id)}
                     className="group flex w-full items-center gap-4 text-left"
                   >
-                    <NavImage to={g.to} className="size-20 shrink-0" />
+                    <NavImage to={subjectRowImageTo(g, images) ?? g.to} className="size-20 shrink-0" />
                     <span className="flex-1 text-xl">{t(g.labelKey)}</span>
                     <ChevronIcon className="transition-transform duration-300 ease-lux group-hover:translate-x-1" />
                   </button>
@@ -172,17 +185,20 @@ function stagger(index: number): React.CSSProperties {
 
 function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
   const { t } = useLanguage();
+  const images = useNavImages();
+  const items = visiblePicturedItems(group.items, images);
+  const viewAll = navTargetEmpty(images, group.to) ? (items[0]?.to ?? group.to) : group.to;
 
   return (
     <div className="mt-6">
       <div className="mb-5 flex items-baseline justify-between gap-4">
         <h2 className="text-xl">{t(group.labelKey)}</h2>
-        <Link to={group.to} onClick={onNavigate} className="text-small text-mute underline underline-offset-4 hover:text-ink">
+        <Link to={viewAll} onClick={onNavigate} className="text-small text-mute underline underline-offset-4 hover:text-ink">
           {t("nav.viewAll")}
         </Link>
       </div>
       <ul key={group.id} className="grid grid-cols-2 gap-x-3 gap-y-5">
-        {group.items.map((item, i) => (
+        {items.map((item, i) => (
           <li key={item.to} className="animate-menu-item-in" style={stagger(i + 1)}>
             <Link to={item.to} onClick={onNavigate} className="block">
               <NavImage to={item.to} className="aspect-square" />

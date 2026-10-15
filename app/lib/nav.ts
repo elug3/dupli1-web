@@ -103,8 +103,83 @@ export function navItemLabel(item: NavItem, t: (key: string) => string): string 
   return "labelKey" in item ? t(item.labelKey) : item.label;
 }
 
-// One request per item, once per page load: the drawer asks again only for
-// items it has not seen.
+/**
+ * Category paths that render a product photo: launched subject rows and
+ * their tiles. Brand and style stay text, so they are not pictured.
+ */
+export function picturedNavPaths(): string[] {
+  const paths = new Set<string>();
+  for (const group of VISIBLE_NAV_GROUPS) {
+    if (group.kind !== "subject") continue;
+    paths.add(group.to);
+    for (const item of group.items) paths.add(item.to);
+  }
+  return [...paths];
+}
+
+/** Search for the single most-viewed product that represents `to`. */
+export function categoryImageQuery(to: string): BagSearchFilters | null {
+  const [, , facet, value] = to.split("/");
+  if (!facet || !isCategoryFacet(facet)) return null;
+  return {
+    ...(buildCategorySearchParams(facet, value) as BagSearchFilters),
+    category: categoryForFacet(facet, value),
+    sort: "views",
+    limit: 1,
+  };
+}
+
+/**
+ * Startup cache of category photos. `null` means the category was looked up
+ * and has no product; a missing key means we do not know yet.
+ */
+export type NavImageMap = Record<string, string | null>;
+
+export function navImageFromMap(
+  images: NavImageMap | undefined,
+  to: string
+): string | null | undefined {
+  if (!images || !Object.prototype.hasOwnProperty.call(images, to)) return undefined;
+  return images[to];
+}
+
+/** True only when the catalog confirmed this category has no product. */
+export function navTargetEmpty(images: NavImageMap | undefined, to: string): boolean {
+  return navImageFromMap(images, to) === null;
+}
+
+/** Drop tiles whose category has no product. Unknown lookups stay visible. */
+export function visiblePicturedItems<T extends { to: string }>(
+  items: T[],
+  images: NavImageMap | undefined
+): T[] {
+  return items.filter((item) => !navTargetEmpty(images, item.to));
+}
+
+/**
+ * Thumbnail path for a side-nav subject row.
+ * Prefers the group's own category, then the first child that has a product,
+ * so an empty subcategory does not leave a blank row while a sibling is on
+ * sale. Returns null when every pictured category in the group is empty —
+ * that row is the menu for a category with nothing to sell.
+ */
+export function subjectRowImageTo(
+  group: NavGroup,
+  images: NavImageMap | undefined
+): string | null {
+  const targets = [...new Set([group.to, ...group.items.map((item) => item.to)])];
+  if (targets.length > 0 && targets.every((to) => navTargetEmpty(images, to))) return null;
+  // Unknown still uses the group's own category; only a confirmed empty one
+  // falls through to a sibling that has (or might have) a product.
+  if (!navTargetEmpty(images, group.to)) return group.to;
+  const pictured = group.items.find((item) => images?.[item.to]);
+  if (pictured) return pictured.to;
+  const pending = group.items.find((item) => !navTargetEmpty(images, item.to));
+  return pending?.to ?? null;
+}
+
+// Same-page fallback when the startup cache has no entry for a path. The
+// day-long cache lives on the server and arrives with the root loader.
 const imageCache = new Map<string, Promise<string | null>>();
 
 /**
@@ -115,20 +190,14 @@ export function navItemImage(to: string): Promise<string | null> {
   const cached = imageCache.get(to);
   if (cached) return cached;
 
-  const [, , facet, value] = to.split("/");
-  const request =
-    facet && isCategoryFacet(facet)
-      ? fetchBags({
-          ...(buildCategorySearchParams(facet, value) as BagSearchFilters),
-          category: categoryForFacet(facet, value),
-          sort: "views",
-          limit: 1,
-        })
-          .then((bags) =>
-            bags[0] ? listingProductImage(bags[0].category, bags[0].brand, bags[0].image) : null
-          )
-          .catch(() => null)
-      : Promise.resolve(null);
+  const query = categoryImageQuery(to);
+  const request = query
+    ? fetchBags(query)
+        .then((bags) =>
+          bags[0] ? listingProductImage(bags[0].category, bags[0].brand, bags[0].image) : null
+        )
+        .catch(() => null)
+    : Promise.resolve(null);
 
   imageCache.set(to, request);
   return request;
