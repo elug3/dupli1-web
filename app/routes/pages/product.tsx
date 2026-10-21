@@ -156,7 +156,7 @@ function ProductLayout({ product: parent }: { product: ServerProduct }) {
   const sheet = useProductSheet();
   const imagesKey = images.map((img) => img.src).join("|");
 
-  // A color with its own photos swaps the gallery; start it from the top.
+  // A color or size with its own photos swaps the gallery; start it from the top.
   useEffect(() => {
     setActiveImg(0);
   }, [imagesKey]);
