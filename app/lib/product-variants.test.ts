@@ -7,6 +7,7 @@ import {
   pickVariant,
   swatchColor,
   variantColors,
+  variantImages,
   variantSizes,
   withVariant,
 } from "./product-variants";
@@ -120,6 +121,45 @@ describe("defaultVariant / withVariant", () => {
     const next = withVariant(product, v("Cognac", "L", 1, ["/cognac-1.jpg", "/cognac-2.jpg"]));
     expect(next.images).toEqual(["/cognac-1.jpg", "/cognac-2.jpg"]);
     expect(next.image).toBe("/cognac-1.jpg");
+  });
+
+  it("applies the SKU's effective price, keeping the parent's when it has none", () => {
+    expect(withVariant(product, { ...grid[2], price: 1200, officialPrice: 1500 })).toMatchObject({
+      price: 1200,
+      officialPrice: 1500,
+    });
+    expect(withVariant({ ...product, officialPrice: 1300 }, grid[2])).toMatchObject({
+      price: 1000,
+      officialPrice: 1300,
+    });
+  });
+});
+
+describe("variantImages", () => {
+  const sized = [
+    v("Black", "M", 1, ["/black-m.jpg"]),
+    v("Black", "L", 1, ["/black-l-1.jpg", "/black-l-2.jpg"]),
+    v("Black", "S"),
+    v("Cognac", "M", 1, ["/cognac.jpg"]),
+    v("Cognac", "L"),
+    v("Navy", "M"),
+  ];
+  const withSized = { ...product, variants: sized };
+
+  it("uses the SKU's own photos, so each size can show its own", () => {
+    expect(variantImages(sized, sized[0])).toEqual(["/black-m.jpg"]);
+    expect(variantImages(sized, sized[1])).toEqual(["/black-l-1.jpg", "/black-l-2.jpg"]);
+  });
+
+  it("falls back to another SKU in the same color", () => {
+    expect(variantImages(sized, sized[2])).toEqual(["/black-m.jpg"]);
+    expect(variantImages(sized, sized[4])).toEqual(["/cognac.jpg"]);
+    expect(withVariant(withSized, sized[4]).images).toEqual(["/cognac.jpg"]);
+  });
+
+  it("falls back to the product's photos when the color has none", () => {
+    expect(variantImages(sized, sized[5])).toEqual([]);
+    expect(withVariant(withSized, sized[5]).images).toEqual(["/parent.jpg"]);
   });
 });
 

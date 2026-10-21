@@ -82,7 +82,14 @@ export interface ProductVariant {
   availableQty?: number;
   inStock?: boolean;
   dimensions?: ProductDimensions;
-  /** Variant-specific gallery; empty means use the parent's images. */
+  /** Effective selling price (KRW won): the SKU's override, else the parent's. */
+  price?: number;
+  /** Effective reference price (KRW won); undefined when there is none. */
+  officialPrice?: number;
+  /**
+   * Variant-specific gallery; empty means use another SKU of the same color,
+   * then the parent's images (see `variantImages`).
+   */
   images: string[];
 }
 
@@ -129,7 +136,7 @@ interface UpstreamProduct {
     /** Letter size label (S/M/L); distinct from `dimensions`. */
     size?: string;
     sizeCode?: string;
-    /** Echo of parent price for cart clients. */
+    /** Effective price: the SKU's override, else the parent's. */
     price?: number;
     officialPrice?: number;
     status: string;
@@ -157,6 +164,10 @@ function upstreamOfficialPrice(product: UpstreamProduct): number | undefined {
     return undefined;
   }
   return official;
+}
+
+function positiveWon(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function upstreamImage(product: UpstreamProduct): string | undefined {
@@ -275,6 +286,8 @@ function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
       availableQty: v.availableQty,
       inStock: v.inStock,
       dimensions: normalizeDimensions(v.dimensions) ?? undefined,
+      price: positiveWon(v.price),
+      officialPrice: positiveWon(v.officialPrice),
       images: (v.imageUrls ?? []).filter((url) => url.trim().length > 0),
     }));
 }

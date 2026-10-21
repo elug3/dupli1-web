@@ -143,12 +143,28 @@ export function isCombinationAvailable(
 }
 
 /**
+ * The gallery for `variant`: its own photos, else the photos of another SKU
+ * in the same color (staff photograph a color once, not every size), else
+ * empty — the caller then falls back to the product's default photos.
+ */
+export function variantImages(
+  variants: ProductVariant[],
+  variant: ProductVariant | undefined
+): string[] {
+  if (!variant) return [];
+  if (variant.images.length > 0) return variant.images;
+  if (!variant.color) return [];
+  return variants.find((v) => v.color === variant.color && v.images.length > 0)?.images ?? [];
+}
+
+/**
  * The product as the rest of the page sees it with `variant` selected: its
- * SKU goes to the cart, its stock to the buy buttons, its size and images to
- * the details and the gallery.
+ * SKU goes to the cart, its stock to the buy buttons, its price to the price
+ * line, its size and images to the details and the gallery.
  */
 export function withVariant(product: ServerProduct, variant: ProductVariant | undefined): ServerProduct {
   if (!variant) return product;
+  const images = variantImages(product.variants ?? [], variant);
   return {
     ...product,
     sku: variant.sku,
@@ -157,7 +173,9 @@ export function withVariant(product: ServerProduct, variant: ProductVariant | un
     inStock: variant.inStock,
     dimensions: variant.dimensions ?? product.dimensions,
     color: variant.color || product.color,
-    images: variant.images.length > 0 ? variant.images : product.images,
-    image: variant.images[0] ?? product.image,
+    price: variant.price ?? product.price,
+    officialPrice: variant.price !== undefined ? variant.officialPrice : product.officialPrice,
+    images: images.length > 0 ? images : product.images,
+    image: images[0] ?? product.image,
   };
 }
