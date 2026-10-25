@@ -60,7 +60,7 @@ export function SignupOfferBanner({ onSignUp }: { onSignUp: () => void }) {
           </p>
           <p
             id="signup-offer-title"
-            className="mt-1.5 text-lg font-normal tracking-tight text-ink md:text-xl"
+            className="mt-1.5 text-lg font-normal tracking-tight text-ink [word-break:keep-all] md:text-xl"
           >
             {t("signupOffer.title")}
           </p>
