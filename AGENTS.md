@@ -14,6 +14,8 @@ Money fields are `*_won` and nothing else. `*_krw` and `*_cents` are dead names 
 
 Authenticated cart/checkout/orders/payments go through `/auth/session/gateway` (BFF attaches Bearer). Contract: [elug3/dupli1 docs/cart-service.md](https://github.com/elug3/dupli1/blob/master/docs/cart-service.md).
 
+**Payment methods at checkout** come from the public `GET /api/v1/payments/methods` (falling back to `/api/v1/payments/settings` on an older backend), because an operator can switch a method off at runtime from manage-web (dupli1 docs/payment-kill-switches.md). A switched-off card is not offered and checkout shows the operator's message or `checkout.methodCreditCardDisabled`; a `409 reason: payment_method_disabled` from order or payment becomes `PaymentMethodDisabledError` (`app/lib/checkout.ts`), which re-reads the methods and shows the same message.
+
 Categories: product sells `bags` and `clothing` (subcategories `jackets` and `padded`). A product-type slug outside bags maps its category in `PRODUCT_TYPE_TO_CATEGORY` (`app/lib/catalog.ts`); brand/style/family pages stay bags. The Jackets menu group (`/category/product-type/jackets` and `/padded-jackets`) is `launched: true` in `app/lib/nav.ts`; Wallets is still `launched: false`.
 
 Stock/reservations use product-owned `/api/v1/inventory/*` (standalone `dupli1-inventory` removed). BFF maps those paths to the product upstream — do not add `DUPLI1_INVENTORY_*` env vars.

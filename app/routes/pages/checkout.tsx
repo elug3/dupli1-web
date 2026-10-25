@@ -31,6 +31,7 @@ import {
   resolveResumableOrder,
   getPayment,
   getPaymentSettings,
+  PaymentMethodDisabledError,
   getUnpurchasableCartItems,
   formatKRPhoneInput,
   isUnpurchasableVariantError,
@@ -221,10 +222,25 @@ export default function CheckoutPage() {
     paymentMethodOptions.push("bypass");
   }
 
+  // Shown wherever card is refused because an operator switched it off.
+  const cardDisabledNotice = paymentSettings?.creditCardDisabled
+    ? paymentSettings.creditCardDisabledMessage || t("checkout.methodCreditCardDisabled")
+    : null;
+
   useEffect(() => {
     setMounted(true);
     getPaymentSettings().then(setPaymentSettings);
   }, []);
+
+  /**
+   * Order or payment refused the method because its kill switch went on
+   * after this page loaded: re-read what is offered so the selector drops it,
+   * and say why in the shopper's words.
+   */
+  function handleMethodDisabled(err: PaymentMethodDisabledError): string {
+    getPaymentSettings().then(setPaymentSettings).catch(() => {});
+    return err.shopperMessage || t("checkout.methodCreditCardDisabled");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -609,6 +625,12 @@ export default function CheckoutPage() {
         state: { orderId: resumeOrder.id, email: form.email },
       });
     } catch (err) {
+      if (err instanceof PaymentMethodDisabledError) {
+        // The order is still there; it can be paid once card is back on.
+        setResumeNotice(handleMethodDisabled(err));
+        setResuming(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : "";
       // loadPendingOrder rejects a non-pending order; the window has closed.
       setResumeNotice(
@@ -656,7 +678,7 @@ export default function CheckoutPage() {
       fields.includes("paymentMethod") &&
       !paymentMethodOptions.includes(form.paymentMethod)
     ) {
-      next.paymentMethod = t("checkout.paymentUnavailable");
+      next.paymentMethod = cardDisabledNotice ?? t("checkout.paymentUnavailable");
       firstInvalidField ??= "paymentMethod";
     }
 
@@ -798,6 +820,11 @@ export default function CheckoutPage() {
         // refused it, next to the field, and let the shopper try again.
         setPromotion(null);
         setPromoError(t(promotionMessageKey(err.rejection)));
+        setSubmitting(false);
+        return;
+      }
+      if (err instanceof PaymentMethodDisabledError) {
+        setCheckoutError(handleMethodDisabled(err));
         setSubmitting(false);
         return;
       }
@@ -1099,8 +1126,11 @@ export default function CheckoutPage() {
                   tabIndex={-1}
                   className="border border-rule px-4 py-4 text-sm text-mute outline-none"
                 >
-                  {t("checkout.paymentUnavailable")}
+                  {cardDisabledNotice ?? t("checkout.paymentUnavailable")}
                 </p>
+              )}
+              {cardDisabledNotice && paymentMethodOptions.length > 0 && (
+                <p className="mt-2 text-xs text-mute">{cardDisabledNotice}</p>
               )}
               {form.paymentMethod === "bypass" && (
                 <Field
