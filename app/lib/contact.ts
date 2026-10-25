@@ -1,8 +1,10 @@
 /**
  * Customer-facing contact channels.
  *
- * Telegram is the storefront's live chat channel: shoppers tap the floating
- * button on home/category pages and land in a chat with the consultation bot.
+ * Telegram is the consultation channel for shoppers who are not signed in:
+ * the product page's inquire button and the "ask about this" links open a
+ * chat with the consultation bot. (The floating Telegram button on home and
+ * category pages was removed; signed-in shoppers get the web chat there.)
  * The handle is a plain constant rather than an env var because the build is
  * static (the Dockerfile bakes the client bundle), so a build-time variable
  * would only look configurable at deploy time.
