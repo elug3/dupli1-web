@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { login, register } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
+import { SignupOfferBanner } from "~/components/signup-offer-banner";
 
 export function meta() {
   return [
@@ -118,6 +119,16 @@ export default function Login() {
           {mode === "login" ? t("login.signUp") : t("login.signIn")}
         </button>
       </p>
+
+      {mode === "login" && (
+        <SignupOfferBanner
+          onSignUp={() => {
+            setMode("register");
+            setError(null);
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      )}
     </main>
   );
 }
