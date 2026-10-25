@@ -609,7 +609,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "signupOffer.ticketToValue": "Member",
     "signupOffer.ticketBenefit": "Fare",
     "signupOffer.ticketValid": "Valid for",
-    "signupOffer.ticketValidValue": "1st purchase",
+    "signupOffer.ticketValidValue": "1st order",
     "signupOffer.ticketIssued": "Issued",
     "signupOffer.ticketIssuedValue": "At sign-up",
     "signupOffer.ticketOffer": "15% off",
