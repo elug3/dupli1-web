@@ -226,6 +226,12 @@ export default function CheckoutPage() {
   const cardDisabledNotice = paymentSettings?.creditCardDisabled
     ? paymentSettings.creditCardDisabledMessage || t("checkout.methodCreditCardDisabled")
     : null;
+  // Nothing this shopper can pay with: no order can be placed at all, so the
+  // button is off and says why rather than leaving it to a submit that fails.
+  const noPaymentMethod = paymentSettings !== null && paymentMethodOptions.length === 0;
+  const paymentBlockedNotice = noPaymentMethod
+    ? cardDisabledNotice ?? t("checkout.paymentUnavailable")
+    : null;
 
   useEffect(() => {
     setMounted(true);
@@ -702,6 +708,10 @@ export default function CheckoutPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (paymentBlockedNotice) {
+      setCheckoutError(paymentBlockedNotice);
+      return;
+    }
     setSubmitting(true);
     setCheckoutError(null);
     try {
@@ -1274,6 +1284,7 @@ export default function CheckoutPage() {
               <PlaceOrderButton
                 label={submitting ? t("checkout.processing") : placeOrderLabel}
                 disabled={submitting || cartBusy}
+                blockedNotice={paymentBlockedNotice}
               />
             </div>
           </div>
@@ -1336,6 +1347,7 @@ export default function CheckoutPage() {
               <PlaceOrderButton
                 label={submitting ? t("checkout.processing") : placeOrderLabel}
                 disabled={submitting || cartBusy}
+                blockedNotice={paymentBlockedNotice}
               />
             </div>
           </aside>
@@ -1752,10 +1764,30 @@ function SelectField({
 function PlaceOrderButton({
   label,
   disabled,
+  blockedNotice,
 }: {
   label: string;
   disabled: boolean;
+  /** Set when no order can be placed at all; the button stays off and says why. */
+  blockedNotice?: string | null;
 }) {
+  const { t } = useLanguage();
+  if (blockedNotice) {
+    return (
+      <div>
+        <button
+          type="submit"
+          disabled
+          className="flex h-14 w-full cursor-not-allowed items-center justify-center rounded-full bg-ink text-[11px] font-medium uppercase tracking-widest text-white opacity-40"
+        >
+          {t("checkout.orderUnavailable")}
+        </button>
+        <p role="status" className="mt-3 text-center text-xs text-mute">
+          {blockedNotice}
+        </p>
+      </div>
+    );
+  }
   return (
     <button
       type="submit"

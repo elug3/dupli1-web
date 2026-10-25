@@ -502,7 +502,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.methodCreditCardDisabled":
       "Card payment is temporarily unavailable. Please try again a little later.",
     "checkout.paymentUnavailable":
-      "Card payment is not available. Use Mark as paid (staff) or enable local payment simulation.",
+      "No payment method is available right now, so orders cannot be placed. Please try again a little later.",
+    "checkout.orderUnavailable": "Ordering unavailable",
     "checkout.processing": "Processing…",
     "checkout.placeOrder": "Place Order",
     "checkout.placeOrderWithTotal": "Place Order — {total}",
@@ -1314,7 +1315,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.methodCreditCardDisabled":
       "카드 결제를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     "checkout.paymentUnavailable":
-      "카드 결제를 사용할 수 없습니다. 직원 Bypass를 사용하거나 로컬 결제 시뮬레이션을 켜세요.",
+      "지금은 이용 가능한 결제 수단이 없어 주문할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    "checkout.orderUnavailable": "주문 불가",
     "checkout.processing": "처리 중…",
     "checkout.placeOrder": "주문하기",
     "checkout.placeOrderWithTotal": "주문하기 — {total}",
@@ -2112,7 +2114,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.cvc": "CVC",
     "checkout.methodCreditCardDisabled": "信用卡支付暂时不可用，请稍后再试。",
     "checkout.paymentUnavailable":
-      "信用卡付款不可用。请使用员工 Bypass，或启用本地付款模拟。",
+      "目前没有可用的付款方式，暂时无法下单。请稍后再试。",
+    "checkout.orderUnavailable": "暂时无法下单",
     "checkout.processing": "处理中…",
     "checkout.placeOrder": "提交订单",
     "checkout.placeOrderWithTotal": "提交订单 — {total}",
