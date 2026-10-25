@@ -440,8 +440,10 @@ export default function CheckoutPage() {
   // A card payment adds the surcharge on everything else the order costs;
   // complete prices it for the chosen method and is what is charged.
   const surchargeBps = useCardSurchargeBps();
+  // No surcharge for a card that cannot be chosen: it would quote a fee on
+  // an order the shopper cannot place.
   const cardSurcharge =
-    form.paymentMethod === "credit_card"
+    form.paymentMethod === "credit_card" && paymentMethodOptions.includes("credit_card")
       ? cardSurchargeWon(summary.total, surchargeBps)
       : 0;
   const cardSurchargeLabel = t("cart.cardSurcharge", {
