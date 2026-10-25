@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { login, register } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
-import { SignupOfferBanner } from "~/components/signup-offer-banner";
+import { WelcomeOfferHero } from "~/components/welcome-offer-hero";
 
 export function meta() {
   return [
@@ -35,6 +35,12 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function switchToSignup() {
+    setMode("register");
+    setError(null);
+    window.scrollTo({ top: 0 });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -51,6 +57,17 @@ export default function Login() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 md:py-20">
+      {mode === "login" && (
+        <>
+          <WelcomeOfferHero onSignUp={switchToSignup} />
+          <div className="mx-auto my-12 flex max-w-sm items-center gap-4 text-caption text-mute">
+            <span className="h-px flex-1 bg-rule" />
+            {t("login.or")}
+            <span className="h-px flex-1 bg-rule" />
+          </div>
+        </>
+      )}
+
       <div className={`mx-auto mb-8 ${mode === "login" ? "max-w-sm" : "max-w-md"}`}>
         <h1 className="text-2xl font-normal tracking-tight text-ink md:text-[1.75rem]">
           {mode === "login" ? t("login.signIn") : t("login.createYourAccount")}
@@ -95,20 +112,16 @@ export default function Login() {
             </button>
           </form>
 
-          <section className="mt-10 border-t border-rule pt-8">
-            <h2 className="text-base font-medium text-ink">{t("login.noAccount")}</h2>
-            <p className="mt-1 text-small text-mute">{t("login.newCustomerBody")}</p>
+          <p className="mt-6 text-center text-small text-mute">
+            {t("login.noAccount")}{" "}
             <button
               type="button"
-              onClick={() => {
-                setMode("register");
-                setError(null);
-              }}
-              className="mt-5 flex h-12 w-full items-center justify-center rounded-full border border-ink text-small font-medium text-ink transition-colors duration-300 hover:bg-ink hover:text-white"
+              onClick={switchToSignup}
+              className="font-medium text-ink underline underline-offset-4"
             >
               {t("login.createAccount")}
             </button>
-          </section>
+          </p>
         </div>
       ) : (
         <>
@@ -129,15 +142,6 @@ export default function Login() {
         </>
       )}
 
-      {mode === "login" && (
-        <SignupOfferBanner
-          onSignUp={() => {
-            setMode("register");
-            setError(null);
-            window.scrollTo({ top: 0 });
-          }}
-        />
-      )}
     </main>
   );
 }
