@@ -67,7 +67,17 @@ export function ConsultButton({
   );
 }
 
-/** Floating chat button for signed-in shoppers, where the Telegram one sits. */
+/**
+ * Routes that carry the floating chat button: the home page and every
+ * category/brand landing page. Product, cart, checkout and account pages keep
+ * their own bottom chrome (e.g. the product page's sticky add-to-cart bar)
+ * uncovered.
+ */
+export function isChatFloatRoute(pathname: string): boolean {
+  return pathname === "/" || pathname.startsWith("/category/");
+}
+
+/** Floating chat button for signed-in shoppers. */
 export function SupportChatLauncher() {
   const { t } = useLanguage();
   const chat = useSupportChat();

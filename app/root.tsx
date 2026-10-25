@@ -15,13 +15,9 @@ import {
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
 import { NotFoundPage } from "./components/not-found";
-import {
-  isTelegramFloatRoute,
-  storefrontContext,
-  TelegramFloat,
-} from "./components/telegram-float";
 import { ShippingNote, SiteHeader } from "./components/site-header";
 import {
+  isChatFloatRoute,
   SupportChatLauncher,
   SupportChatPanel,
   useSupportChat,
@@ -111,7 +107,7 @@ export default function App() {
           </PageTransition>
         </MainOffset>
         <Footer />
-        <TelegramChat />
+        <SupportChat />
         <CookieBanner />
       </div>
     </LanguageProvider>
@@ -119,13 +115,18 @@ export default function App() {
 }
 
 /**
- * Floating consultation button, on the home and category pages only: the web
- * chat for a signed-in shopper, the Telegram bot for everyone else. The chat
- * panel itself can open on any page (product and order pages open it too).
+ * Floating web-chat button for a signed-in shopper, on the home and category
+ * pages only. The chat panel itself can open on any page (product and order
+ * pages open it too).
+ *
+ * Mounted here rather than from the page modules: the routed pages render
+ * inside `PageTransition`, whose `animation: … both` leaves a `translateY(0)`
+ * transform on the wrapper, and a transformed ancestor becomes the containing
+ * block for `position: fixed` children — the button would anchor to the bottom
+ * of the page instead of the viewport.
  */
-function TelegramChat() {
+function SupportChat() {
   const { pathname } = useLocation();
-  const { language } = useLanguage();
   const chat = useSupportChat();
 
   // Checked once per tab; again only after sign-in or sign-out resets it.
@@ -133,13 +134,9 @@ function TelegramChat() {
     void startSupportChat();
   }, [pathname]);
 
-  const float = isTelegramFloatRoute(pathname);
   return (
     <>
-      {float && chat.status === "ready" && <SupportChatLauncher />}
-      {float && (chat.status === "guest" || chat.status === "unavailable" || chat.status === "error") && (
-        <TelegramFloat context={storefrontContext(pathname, language)} />
-      )}
+      {isChatFloatRoute(pathname) && chat.status === "ready" && <SupportChatLauncher />}
       <SupportChatPanel />
     </>
   );
