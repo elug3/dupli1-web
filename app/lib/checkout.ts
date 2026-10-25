@@ -32,6 +32,24 @@ export function isOrderUnavailableError(error: unknown): boolean {
   );
 }
 
+/**
+ * An operator has switched this payment method off (dupli1
+ * docs/payment-kill-switches.md). Order refuses to price an order for it and
+ * payment refuses to take it, both with `409 reason: payment_method_disabled`.
+ * `shopperMessage` is the operator's note for shoppers, when they left one.
+ */
+export class PaymentMethodDisabledError extends ApiRequestError {
+  readonly method: string;
+  readonly shopperMessage: string | null;
+
+  constructor(status: number, message: string, method: string, shopperMessage: string | null) {
+    super(status, message);
+    this.name = "PaymentMethodDisabledError";
+    this.method = method;
+    this.shopperMessage = shopperMessage;
+  }
+}
+
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
@@ -41,16 +59,31 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     credentials: "same-origin",
     headers,
   });
-  if (!res.ok) throw new ApiRequestError(res.status, await readError(res));
+  if (!res.ok) throw await errorFromResponse(res);
   return res;
 }
 
-async function readError(res: Response): Promise<string> {
+async function errorFromResponse(res: Response): Promise<ApiRequestError> {
+  const fallback = `Request failed: ${res.status}`;
   try {
-    const body = (await res.json()) as { error?: string };
-    return body.error ?? `Request failed: ${res.status}`;
+    const body = (await res.json()) as {
+      error?: string;
+      reason?: string;
+      method?: string;
+      message?: string;
+    };
+    const message = body.error ?? fallback;
+    if (body.reason === "payment_method_disabled") {
+      return new PaymentMethodDisabledError(
+        res.status,
+        message,
+        body.method ?? "",
+        body.message?.trim() || null
+      );
+    }
+    return new ApiRequestError(res.status, message);
   } catch {
-    return `Request failed: ${res.status}`;
+    return new ApiRequestError(res.status, fallback);
   }
 }
 
@@ -243,9 +276,54 @@ export type PaymentMethod = "credit_card" | "bypass";
 export interface PaymentSettings {
   methodBypass: boolean;
   methodCreditCard: boolean;
+  /**
+   * True while an operator has switched card payments off. Card is then not
+   * offered, and checkout says why instead of the generic unavailable copy.
+   */
+  creditCardDisabled?: boolean;
+  /** The operator's note for shoppers while card is switched off, if any. */
+  creditCardDisabledMessage?: string | null;
+}
+
+interface RawPaymentMethodStatus {
+  method: string;
+  available: boolean;
+  disabled?: boolean;
+  message?: string;
 }
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
+  // Kill switches flip at runtime, so ask the live methods endpoint first;
+  // `/settings` only knows what was configured at boot. Fall back to it while
+  // a payment service without the endpoint is still deployed.
+  try {
+    const res = await fetch("/api/v1/payments/methods", { cache: "no-store" });
+    if (res.ok) {
+      const body = (await res.json()) as { methods?: RawPaymentMethodStatus[] };
+      if (Array.isArray(body.methods)) return paymentSettingsFromMethods(body.methods);
+    }
+  } catch {
+    // Fall through to /settings.
+  }
+  return getPaymentSettingsFromConfig();
+}
+
+/** Maps `GET /api/v1/payments/methods`; a method it does not list is off. */
+export function paymentSettingsFromMethods(
+  methods: RawPaymentMethodStatus[]
+): PaymentSettings {
+  const card = methods.find((m) => m.method === "credit_card");
+  const bypass = methods.find((m) => m.method === "bypass");
+  const cardDisabled = card?.disabled === true;
+  return {
+    methodCreditCard: card?.available === true,
+    methodBypass: bypass?.available === true,
+    creditCardDisabled: cardDisabled,
+    creditCardDisabledMessage: cardDisabled ? card?.message?.trim() || null : null,
+  };
+}
+
+async function getPaymentSettingsFromConfig(): Promise<PaymentSettings> {
   // Deliberately NOT the session gateway: `/payments/settings` takes no auth
   // (dupli1 docs/endpoints.md), so the browser hits it like the public catalog
   // and the production ALB forwards `/api/*` to dupli1-proxy.

@@ -499,6 +499,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.cardNumber": "Card Number",
     "checkout.expiry": "Expiry",
     "checkout.cvc": "CVC",
+    "checkout.methodCreditCardDisabled":
+      "Card payment is temporarily unavailable. Please try again a little later.",
     "checkout.paymentUnavailable":
       "Card payment is not available. Use Mark as paid (staff) or enable local payment simulation.",
     "checkout.processing": "Processing…",
@@ -1309,6 +1311,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.cardNumber": "카드 번호",
     "checkout.expiry": "만료일",
     "checkout.cvc": "CVC",
+    "checkout.methodCreditCardDisabled":
+      "카드 결제를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     "checkout.paymentUnavailable":
       "카드 결제를 사용할 수 없습니다. 직원 Bypass를 사용하거나 로컬 결제 시뮬레이션을 켜세요.",
     "checkout.processing": "처리 중…",
@@ -2106,6 +2110,7 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "checkout.cardNumber": "卡号",
     "checkout.expiry": "有效期",
     "checkout.cvc": "CVC",
+    "checkout.methodCreditCardDisabled": "信用卡支付暂时不可用，请稍后再试。",
     "checkout.paymentUnavailable":
       "信用卡付款不可用。请使用员工 Bypass，或启用本地付款模拟。",
     "checkout.processing": "处理中…",
