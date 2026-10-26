@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { login, register } from "~/lib/auth";
 import { useLanguage } from "~/lib/i18n";
+import { WelcomeOfferHero } from "~/components/welcome-offer-hero";
 
 export function meta() {
   return [
@@ -34,6 +35,12 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function switchToSignup() {
+    setMode("register");
+    setError(null);
+    window.scrollTo({ top: 0 });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -49,75 +56,92 @@ export default function Login() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-14 md:py-20">
-      <div className="mb-10 text-center">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-mute">
-          Dupli1
-        </p>
-        <h1
-          className="mt-3 text-4xl font-light tracking-tight text-zinc-950 md:text-5xl"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {mode === "login" ? t("login.welcomeBack") : t("login.createYourAccount")}
+    <main className="mx-auto max-w-2xl px-4 py-12 md:py-20">
+      {mode === "login" && (
+        <>
+          <WelcomeOfferHero onSignUp={switchToSignup} />
+          <div className="mx-auto my-12 flex max-w-sm items-center gap-4 text-caption text-mute">
+            <span className="h-px flex-1 bg-rule" />
+            {t("login.or")}
+            <span className="h-px flex-1 bg-rule" />
+          </div>
+        </>
+      )}
+
+      <div className={`mx-auto mb-8 ${mode === "login" ? "max-w-sm" : "max-w-md"}`}>
+        <h1 className="text-2xl font-normal tracking-tight text-ink md:text-[1.75rem]">
+          {mode === "login" ? t("login.signIn") : t("login.createYourAccount")}
         </h1>
+        {mode === "login" && (
+          <p className="mt-2 text-small text-mute">{t("login.signInSubtitle")}</p>
+        )}
       </div>
 
       {mode === "login" ? (
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto max-w-md space-y-4 border border-zinc-100 bg-zinc-50/50 p-6 md:p-8"
-        >
-          <AuthField
-            id="email"
-            label={t("login.email")}
-            type="email"
-            value={email}
-            onChange={setEmail}
-            autoComplete="email"
-            placeholder="you@example.com"
-          />
+        <div className="mx-auto max-w-sm">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <AuthField
+              id="email"
+              label={t("login.email")}
+              type="email"
+              value={email}
+              onChange={setEmail}
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
 
-          <AuthField
-            id="password"
-            label={t("login.password")}
-            type="password"
-            value={password}
-            onChange={setPassword}
-            autoComplete="current-password"
-            placeholder="••••••••"
-          />
+            <AuthField
+              id="password"
+              label={t("login.password")}
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="current-password"
+            />
 
-          {error && (
-            <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p className="border-l-2 border-alert pl-3 text-small text-alert">{error}</p>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-14 w-full items-center justify-center bg-zinc-950 text-[10px] font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
-          >
-            {loading ? t("login.pleaseWait") : t("login.signIn")}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex h-12 w-full items-center justify-center rounded-full bg-ink text-small font-medium text-white transition-colors duration-300 hover:bg-zinc-700 disabled:cursor-wait disabled:opacity-70"
+            >
+              {loading ? t("login.pleaseWait") : t("login.signIn")}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-small text-mute">
+            {t("login.noAccount")}{" "}
+            <button
+              type="button"
+              onClick={switchToSignup}
+              className="font-medium text-ink underline underline-offset-4"
+            >
+              {t("login.createAccount")}
+            </button>
+          </p>
+        </div>
       ) : (
-        <SignupWizard nextPath={nextPath} onSwitchToLogin={() => setMode("login")} />
+        <>
+          <SignupWizard nextPath={nextPath} onSwitchToLogin={() => setMode("login")} />
+          <p className="mt-6 text-center text-small text-mute">
+            {t("login.hasAccount")}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setError(null);
+              }}
+              className="font-medium text-ink underline-offset-4 hover:underline"
+            >
+              {t("login.signIn")}
+            </button>
+          </p>
+        </>
       )}
 
-      <p className="mt-6 text-center text-sm text-zinc-500">
-        {mode === "login" ? t("login.noAccount") : t("login.hasAccount")}{" "}
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
-            setError(null);
-          }}
-          className="font-semibold text-zinc-950 underline-offset-4 hover:underline"
-        >
-          {mode === "login" ? t("login.signUp") : t("login.signIn")}
-        </button>
-      </p>
     </main>
   );
 }
@@ -475,7 +499,7 @@ function AuthField({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-zinc-600"
+        className="mb-2 block text-caption font-medium text-ink"
       >
         {label}
       </label>
@@ -486,7 +510,7 @@ function AuthField({
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-12 w-full border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+        className="h-12 w-full rounded-none border border-rule bg-white px-4 text-small text-ink outline-none transition-colors duration-300 placeholder:text-zinc-400 focus:border-ink"
         placeholder={placeholder}
       />
     </div>
