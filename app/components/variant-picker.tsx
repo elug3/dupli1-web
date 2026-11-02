@@ -6,9 +6,10 @@ import { formatDimensionsCm, formatDimensionsCompactCm } from "~/lib/product-dim
 import {
   isCombinationAvailable,
   pickVariant,
-  swatchColor,
+  type SwatchFill,
   variantColors,
   variantSizes,
+  variantSwatch,
 } from "~/lib/product-variants";
 import type { SizeChartRow } from "~/lib/size-chart";
 
@@ -75,7 +76,7 @@ export function VariantPicker({ variants, selected, onSelect, sizeChart }: Varia
                     active ? "ring-1 ring-zinc-950 ring-offset-2" : "hover:ring-1 hover:ring-zinc-300 hover:ring-offset-2",
                   ].join(" ")}
                 >
-                  <Swatch color={color} className="size-7" />
+                  <Swatch fill={variantSwatch(variants, color)} className="size-7" />
                   {!available && <SoldOutSlash />}
                 </button>
               );
@@ -187,7 +188,7 @@ export function VariantColorDots({
       className="flex shrink-0 items-center gap-1.5"
     >
       {shown.map((color) => (
-        <Swatch key={color} color={color} className="size-3" />
+        <Swatch key={color} fill={variantSwatch(variants, color)} className="size-3" />
       ))}
       {colors.length > shown.length && (
         <span className="text-[10px] leading-none text-zinc-950">+{colors.length - shown.length}</span>
@@ -196,17 +197,28 @@ export function VariantColorDots({
   );
 }
 
-function Swatch({ color, className }: { color: string; className: string }) {
-  const fill = swatchColor(color);
+/**
+ * One color as a circle. Two-tone colors split on the diagonal, first color
+ * top-left (design: SER-100 option A). A color with no data is a dashed
+ * neutral circle, so it never passes for a two-tone one.
+ */
+function Swatch({ fill, className }: { fill: SwatchFill; className: string }) {
+  if (fill.kind === "unknown") {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${className} block shrink-0 rounded-full border border-dashed border-zinc-400 bg-zinc-100`}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"
       className={`${className} block shrink-0 rounded-full border border-zinc-200`}
       style={
-        fill
-          ? { backgroundColor: fill }
-          : // Unknown name: a neutral split swatch rather than a wrong color.
-            { background: "linear-gradient(135deg, #f4f4f5 50%, #d4d4d8 50%)" }
+        fill.kind === "two-tone"
+          ? { background: `linear-gradient(135deg, ${fill.hex} 50%, ${fill.hex2} 50%)` }
+          : { backgroundColor: fill.hex }
       }
     />
   );

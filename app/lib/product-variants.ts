@@ -20,7 +20,11 @@ const ITALIAN_FITS = ["S", "", "R", "L"];
 /** Labels meaning "the style comes in one size" — no size picker for those. */
 const ONE_SIZE = new Set(["", "OS", "ONE SIZE", "ONESIZE", "FREE", "F", "U", "TU"]);
 
-/** Swatch fill for a color name; `undefined` → draw a neutral, labelled swatch. */
+/**
+ * Fallback fills by color name, for a variant whose color master has no hex
+ * yet (a color created on the fly from a variant name). The color master's
+ * `colorHex` wins whenever it is set.
+ */
 const SWATCHES: Record<string, string> = {
   black: "#0a0a0a",
   white: "#ffffff",
@@ -54,6 +58,27 @@ const SWATCHES: Record<string, string> = {
 
 export function swatchColor(color: string): string | undefined {
   return SWATCHES[color.trim().toLowerCase()];
+}
+
+/**
+ * How to draw a color: one fill, two fills split on the diagonal (a two-tone
+ * color such as black body / brown trim), or a neutral "no color data" swatch.
+ */
+export type SwatchFill =
+  | { kind: "solid"; hex: string }
+  | { kind: "two-tone"; hex: string; hex2: string }
+  | { kind: "unknown" };
+
+/** The swatch for `color` among `variants`: color master first, then the name list. */
+export function variantSwatch(variants: ProductVariant[], color: string): SwatchFill {
+  const withHex = variants.find((v) => v.color === color && v.colorHex);
+  if (withHex?.colorHex) {
+    return withHex.colorHex2
+      ? { kind: "two-tone", hex: withHex.colorHex, hex2: withHex.colorHex2 }
+      : { kind: "solid", hex: withHex.colorHex };
+  }
+  const named = swatchColor(color);
+  return named ? { kind: "solid", hex: named } : { kind: "unknown" };
 }
 
 function unique(values: string[]): string[] {
