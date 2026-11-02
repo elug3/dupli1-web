@@ -386,7 +386,7 @@ function Recommendations({
             <p className="mt-0.5 text-sm font-medium text-zinc-950">
               {translateProductName(product.id, product.name)}
             </p>
-            <ProductPrice price={product.price} officialPrice={product.officialPrice} />
+            <ProductPrice price={product.price} />
           </Link>
         ))}
       </div>

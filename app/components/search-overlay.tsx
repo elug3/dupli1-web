@@ -144,7 +144,6 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
                     brand={brandDisplayName(bag.brand)}
                     image={listingProductImage(bag.category, bag.brand, bag.image)}
                     price={bag.price}
-                    officialPrice={bag.officialPrice}
                     stock={bag.stock}
                     index={index}
                     wishlisted={wishlist.has(bag.id)}

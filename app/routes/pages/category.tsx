@@ -203,7 +203,6 @@ function ProductGrid({ products }: { products: DisplayProduct[] }) {
             product.image
           )}
           price={product.price}
-          officialPrice={product.officialPrice}
           stock={product.stock}
           index={index}
           wishlisted={wishlist.has(product.id)}

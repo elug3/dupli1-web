@@ -511,12 +511,11 @@ function ProductInfo({
       {/* Price — far enough below the name that none of it shows in the
           folded sheet (its head ends PEEK_BOTTOM_GAP_PX under the name) */}
       <div className="mt-5 lg:hidden">
-        <ProductPrice price={product.price} officialPrice={product.officialPrice} />
+        <ProductPrice price={product.price} />
       </div>
       <div className="mt-5 hidden items-baseline gap-3 lg:flex">
         <ProductPrice
           price={product.price}
-          officialPrice={product.officialPrice}
           size="lg"
         />
       </div>
@@ -764,7 +763,6 @@ function RelatedProducts({ seedId }: { seedId: string }) {
               </p>
               <ProductPrice
                 price={product.price}
-                officialPrice={product.officialPrice}
               />
             </Link>
           ))}

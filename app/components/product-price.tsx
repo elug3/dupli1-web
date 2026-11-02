@@ -1,45 +1,26 @@
 import { useLanguage } from "../lib/i18n";
 
+/**
+ * The selling price (판매가) a shopper pays. The official / list price is
+ * deliberately never shown on the storefront (SER-94), so there is no
+ * struck-through reference price or discount framing here.
+ */
 export function ProductPrice({
   price,
-  officialPrice,
   size = "sm",
 }: {
   price: number;
-  /** Reference list price; shown struck when greater than selling `price` (판매가). */
-  officialPrice?: number;
   size?: "sm" | "lg";
 }) {
   const { formatCurrency } = useLanguage();
 
-  const showOfficial =
-    typeof officialPrice === "number" &&
-    Number.isFinite(officialPrice) &&
-    officialPrice > price;
-
   if (size === "lg") {
     return (
-      <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-3xl font-semibold tracking-tight text-zinc-950">
-          {formatCurrency(price)}
-        </span>
-        {showOfficial && (
-          <span className="text-base font-medium text-zinc-400 line-through">
-            {formatCurrency(officialPrice)}
-          </span>
-        )}
+      <span className="text-3xl font-semibold tracking-tight text-zinc-950">
+        {formatCurrency(price)}
       </span>
     );
   }
 
-  return (
-    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-small text-mute">
-      <span>{formatCurrency(price)}</span>
-      {showOfficial && (
-        <span className="text-caption text-zinc-400 line-through">
-          {formatCurrency(officialPrice)}
-        </span>
-      )}
-    </p>
-  );
+  return <p className="mt-0.5 text-small text-mute">{formatCurrency(price)}</p>;
 }
