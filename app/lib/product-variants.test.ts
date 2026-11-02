@@ -9,8 +9,10 @@ import {
   variantColors,
   variantImages,
   variantSizes,
+  variantSwatch,
   withVariant,
 } from "./product-variants";
+import { swatchHexes } from "./api";
 
 const v = (color: string, size: string, availableQty = 1, images: string[] = []): ProductVariant => ({
   sku: `BAG_${color}_${size}`,
@@ -171,5 +173,44 @@ describe("swatchColor", () => {
 
   it("returns undefined for unknown names", () => {
     expect(swatchColor("Tangerine Dream")).toBeUndefined();
+  });
+});
+
+describe("variantSwatch", () => {
+  const withHex = (color: string, colorHex?: string, colorHex2?: string): ProductVariant => ({
+    ...v(color, "OS"),
+    colorHex,
+    colorHex2,
+  });
+
+  it("uses the color master's fill over the name list", () => {
+    expect(variantSwatch([withHex("Black", "#111111")], "Black")).toEqual({ kind: "solid", hex: "#111111" });
+  });
+
+  it("draws a two-tone color from both fills", () => {
+    expect(variantSwatch([withHex("Black / Brown", "#0a0a0a", "#6b4226")], "Black / Brown")).toEqual({
+      kind: "two-tone",
+      hex: "#0a0a0a",
+      hex2: "#6b4226",
+    });
+  });
+
+  it("falls back to the name list, then to unknown", () => {
+    expect(variantSwatch([withHex("Navy")], "Navy")).toEqual({ kind: "solid", hex: "#1f2a44" });
+    expect(variantSwatch([withHex("Olive Drab")], "Olive Drab")).toEqual({ kind: "unknown" });
+  });
+
+  it("takes the fill from any SKU of that color", () => {
+    const vs = [withHex("Black"), { ...withHex("Black", "#0a0a0a", "#6b4226"), size: "L" }];
+    expect(variantSwatch(vs, "Black").kind).toBe("two-tone");
+  });
+});
+
+describe("swatchHexes", () => {
+  it("keeps well-formed fills and drops a lone second one", () => {
+    expect(swatchHexes("#0A0A0A", "#6b4226")).toEqual({ colorHex: "#0A0A0A", colorHex2: "#6b4226" });
+    expect(swatchHexes("#0a0a0a", "brown")).toEqual({ colorHex: "#0a0a0a" });
+    expect(swatchHexes(undefined, "#6b4226")).toEqual({});
+    expect(swatchHexes("black", undefined)).toEqual({});
   });
 });

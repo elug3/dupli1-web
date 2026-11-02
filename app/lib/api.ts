@@ -79,6 +79,10 @@ export interface ProductVariant {
   color: string;
   /** Letter size label (e.g. "M"); empty when the style has no sizes. */
   size: string;
+  /** Swatch fill from the color master ("#rrggbb"); undefined when it has none. */
+  colorHex?: string;
+  /** Second fill of a two-tone color; only set alongside `colorHex`. */
+  colorHex2?: string;
   availableQty?: number;
   inStock?: boolean;
   dimensions?: ProductDimensions;
@@ -136,6 +140,9 @@ interface UpstreamProduct {
     /** Letter size label (S/M/L); distinct from `dimensions`. */
     size?: string;
     sizeCode?: string;
+    /** Color master swatch fills (dupli1 docs/product-color-swatches.md). */
+    colorHex?: string;
+    colorHex2?: string;
     /** Effective price: the SKU's override, else the parent's. */
     price?: number;
     officialPrice?: number;
@@ -275,6 +282,19 @@ function upstreamAttributes(product: UpstreamProduct): Record<string, string> | 
   return Object.keys(attrs).length > 0 ? attrs : undefined;
 }
 
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** Keeps only well-formed fills, and a second one only with a first. */
+export function swatchHexes(
+  hex: string | undefined,
+  hex2: string | undefined
+): Pick<ProductVariant, "colorHex" | "colorHex2"> {
+  const first = hex?.trim() ?? "";
+  if (!HEX.test(first)) return {};
+  const second = hex2?.trim() ?? "";
+  return HEX.test(second) ? { colorHex: first, colorHex2: second } : { colorHex: first };
+}
+
 function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
   return (product.variants ?? [])
     .filter((v) => v.status === "active" && v.sku?.trim())
@@ -283,6 +303,7 @@ function upstreamVariants(product: UpstreamProduct): ProductVariant[] {
       skuId: v.skuId?.trim() || undefined,
       color: v.color?.trim() ?? "",
       size: (v.size ?? v.sizeCode ?? "").trim(),
+      ...swatchHexes(v.colorHex, v.colorHex2),
       availableQty: v.availableQty,
       inStock: v.inStock,
       dimensions: normalizeDimensions(v.dimensions) ?? undefined,
