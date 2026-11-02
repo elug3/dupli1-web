@@ -352,7 +352,6 @@ function WishlistSection() {
                   </p>
                   <ProductPrice
                     price={item.price}
-                    officialPrice={item.officialPrice}
                   />
                 </div>
               </Link>

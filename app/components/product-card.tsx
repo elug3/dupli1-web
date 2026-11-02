@@ -15,7 +15,6 @@ export function ProductCard({
   brand,
   image,
   price,
-  officialPrice,
   stock,
   index,
   wishlisted,
@@ -29,7 +28,6 @@ export function ProductCard({
   brand: string;
   image: string;
   price: number;
-  officialPrice?: number;
   stock?: number;
   /** Position in the grid; the first row loads eagerly. */
   index: number;
@@ -59,7 +57,7 @@ export function ProductCard({
         <div className="mt-3 pr-2">
           {brand && <p className="text-caption text-mute">{brand}</p>}
           <p className="text-small text-ink">{name}</p>
-          <ProductPrice price={price} officialPrice={officialPrice} />
+          <ProductPrice price={price} />
           {lowStock && <p className="mt-0.5 text-caption text-alert">{t("home.lowStock")}</p>}
         </div>
       </Link>

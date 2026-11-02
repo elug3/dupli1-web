@@ -258,7 +258,6 @@ function Hub({
                   brand={brandDisplayName(bag.brand)}
                   image={listingBagImage(bag.brand, bag.image)}
                   price={bag.price}
-                  officialPrice={bag.officialPrice}
                   stock={bag.stock}
                   index={index}
                   wishlisted={wishlist.has(bag.id)}
