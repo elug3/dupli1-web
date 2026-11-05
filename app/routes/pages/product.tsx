@@ -76,9 +76,9 @@ export default function ProductPage() {
   if (status === "error" || !product) {
     return (
       <NotFoundPage
-        eyebrow={t("product.noProduct")}
+        photo
         title={t("product.notFound")}
-        description={t("product.notFoundDescription")}
+        description={t("product.goneLine")}
         primaryAction={{ label: t("product.browseAllBags"), to: "/" }}
       />
     );

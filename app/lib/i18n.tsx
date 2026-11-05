@@ -216,10 +216,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.signInRequiredDescription":
       "Please sign in to view product details.",
     "product.signIn": "Sign In",
-    "product.noProduct": "No product",
     "product.notFound": "Product not found",
-    "product.notFoundDescription":
-      "We could not find this product. It may have sold out, moved, or no longer be available.",
+    "product.goneLine": "This piece is no longer here",
     "product.browseAllBags": "Browse all bags",
     "product.home": "Home",
     "product.bags": "Bags",
@@ -1051,10 +1049,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.signInRequiredDescription":
       "제품 상세 정보를 보려면 로그인해 주세요.",
     "product.signIn": "로그인",
-    "product.noProduct": "제품 없음",
     "product.notFound": "제품을 찾을 수 없습니다",
-    "product.notFoundDescription":
-      "이 제품을 찾을 수 없습니다. 품절되었거나 이동되었거나 더 이상 제공되지 않을 수 있습니다.",
+    "product.goneLine": "이 제품은 더 이상 이곳에 없습니다",
     "product.browseAllBags": "전체 가방 보기",
     "product.home": "홈",
     "product.bags": "가방",
@@ -1875,10 +1871,8 @@ const dictionaries: Record<LanguageCode, Record<string, string>> = {
     "product.signInRequired": "需要登录",
     "product.signInRequiredDescription": "请登录以查看产品详情。",
     "product.signIn": "登录",
-    "product.noProduct": "没有产品",
     "product.notFound": "未找到产品",
-    "product.notFoundDescription":
-      "我们找不到该产品。它可能已售罄、已移动或不再提供。",
+    "product.goneLine": "这件商品已不在这里",
     "product.browseAllBags": "浏览所有包袋",
     "product.home": "首页",
     "product.bags": "包袋",

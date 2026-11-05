@@ -7,6 +7,8 @@ type NotFoundAction = {
 };
 
 type NotFoundPageProps = {
+  /** Full-bleed photo of an empty plinth, with the text set on it. */
+  photo?: boolean;
   eyebrow?: string;
   title?: string;
   description?: string;
@@ -15,6 +17,7 @@ type NotFoundPageProps = {
 };
 
 export function NotFoundPage({
+  photo = false,
   eyebrow = "404",
   title,
   description,
@@ -28,6 +31,36 @@ export function NotFoundPage({
     label: t("product.browseAllBags"),
     to: "/",
   };
+
+  if (photo) {
+    // The photo carries its own room for text: extra floor below the plinth
+    // on mobile, the plain wall to its right on desktop.
+    return (
+      <main className="relative bg-ground">
+        <picture>
+          <source media="(min-width: 768px)" srcSet="/not-found/plinth-desktop.jpg" />
+          <img
+            src="/not-found/plinth-mobile.jpg"
+            alt=""
+            aria-hidden="true"
+            className="block aspect-[1122/1922] w-full object-cover md:aspect-[16/9] md:max-h-[calc(100svh-64px)] md:min-h-[520px]"
+          />
+        </picture>
+        <section className="absolute inset-x-0 bottom-[15%] flex flex-col items-center px-4 text-center md:inset-x-auto md:bottom-auto md:left-[52%] md:right-[8.33%] md:top-1/2 md:-translate-y-1/2">
+          <h1 className="text-xl font-normal uppercase tracking-[0.22em] text-ink md:text-3xl">
+            {resolvedTitle}
+          </h1>
+          <p className="mt-3 text-sm text-mute">{resolvedDescription}</p>
+          <Link
+            to={resolvedPrimaryAction.to}
+            className="mt-7 inline-flex h-12 items-center justify-center bg-ink px-9 text-xs font-medium uppercase tracking-[0.18em] text-white transition duration-300 hover:bg-mute"
+          >
+            {resolvedPrimaryAction.label}
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-[62vh] items-center justify-center px-4 py-16 text-center md:px-8">
