@@ -14,11 +14,16 @@ export const errorSecondaryButton =
  * for text: extra floor below the plinth on mobile, the plain wall to its
  * right on desktop. It is light, so the header runs over it in ink.
  */
+/** Photos under public/not-found/, each as `<name>-mobile.jpg` and `<name>-desktop.jpg`. */
+export type ErrorPhoto = "plinth";
+
 export function ErrorPhotoPage({
+  image = "plinth",
   title,
   description,
   children,
 }: {
+  image?: ErrorPhoto;
   title: string;
   description?: string;
   children?: ReactNode;
@@ -28,9 +33,9 @@ export function ErrorPhotoPage({
   return (
     <main className="relative bg-ground">
       <picture>
-        <source media="(min-width: 768px)" srcSet="/not-found/plinth-desktop.jpg" />
+        <source media="(min-width: 768px)" srcSet={`/not-found/${image}-desktop.jpg`} />
         <img
-          src="/not-found/plinth-mobile.jpg"
+          src={`/not-found/${image}-mobile.jpg`}
           alt=""
           aria-hidden="true"
           className="block aspect-[1122/1922] w-full object-cover md:aspect-[16/9] md:max-h-svh md:min-h-[520px]"
