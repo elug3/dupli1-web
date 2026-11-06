@@ -14,7 +14,7 @@ import {
 
 import "./app.css";
 import { CookieBanner } from "./components/cookie-banner";
-import { NotFoundPage } from "./components/not-found";
+import { ErrorPhotoPage, NotFoundPage, errorPrimaryButton, errorSecondaryButton } from "./components/not-found";
 import { ShippingNote, SiteHeader } from "./components/site-header";
 import {
   isChatFloatRoute,
@@ -252,28 +252,56 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {
+  // Rendered in place of App, so it brings its own language context and only
+  // the wordmark for a header: the full header needs the app shell, which may
+  // be what just failed.
+  return (
+    <LanguageProvider>
+      <div className="min-h-screen bg-white text-ink">
+        <header className="absolute inset-x-0 top-0 z-40 grid h-(--header-h) place-items-center">
+          <a
+            href="/"
+            data-brand-logo
+            className="text-sm font-semibold uppercase tracking-[0.4em]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Dupli1
+          </a>
+        </header>
+        <ErrorBoundaryBody error={error} />
+      </div>
+    </LanguageProvider>
+  );
+}
+
+function ErrorBoundaryBody({ error }: { error: unknown }) {
   const { t } = useLanguage();
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
 
-  if (isRouteErrorResponse(error)) {
-    if (error.status === 404) {
-      return <NotFoundPage />;
-    }
-
-    message = error.status === 404 ? "404" : "Error";
-    details = error.status === 404 ? t("notFound.description") : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    return <NotFoundPage />;
   }
 
+  // The stack is for local debugging only; shoppers never see it.
+  const stack =
+    import.meta.env.DEV && error instanceof Error ? error.stack : undefined;
+
   return (
-    <main className="container mx-auto p-4 pt-24">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && <pre className="w-full overflow-x-auto p-4"><code>{stack}</code></pre>}
-    </main>
+    <>
+      <ErrorPhotoPage title={t("error.title")} description={t("error.description")}>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className={errorPrimaryButton}
+        >
+          {t("error.retry")}
+        </button>
+        <a href="/" className={errorSecondaryButton}>
+          {t("error.home")}
+        </a>
+      </ErrorPhotoPage>
+      {stack && (
+        <pre className="w-full overflow-x-auto p-4 text-xs"><code>{stack}</code></pre>
+      )}
+    </>
   );
 }
