@@ -23,6 +23,7 @@ import {
   useSupportChat,
 } from "./components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
+import { useHeaderOverlay } from "./lib/header-overlay";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { loadNavCatalog } from "./lib/nav-catalog.server";
 import { startSupportChat } from "./lib/support-chat";
@@ -144,11 +145,13 @@ function SupportChat() {
 
 /**
  * Pushes pages below the fixed header. The home hero runs underneath it
- * instead, so the header can sit transparent over the image.
+ * instead, so the header can sit transparent over the image, as does any page
+ * that asks for it with `useRequestHeaderOverlay`.
  */
 function MainOffset({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
-  return <div className={pathname === "/" ? "" : "pt-(--header-h)"}>{children}</div>;
+  const overlay = useHeaderOverlay();
+  return <div className={pathname === "/" || overlay ? "" : "pt-(--header-h)"}>{children}</div>;
 }
 
 function PageTransition({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
+import { useHeaderOverlay } from "~/lib/header-overlay";
 import { useLanguage, type LanguageCode } from "~/lib/i18n";
 import { useCart } from "~/lib/useCart";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
@@ -14,7 +15,8 @@ const SOLID_AFTER_PX = 120;
 /**
  * One header bar, `--header-h` tall: menu and search on the left, the
  * wordmark in the centre, account and bag on the right. Over the home hero it
- * is transparent until the page scrolls.
+ * is transparent until the page scrolls, and so is it over any page that asks
+ * for it with `useRequestHeaderOverlay` (the product not found photo).
  */
 export function SiteHeader() {
   const { t } = useLanguage();
@@ -25,7 +27,10 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const overHero = pathname === "/";
+  const pageOverlay = useHeaderOverlay();
+  // The home hero is dark; other pages say which tone their image needs.
+  const overlayTone = pathname === "/" ? "light" : pageOverlay;
+  const overHero = overlayTone !== null;
 
   useEffect(() => {
     if (!overHero) return;
@@ -49,9 +54,11 @@ export function SiteHeader() {
       <header
         className={[
           "fixed inset-x-0 top-0 z-40 transition-colors duration-300 ease-lux",
-          transparent
-            ? "bg-gradient-to-b from-black/30 to-transparent text-white"
-            : "border-b border-rule bg-white text-ink",
+          !transparent
+            ? "border-b border-rule bg-white text-ink"
+            : overlayTone === "dark"
+              ? "border-b border-transparent bg-transparent text-ink"
+              : "bg-gradient-to-b from-black/30 to-transparent text-white",
         ].join(" ")}
       >
         <div className="grid h-(--header-h) grid-cols-[1fr_auto_1fr] items-center px-2 md:px-8">
