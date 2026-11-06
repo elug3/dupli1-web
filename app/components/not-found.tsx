@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useRequestHeaderOverlay } from "~/lib/header-overlay";
 import { useLanguage } from "~/lib/i18n";
 
 type NotFoundAction = {
@@ -25,6 +26,8 @@ export function NotFoundPage({
   secondaryAction,
 }: NotFoundPageProps) {
   const { t } = useLanguage();
+  // The plinth photo is light, so the header runs over it in ink.
+  useRequestHeaderOverlay(photo ? "dark" : null);
   const resolvedTitle = title ?? t("notFound.title");
   const resolvedDescription = description ?? t("notFound.description");
   const resolvedPrimaryAction = primaryAction ?? {
@@ -43,7 +46,7 @@ export function NotFoundPage({
             src="/not-found/plinth-mobile.jpg"
             alt=""
             aria-hidden="true"
-            className="block aspect-[1122/1922] w-full object-cover md:aspect-[16/9] md:max-h-[calc(100svh-64px)] md:min-h-[520px]"
+            className="block aspect-[1122/1922] w-full object-cover md:aspect-[16/9] md:max-h-svh md:min-h-[520px]"
           />
         </picture>
         <section className="absolute inset-x-0 bottom-[15%] flex flex-col items-center px-4 text-center md:inset-x-auto md:bottom-auto md:left-[52%] md:right-[8.33%] md:top-1/2 md:-translate-y-1/2">
