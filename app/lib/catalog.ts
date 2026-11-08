@@ -57,6 +57,7 @@ export const PRODUCT_TYPE_SLUGS: Record<string, string> = {
   "mini-bags": "Mini Bags",
   "padded-jackets": "Padded Jackets",
   jackets: "Jackets",
+  clothing: "Clothing",
 };
 
 /**
@@ -91,12 +92,19 @@ export function isStorefrontCategory(value: string): value is StorefrontCategory
 export const PRODUCT_TYPE_TO_CATEGORY: Record<string, StorefrontCategory> = {
   "padded-jackets": "clothing",
   jackets: "clothing",
+  clothing: "clothing",
 };
+
+/**
+ * Product-type slugs that list their whole category, with no subcategory:
+ * the clothing listing holds jackets and padded jackets together.
+ */
+export const WHOLE_CATEGORY_SLUGS: ReadonlySet<string> = new Set(["clothing"]);
 
 /** Where a category's breadcrumb goes, and its title. */
 export const CATEGORY_LISTINGS: Record<StorefrontCategory, { to: string; labelKey: string }> = {
   bags: { to: "/category/product-type/handbags", labelKey: "product.bags" },
-  clothing: { to: "/category/product-type/jackets", labelKey: "category.clothing" },
+  clothing: { to: "/category/product-type/clothing", labelKey: "category.clothing" },
 };
 
 /** Upstream category for a page: a product type's own, else bags (brand, style, family). */
@@ -188,6 +196,7 @@ export function buildCategorySearchParams(
       return brand ? { brand } : { brand: "__no_match__" };
     }
     case "product-type": {
+      if (WHOLE_CATEGORY_SLUGS.has(value)) return {};
       if (!(value in PRODUCT_TYPE_TO_SUBCATEGORY)) {
         return { subcategory: "__no_match__" };
       }
@@ -234,6 +243,7 @@ export function categoryTitleKey(
       if (value === "mini-bags") return "category.miniBags";
       if (value === "padded-jackets") return "category.paddedJackets";
       if (value === "jackets") return "category.jackets";
+      if (value === "clothing") return "category.clothing";
       return "home.categoryBags";
     case "style":
       return value && value in STYLE_SLUGS ? `category.${value}` : "nav.style";
@@ -268,6 +278,9 @@ export function productMatchesFacetValue(
       return brandsMatch(get("Brand"), expected);
     }
     case "product-type": {
+      if (WHOLE_CATEGORY_SLUGS.has(value)) {
+        return get("Category").toLowerCase() === PRODUCT_TYPE_TO_CATEGORY[value];
+      }
       const code = PRODUCT_TYPE_TO_SUBCATEGORY[value];
       if (!code) return false;
       const actual = get("Type") || get("SubCategory");

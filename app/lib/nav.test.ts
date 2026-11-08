@@ -5,6 +5,7 @@ import {
   NAV_GROUPS,
   VISIBLE_NAV_GROUPS,
   clearNavShelfCache,
+  navCategoryQuery,
   navCoverPath,
   navDisplaySrc,
   navGroupDestination,
@@ -45,41 +46,56 @@ describe("nav tree", () => {
   });
 });
 
+const CLOTHING = "/category/product-type/clothing";
 const JACKETS = "/category/product-type/jackets";
 const PADDED = "/category/product-type/padded-jackets";
 
 describe("empty category menus", () => {
-  const jackets = VISIBLE_NAV_GROUPS.find((group) => group.id === "jackets");
-  if (!jackets) throw new Error("jackets nav group missing");
+  const clothing = VISIBLE_NAV_GROUPS.find((group) => group.id === "clothing");
+  if (!clothing) throw new Error("clothing nav group missing");
+
+  it("views all clothing, padded jackets included", () => {
+    expect(clothing.to).toBe(CLOTHING);
+    expect(navCategoryQuery(CLOTHING)).toEqual({ category: "clothing", sort: "views", limit: 1 });
+    const shelves = {
+      [CLOTHING]: { status: "stocked" as const, image: "https://dupli1.com/product-images/pad.jpg" },
+      [JACKETS]: { status: "stocked" as const, image: "https://dupli1.com/product-images/jacket.jpg" },
+      [PADDED]: { status: "stocked" as const, image: "https://dupli1.com/product-images/pad.jpg" },
+    };
+    expect(navGroupDestination(clothing, shelves)).toBe(CLOTHING);
+    expect(navCoverPath(clothing, shelves)).toBe(CLOTHING);
+  });
 
   it("hides a category that has no products and keeps its stocked siblings", () => {
     const shelves = {
+      [CLOTHING]: { status: "stocked" as const, image: "https://dupli1.com/product-images/pad.jpg" },
       [JACKETS]: { status: "empty" as const, image: null },
       [PADDED]: { status: "stocked" as const, image: "https://dupli1.com/product-images/pad.jpg" },
     };
 
     expect(navItemVisible(JACKETS, shelves)).toBe(false);
-    expect(visibleNavItems(jackets.items, shelves).map((item) => item.to)).toEqual([PADDED]);
-    expect(navGroupVisible(jackets, shelves)).toBe(true);
-    expect(navCoverPath(jackets, shelves)).toBe(PADDED);
-    expect(navGroupDestination(jackets, shelves)).toBe(PADDED);
+    expect(visibleNavItems(clothing.items, shelves).map((item) => item.to)).toEqual([PADDED]);
+    expect(navGroupVisible(clothing, shelves)).toBe(true);
+    expect(navCoverPath(clothing, shelves)).toBe(CLOTHING);
+    expect(navGroupDestination(clothing, shelves)).toBe(CLOTHING);
   });
 
   it("hides the whole group when every category in it is empty", () => {
     const shelves = {
+      [CLOTHING]: { status: "empty" as const, image: null },
       [JACKETS]: { status: "empty" as const, image: null },
       [PADDED]: { status: "empty" as const, image: null },
     };
 
-    expect(navGroupVisible(jackets, shelves)).toBe(false);
-    expect(navCoverPath(jackets, shelves)).toBeNull();
+    expect(navGroupVisible(clothing, shelves)).toBe(false);
+    expect(navCoverPath(clothing, shelves)).toBeNull();
   });
 
   it("keeps the menu when the catalog has not answered or the request failed", () => {
-    expect(navGroupVisible(jackets, {})).toBe(true);
-    expect(visibleNavItems(jackets.items, {})).toHaveLength(jackets.items.length);
-    expect(navCoverPath(jackets, {})).toBe(JACKETS);
-    expect(navGroupDestination(jackets, {})).toBe(JACKETS);
+    expect(navGroupVisible(clothing, {})).toBe(true);
+    expect(visibleNavItems(clothing.items, {})).toHaveLength(clothing.items.length);
+    expect(navCoverPath(clothing, {})).toBe(CLOTHING);
+    expect(navGroupDestination(clothing, {})).toBe(CLOTHING);
     expect(navItemVisible(JACKETS, { [JACKETS]: { status: "unknown", image: null } })).toBe(true);
   });
 

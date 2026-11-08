@@ -64,6 +64,13 @@ export function meta({
     ];
   }
 
+  if (facet === "product-type" && value === "clothing") {
+    return [
+      { title: "Clothing | Dupli1" },
+      { name: "description", content: "Browse jackets and padded jackets at Dupli1." },
+    ];
+  }
+
   if (facet === "product-type" && value === "jackets") {
     return [
       { title: "Jackets | Dupli1" },
