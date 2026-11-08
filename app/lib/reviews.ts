@@ -177,3 +177,226 @@ export const FIT_LABEL_KEYS: Record<FitResult, string> = {
   true_to_size: "reviews.fitTrue",
   large: "reviews.fitLarge",
 };
+
+// ── The shopper's own reviews ──────────────────────────────────────────────
+//
+// Writes go through the session gateway, which attaches the Bearer token:
+// product forwards that token to order to check the line was bought and the
+// order is 구매확정 (fulfilled), so the browser never vouches for itself.
+
+const GATEWAY = "/auth/session/gateway/api/v1/products";
+
+export const REVIEW_LIMITS = {
+  bodyMin: 10,
+  bodyMax: 1000,
+  photos: 10,
+  photoBytes: 10 * 1024 * 1024,
+  heightMin: 100,
+  heightMax: 230,
+  usualSizeMax: 10,
+} as const;
+
+export const REVIEW_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+/** A review as its author sees it: also the order and the hidden state. */
+export interface MyReview extends Review {
+  orderId: string;
+  hidden?: boolean;
+  hiddenReason?: string;
+}
+
+export interface UploadedPhoto {
+  photoId: string;
+  url: string;
+  thumbUrl: string;
+}
+
+export interface ReviewDraft {
+  rating: number;
+  body: string;
+  /** Clothing only; result unset means no fit answer. */
+  fit?: { result?: FitResult; heightCm?: number | ""; usualSize?: string };
+  photoIds: string[];
+}
+
+export class ReviewRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly reason?: string,
+    readonly reviewId?: string
+  ) {
+    super(reason ?? `HTTP ${status}`);
+  }
+}
+
+async function callGateway(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (typeof init.body === "string") headers.set("Content-Type", "application/json");
+  let res: Response;
+  try {
+    res = await fetch(`${GATEWAY}${path}`, { ...init, credentials: "same-origin", headers });
+  } catch {
+    throw new ReviewRequestError(0);
+  }
+  if (!res.ok) {
+    let reason: string | undefined;
+    let reviewId: string | undefined;
+    try {
+      const body = (await res.json()) as { reason?: string; reviewId?: string };
+      reason = body.reason;
+      reviewId = body.reviewId;
+    } catch {
+      // Not JSON: the status is all there is.
+    }
+    throw new ReviewRequestError(res.status, reason, reviewId);
+  }
+  return res;
+}
+
+/** The caller's reviews, newest first; orderId narrows to one order. */
+export async function listMyReviews(orderId?: string): Promise<MyReview[]> {
+  const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : "";
+  const res = await callGateway(`/reviews/me${qs}`);
+  const body = (await res.json()) as { reviews?: MyReview[] };
+  return (body.reviews ?? []).map((r) => ({ ...r, photos: (r.photos ?? []).filter((p) => p.url) }));
+}
+
+/** Upload one photo; it waits, unattached, until a review lists its id. */
+export async function uploadReviewPhoto(file: File): Promise<UploadedPhoto> {
+  const form = new FormData();
+  form.append("photo", file, file.name);
+  const res = await callGateway("/reviews/photos", { method: "POST", body: form });
+  return (await res.json()) as UploadedPhoto;
+}
+
+export async function createReview(
+  productId: string,
+  line: { orderId: string; skuId: string },
+  draft: ReviewDraft
+): Promise<MyReview> {
+  const res = await callGateway(`/${encodeURIComponent(productId)}/reviews`, {
+    method: "POST",
+    body: JSON.stringify({ orderId: line.orderId, skuId: line.skuId, ...reviewRequestBody(draft) }),
+  });
+  return (await res.json()) as MyReview;
+}
+
+export async function updateReview(reviewId: string, draft: ReviewDraft): Promise<MyReview> {
+  const res = await callGateway(`/reviews/by-id/${encodeURIComponent(reviewId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(reviewRequestBody(draft)),
+  });
+  return (await res.json()) as MyReview;
+}
+
+export async function deleteReview(reviewId: string): Promise<void> {
+  await callGateway(`/reviews/by-id/${encodeURIComponent(reviewId)}`, { method: "DELETE" });
+}
+
+/** The wire body for create and edit. An empty fit is sent as {} to clear it. */
+export function reviewRequestBody(draft: ReviewDraft): {
+  rating: number;
+  body: string;
+  fit?: ReviewFit | Record<string, never>;
+  photoIds: string[];
+} {
+  const out: ReturnType<typeof reviewRequestBody> = {
+    rating: draft.rating,
+    body: draft.body.trim(),
+    photoIds: draft.photoIds,
+  };
+  if (draft.fit) {
+    const f = draft.fit;
+    if (f.result) {
+      const fit: ReviewFit = { result: f.result };
+      if (typeof f.heightCm === "number" && f.heightCm > 0) fit.heightCm = f.heightCm;
+      const usual = f.usualSize?.trim();
+      if (usual) fit.usualSize = usual;
+      out.fit = fit;
+    } else {
+      out.fit = {};
+    }
+  }
+  return out;
+}
+
+export type DraftError = "rating" | "bodyShort" | "bodyLong" | "photos" | "height" | "usualSize";
+
+/** What the form must fix before it may submit; empty when it may. */
+export function reviewDraftErrors(draft: ReviewDraft): DraftError[] {
+  const errors: DraftError[] = [];
+  if (!Number.isInteger(draft.rating) || draft.rating < 1 || draft.rating > 5) errors.push("rating");
+  const len = [...draft.body.trim()].length;
+  if (len < REVIEW_LIMITS.bodyMin) errors.push("bodyShort");
+  if (len > REVIEW_LIMITS.bodyMax) errors.push("bodyLong");
+  if (draft.photoIds.length > REVIEW_LIMITS.photos) errors.push("photos");
+  const h = draft.fit?.heightCm;
+  if (typeof h === "number" && (h < REVIEW_LIMITS.heightMin || h > REVIEW_LIMITS.heightMax)) errors.push("height");
+  if ((draft.fit?.usualSize?.trim().length ?? 0) > REVIEW_LIMITS.usualSizeMax) errors.push("usualSize");
+  return errors;
+}
+
+/** Client-side check before uploading, so a wrong file fails at once. */
+export function reviewPhotoProblem(file: { type: string; size: number }): "type" | "size" | null {
+  if (!(REVIEW_PHOTO_TYPES as readonly string[]).includes(file.type)) return "type";
+  if (file.size > REVIEW_LIMITS.photoBytes) return "size";
+  return null;
+}
+
+/** i18n key for a failed review request. */
+export function reviewErrorKey(err: unknown): string {
+  if (!(err instanceof ReviewRequestError)) return "reviews.write.failed";
+  if (err.status === 401) return "reviews.write.signIn";
+  switch (err.reason) {
+    case "not_reviewable":
+      return "reviews.write.notReviewable";
+    case "review_exists":
+      return "reviews.write.exists";
+    case "review_hidden":
+      return "reviews.write.hiddenLocked";
+    case "invalid_photo":
+      return "reviews.write.photoInvalid";
+    case "invalid_review":
+      return "reviews.write.invalid";
+    case "rate_limited":
+      return "reviews.write.rateLimited";
+    case "reference_unavailable":
+    case "reviews_unavailable":
+      return "reviews.write.unavailable";
+  }
+  if (err.status === 429) return "reviews.write.rateLimited";
+  if (err.status === 0 || err.status >= 500) return "reviews.write.unavailable";
+  return "reviews.write.failed";
+}
+
+/** The product and variant an order line is about, for the review call. */
+export interface ReviewLine {
+  orderId: string;
+  productId: string;
+  skuId: string;
+}
+
+/**
+ * Fills in what an older order line lacks: orders placed before order
+ * snapshotted product_id, or before sku_id, only carry the SKU string. The
+ * catalog's public variant lookup has both.
+ */
+export async function resolveReviewLine(
+  orderId: string,
+  item: { productId?: string; skuId?: string; sku: string }
+): Promise<ReviewLine | null> {
+  const productId = item.productId?.trim();
+  const skuId = item.skuId?.trim();
+  if (productId && skuId) return { orderId, productId, skuId };
+  const path = skuId
+    ? `/variants/by-sku-id/${encodeURIComponent(skuId)}`
+    : `/variants/by-sku/${encodeURIComponent(item.sku)}`;
+  try {
+    const res = await callGateway(path);
+    const v = (await res.json()) as { skuId?: string; productId?: string };
+    if (!v.skuId || !v.productId) return null;
+    return { orderId, productId: v.productId, skuId: v.skuId };
+  } catch {
+    return null;
+  }
+}
