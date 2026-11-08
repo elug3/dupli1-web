@@ -130,7 +130,7 @@ Product catalog reads call the Dupli1 product service
 ([elug3/dupli1](https://github.com/elug3/dupli1)) on the gateway paths the edge
 already routes (`/api/*` → nginx proxy). The browser uses:
 
-- Public search: `GET /api/v1/products?category=bags` — the category comes from the page (`categoryForFacet` in `app/lib/catalog.ts`): `/category/product-type/jackets` and `/category/product-type/padded-jackets` send `category=clothing` with `subcategory=jackets` / `padded` (`PRODUCT_TYPE_TO_CATEGORY`), every other page `category=bags`
+- Public search: `GET /api/v1/products?category=bags` — the category comes from the page (`categoryForFacet` in `app/lib/catalog.ts`): `/category/product-type/jackets` and `/category/product-type/padded-jackets` send `category=clothing` with `subcategory=jackets` / `padded` (`PRODUCT_TYPE_TO_CATEGORY`), `/category/product-type/clothing` sends `category=clothing` alone (`WHOLE_CATEGORY_SLUGS`), every other page `category=bags`
 - Public product detail: `GET /api/v1/products/{id}` (active products only). Clothing parents may carry `sizeChart` (cm per size → the PDP "Size guide") and free-form `attributes` (fill, lining, care…), shown on the PDP in place of bag dimensions
 - Admin product create: `POST /api/v1/products` (requires `product.create`; body needs existing catalog `brandCode` + `styleCode`)
 - Admin image upload: `POST /api/v1/products/{id}/images` (multipart field `image`)

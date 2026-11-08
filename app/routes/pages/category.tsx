@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
   type DisplayProduct,
   bannerBagImage,
@@ -18,6 +18,16 @@ import {
   isCategoryFacet,
   isFeaturedBrandSlug,
 } from "~/lib/catalog";
+import {
+  type FilterKey,
+  applyListingFilters,
+  hasActiveFilters,
+  listingSortParams,
+  parseListingFilters,
+  withListingFilter,
+  withoutListingFilters,
+} from "~/lib/listing-filters";
+import { ListingFilterBar } from "~/components/listing-filter-bar";
 import { NotFoundPage } from "~/components/not-found";
 import {
   PRODUCT_GRID_CLASS,
@@ -61,6 +71,13 @@ export function meta({
     return [
       { title: "Padded Jackets | Dupli1" },
       { name: "description", content: "Browse padded jackets at Dupli1." },
+    ];
+  }
+
+  if (facet === "product-type" && value === "clothing") {
+    return [
+      { title: "Clothing | Dupli1" },
+      { name: "description", content: "Browse jackets and padded jackets at Dupli1." },
     ];
   }
 
@@ -171,9 +188,31 @@ function ProductSkeletonGrid() {
   );
 }
 
-function ProductGrid({ products }: { products: DisplayProduct[] }) {
+function ProductGrid({
+  products,
+  onResetFilters,
+}: {
+  products: DisplayProduct[];
+  /** Set when filters emptied the grid: offer to clear them instead. */
+  onResetFilters?: () => void;
+}) {
   const { t, translateProductName } = useLanguage();
   const wishlist = useWishlist();
+
+  if (products.length === 0 && onResetFilters) {
+    return (
+      <section className="border border-zinc-100 bg-zinc-50 px-6 py-16 text-center">
+        <p className="text-sm text-zinc-500">{t("filter.noMatch")}</p>
+        <button
+          type="button"
+          onClick={onResetFilters}
+          className="mt-6 inline-flex h-11 items-center bg-zinc-950 px-6 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-zinc-800"
+        >
+          {t("filter.reset")}
+        </button>
+      </section>
+    );
+  }
 
   if (products.length === 0) {
     return (
@@ -352,27 +391,68 @@ function FacetResults({
   const { t } = useLanguage();
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = parseListingFilters(searchParams);
+  const category = categoryForFacet(facet, value);
 
   const title = categoryDisplayLabel(facet, value, t);
   const eyebrow = t(facetEyebrowKey(facet));
 
+  // Size is a clothing filter (bag sizes are free-form); a brand or gender
+  // page already is that filter.
+  const filterKeys: FilterKey[] = [
+    ...(category === "clothing" ? (["size"] as const) : []),
+    ...(facet === "family" ? [] : (["gender"] as const)),
+    ...(facet === "brand" ? [] : (["brand"] as const)),
+  ];
+
   useEffect(() => {
     setLoading(true);
     // Bags unless the product type belongs elsewhere (padded jackets: clothing).
-    const params = buildCategorySearchParams(facet, value);
-    searchProducts(categoryForFacet(facet, value), params)
+    const params = {
+      ...buildCategorySearchParams(facet, value),
+      ...listingSortParams(filters.sort),
+    };
+    searchProducts(category, params)
       .then((data) => setProducts(data.results))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
-  }, [facet, value]);
+  }, [facet, value, category, filters.sort]);
+
+  const shown = useMemo(
+    () => applyListingFilters(products, filters),
+    // `filters` is rebuilt every render; its fields are what matter.
+    [products, filters.size, filters.gender, filters.brand]
+  );
+
+  const update = (next: URLSearchParams) =>
+    setSearchParams(next, { replace: true, preventScrollReset: true });
+  const resetFilters = () => update(withoutListingFilters(searchParams));
 
   return (
     <CategoryShell
       eyebrow={eyebrow}
       title={title}
-      count={loading ? undefined : products.length}
+      count={loading ? undefined : shown.length}
     >
-      {loading ? <ProductSkeletonGrid /> : <ProductGrid products={products} />}
+      {/* Stays up while a new sort loads, so the page does not jump. */}
+      {products.length > 0 && (
+        <ListingFilterBar
+          products={products}
+          filters={filters}
+          keys={filterKeys}
+          onFilter={(key, next) => update(withListingFilter(searchParams, key, next))}
+          onReset={resetFilters}
+        />
+      )}
+      {loading ? (
+        <ProductSkeletonGrid />
+      ) : (
+        <ProductGrid
+          products={shown}
+          onResetFilters={hasActiveFilters(filters) ? resetFilters : undefined}
+        />
+      )}
     </CategoryShell>
   );
 }

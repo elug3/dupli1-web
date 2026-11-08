@@ -25,7 +25,8 @@ export interface NavGroup {
  *
  * Launching a planned subject: add its slugs to PRODUCT_TYPE_SLUGS and
  * PRODUCT_TYPE_TO_SUBCATEGORY (catalog.ts) with the subcategory codes product
- * uses, PRODUCT_TYPE_TO_CATEGORY when it is not a bag, a title in
+ * uses, PRODUCT_TYPE_TO_CATEGORY when it is not a bag (plus a
+ * WHOLE_CATEGORY_SLUGS slug when it is a new category), a title in
  * categoryTitleKey, fill in `items`, then set `launched`.
  */
 export const NAV_GROUPS: NavGroup[] = [
@@ -52,9 +53,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [],
   },
   {
-    id: "jackets",
-    labelKey: "nav.jackets",
-    to: "/category/product-type/jackets",
+    id: "clothing",
+    labelKey: "nav.clothing",
+    // Every clothing product, so "view all" shows padded jackets too.
+    to: "/category/product-type/clothing",
     kind: "subject",
     launched: true,
     items: [
