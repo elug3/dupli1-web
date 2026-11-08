@@ -133,6 +133,8 @@ interface UpstreamProduct {
   attributes?: Record<string, string>;
   /** Per-size garment measurements in cm (clothing); omitted when none. */
   sizeChart?: unknown;
+  /** Sizes of the active variants; list responses carry it without `variants`. */
+  availableSizes?: string[];
   variants?: Array<{
     sku: string;
     skuId?: string;
@@ -637,6 +639,8 @@ export interface DisplayProduct {
   stock?: number;
   image?: string;
   details: Record<string, string | number>;
+  /** Sizes on sale (catalog search only), for the listing's size filter. */
+  sizes?: string[];
 }
 
 export const CATEGORY_IMAGES: Record<string, string> = {
@@ -781,8 +785,8 @@ export async function searchProducts(
     ].some((value) => value.toLowerCase().includes(query));
   });
 
-  const results = filtered.map((product) =>
-    normalizeProduct(
+  const results = filtered.map((product) => ({
+    ...normalizeProduct(
       {
         ID: product.id,
         Name: product.name,
@@ -802,8 +806,9 @@ export async function searchProducts(
         Image: upstreamListingImage(product),
       },
       category
-    )
-  );
+    ),
+    sizes: product.availableSizes ?? [],
+  }));
 
   return { total: results.length, results };
 }
