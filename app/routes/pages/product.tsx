@@ -6,6 +6,7 @@ import { LoadingBadge } from "~/components/loading-badge";
 import { ProductImageGallery } from "~/components/product-image-gallery";
 import { ProductPrice } from "~/components/product-price";
 import { ProductQuestionsRow } from "~/components/product-questions";
+import { ProductReviews, ReviewSummaryRow } from "~/components/product-reviews";
 import { ConsultButton, useSupportChat } from "~/components/support-chat";
 import { VariantColorDots, VariantPicker } from "~/components/variant-picker";
 import { brandToSlug, categoryListing } from "~/lib/catalog";
@@ -87,6 +88,7 @@ export default function ProductPage() {
   return (
     <main className="bg-white">
       <ProductLayout product={product} />
+      <ProductReviews productId={product.id} />
       <RelatedProducts seedId={product.id} />
     </main>
   );
@@ -651,6 +653,11 @@ function ProductInfo({
         ].map((item) => (
           <AccordionItem key={item.title} title={item.title} body={item.body} />
         ))}
+        {/* 리뷰 — scrolls to the reviews section under the gallery */}
+        <ReviewSummaryRow
+          reviewCount={product.reviewCount}
+          ratingAverage={product.ratingAverage}
+        />
         {/* 상품 문의 — private to the shopper and staff */}
         {product.skuId && (
           <ProductQuestionsRow

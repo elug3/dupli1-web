@@ -63,6 +63,10 @@ export interface ServerProduct {
   dimensions?: ProductDimensions;
   wishlistCount?: number;
   soldCount?: number;
+  /** Visible reviews of the parent (dupli1 docs/product-reviews-plan.md). */
+  reviewCount?: number;
+  /** Mean rating, one decimal; null with no reviews. */
+  ratingAverage?: number | null;
   /** Active sellable variants (color × size), for the PDP pickers. */
   variants?: ProductVariant[];
   /** Display-only spec map (jacket fill, lining, care…); keys are not fixed. */
@@ -129,6 +133,8 @@ interface UpstreamProduct {
   target?: string;
   wishlistCount?: number;
   soldCount?: number;
+  reviewCount?: number;
+  ratingAverage?: number | null;
   /** Display-only string map (dupli1 docs/product-attributes.md). */
   attributes?: Record<string, string>;
   /** Per-size garment measurements in cm (clothing); omitted when none. */
@@ -270,6 +276,8 @@ function toServerProduct(product: UpstreamProduct): ServerProduct {
     createdAt: product.createdAt ?? new Date(0).toISOString(),
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
+    reviewCount: product.reviewCount,
+    ratingAverage: product.ratingAverage,
     variants: upstreamVariants(product),
     attributes: upstreamAttributes(product),
     sizeChart: sizeChart.length > 0 ? sizeChart : undefined,
