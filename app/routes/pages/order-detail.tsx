@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 
 import { OrderItemThumb } from "~/components/order-item-thumb";
+import { ReviewComposer } from "~/components/review-composer";
 import { ConsultButton, orderLabel } from "~/components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { type User, getMe } from "~/lib/auth";
@@ -27,6 +28,7 @@ import {
   shouldShowCancelRequestedBanner,
 } from "~/lib/checkout";
 import { useLanguage } from "~/lib/i18n";
+import { type MyReview, type ReviewLine, listMyReviews, resolveReviewLine } from "~/lib/reviews";
 import { carrierDisplayName, carrierTrackingUrl } from "~/lib/shipment-tracking";
 
 /** Same palette as the orders list, extended to the statuses only detail shows. */
@@ -166,6 +168,16 @@ function OrderDetail({
   const [actionError, setActionError] = useState<string | null>(null);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
+  // 리뷰: written once the order is 구매확정 (fulfilled), one per line.
+  // null until the order's reviews are read (or found unreadable).
+  const [myReviews, setMyReviews] = useState<MyReview[] | null>(null);
+  const [composer, setComposer] = useState<{
+    line: ReviewLine;
+    item: OrderItem;
+    existing?: MyReview;
+  } | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const reviewable = order.status === "fulfilled";
   const statusKey = orderStatusLabelKey(order.status);
   const timeline = orderTimeline(order);
 
@@ -210,6 +222,102 @@ function OrderDetail({
     } finally {
       setPending(null);
     }
+  }
+
+  useEffect(() => {
+    if (order.status !== "fulfilled" && order.status !== "delivered") return;
+    let cancelled = false;
+    listMyReviews(order.id)
+      .then((reviews) => {
+        if (!cancelled) setMyReviews(reviews);
+      })
+      .catch(() => {
+        // Without the list every line offers 리뷰 쓰기; a line already
+        // reviewed answers review_exists, which the drawer explains.
+        if (!cancelled) setMyReviews([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order.id, order.status]);
+
+  const reviewFor = (item: OrderItem) =>
+    item.skuId ? myReviews?.find((r) => r.skuId === item.skuId) : undefined;
+
+  async function openComposer(item: OrderItem) {
+    setActionError(null);
+    setReviewNotice(null);
+    const line = await resolveReviewLine(order.id, item);
+    if (!line) {
+      setActionError(t("reviews.write.lineUnknown"));
+      return;
+    }
+    setComposer({ line, item, existing: myReviews?.find((r) => r.skuId === line.skuId) });
+  }
+
+  // 구매확정하고 리뷰 쓰기: the confirmation the order needs, then the form.
+  async function confirmAndReview(item: OrderItem) {
+    if (!window.confirm(t("orderDetail.confirmReceiptPrompt"))) return;
+    setPending("receipt");
+    setActionError(null);
+    try {
+      applyUpdate(await confirmOrderReceipt(order.id));
+    } catch {
+      setActionError(t("orderDetail.confirmReceiptFailed"));
+      return;
+    } finally {
+      setPending(null);
+    }
+    await openComposer(item);
+  }
+
+  // A link from 내 리뷰 or an email lands with ?review=<skuId>.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (deepLinked.current || !reviewable || myReviews === null) return;
+    const skuId = new URLSearchParams(window.location.search).get("review");
+    const item = skuId ? order.items.find((i) => i.skuId === skuId) : undefined;
+    if (!item) return;
+    deepLinked.current = true;
+    void openComposer(item);
+    // Waits for myReviews, so an existing review opens as 리뷰 수정; runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewable, order.items, myReviews]);
+
+  function reviewAction(item: OrderItem): ReactNode {
+    const existing = reviewFor(item);
+    if (reviewable) {
+      return (
+        <button
+          type="button"
+          onClick={() => void openComposer(item)}
+          className={
+            existing
+              ? "text-[12px] font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-950"
+              : "inline-flex h-8 items-center border border-zinc-950 px-3 text-[11px] font-semibold text-zinc-950 transition hover:bg-zinc-950 hover:text-white"
+          }
+        >
+          {existing
+            ? existing.hidden
+              ? t("reviews.write.hiddenBadge")
+              : t("reviews.write.edit")
+            : t("reviews.write.button")}
+        </button>
+      );
+    }
+    if (order.status === "delivered") {
+      return (
+        <button
+          type="button"
+          disabled={pending !== null}
+          onClick={() => void confirmAndReview(item)}
+          className="inline-flex h-8 items-center border border-zinc-200 px-3 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-950 hover:text-zinc-950 disabled:opacity-50"
+        >
+          {t("reviews.write.confirmAndWrite")}
+        </button>
+      );
+    }
+    return null;
   }
 
   async function handleDispute() {
@@ -334,9 +442,18 @@ function OrderDetail({
       <Section title={t("orderDetail.items")}>
         <ul className="space-y-0">
           {order.items.map((item, index) => (
-            <OrderItemRow key={item.skuId ?? `${item.sku}-${index}`} item={item} />
+            <OrderItemRow
+              key={item.skuId ?? `${item.sku}-${index}`}
+              item={item}
+              action={reviewAction(item)}
+            />
           ))}
         </ul>
+        {reviewNotice && (
+          <p role="status" className="mt-3 text-[12px] text-zinc-600">
+            {reviewNotice}
+          </p>
+        )}
       </Section>
 
       <Section title={t("orderDetail.summary")}>
@@ -532,11 +649,32 @@ function OrderDetail({
           </div>
         </form>
       )}
+
+      {composer && (
+        <ReviewComposer
+          open
+          onClose={() => setComposer(null)}
+          line={composer.line}
+          productName={composer.item.productName ?? composer.item.sku}
+          imageUrl={composer.item.imageUrl}
+          existing={composer.existing}
+          onSaved={(review, created) => {
+            setMyReviews((current) => [review, ...(current ?? []).filter((r) => r.id !== review.id)]);
+            setComposer(null);
+            setReviewNotice(t(created ? "reviews.write.saved" : "reviews.write.updated"));
+          }}
+          onDeleted={(reviewId) => {
+            setMyReviews((current) => (current ?? []).filter((r) => r.id !== reviewId));
+            setComposer(null);
+            setReviewNotice(t("reviews.write.deleted"));
+          }}
+        />
+      )}
     </main>
   );
 }
 
-function OrderItemRow({ item }: { item: OrderItem }) {
+function OrderItemRow({ item, action }: { item: OrderItem; action?: ReactNode }) {
   const { t, formatCurrency } = useLanguage();
   const name = item.productName ?? item.sku;
   const productPath = orderItemProductPath(item);
@@ -580,6 +718,7 @@ function OrderItemRow({ item }: { item: OrderItem }) {
             price: formatCurrency(item.unitPriceWon),
           })}
         </p>
+        {action && <div className="mt-3">{action}</div>}
       </div>
       <p className="shrink-0 text-sm font-medium text-zinc-950">
         {formatCurrency(orderItemTotalWon(item))}

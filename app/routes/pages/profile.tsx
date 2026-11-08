@@ -7,12 +7,14 @@ import {
   type AccountSection,
 } from "~/lib/account";
 import { type User, getMe, logout } from "~/lib/auth";
-import { type Bag, listWishlist, removeFromWishlist, bagImage } from "~/lib/api";
+import { type Bag, listWishlist, removeFromWishlist, bagImage, fetchProduct } from "~/lib/api";
 import { OrderItemThumb } from "~/components/order-item-thumb";
 import { useSupportChat } from "~/components/support-chat";
 import { openSupportChat } from "~/lib/support-chat";
 import { ProductPrice } from "~/components/product-price";
 import { QuestionCard } from "~/components/product-questions";
+import { Stars, translateVariantLabel } from "~/components/product-reviews";
+import { type MyReview, formatReviewDate, listMyReviews } from "~/lib/reviews";
 import { type ProductQuestion, listAllMyQuestions } from "~/lib/product-questions";
 import { ShippingAddressBook } from "~/components/shipping-address-book";
 import {
@@ -69,6 +71,7 @@ const NAV_ITEMS: { id: Section; labelKey: string; icon: React.FC }[] = [
   { id: "orders", labelKey: "profile.orders", icon: BoxIcon },
   { id: "settings", labelKey: "profile.accountSettings", icon: SettingsIcon },
   { id: "questions", labelKey: "qna.title", icon: QuestionIcon },
+  { id: "reviews", labelKey: "reviews.mine.title", icon: StarIcon },
   { id: "support", labelKey: "profile.support", icon: SupportIcon },
 ];
 
@@ -215,6 +218,7 @@ export default function Profile() {
           {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
           {section === "questions" && <QuestionsSection />}
+          {section === "reviews" && <ReviewsSection />}
           {section === "support" && <SupportSection />}
         </div>
       </div>
@@ -1107,6 +1111,110 @@ function QuestionsSection() {
   );
 }
 
+// ── Reviews ───────────────────────────────────────────────────────────────
+
+/**
+ * 내 리뷰: every review the shopper wrote. Editing happens on the order the
+ * review came from (?review=<skuId> opens its drawer), where the line is.
+ */
+function ReviewsSection() {
+  const { t, translateValue, translateProductName } = useLanguage();
+  const [reviews, setReviews] = useState<MyReview[] | null>(null);
+  const [names, setNames] = useState<Record<string, { name: string; image?: string }>>({});
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listMyReviews()
+      .then(async (items) => {
+        if (cancelled) return;
+        setReviews(items);
+        // Reviews carry no product name; read each product once.
+        const ids = [...new Set(items.map((r) => r.productId))];
+        const entries = await Promise.all(
+          ids.map((id) =>
+            fetchProduct(id)
+              .then((p) => [id, { name: p.name, image: p.image }] as const)
+              .catch(() => null)
+          )
+        );
+        if (!cancelled) {
+          setNames(Object.fromEntries(entries.filter((e) => e !== null)));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section>
+      <SectionHeader title={t("reviews.mine.title")} count={reviews?.length} />
+      {failed ? (
+        <EmptyState message={t("reviews.mine.unavailable")} />
+      ) : reviews === null ? (
+        <p className="py-10 text-center text-sm text-zinc-400">{t("reviews.write.loading")}</p>
+      ) : reviews.length === 0 ? (
+        <EmptyState message={t("reviews.mine.empty")} />
+      ) : (
+        <ul className="divide-y divide-zinc-100 border-t border-zinc-100">
+          {reviews.map((review) => {
+            const product = names[review.productId];
+            const variant = translateVariantLabel(review.variantLabel, (c) => translateValue("color", c));
+            return (
+              <li key={review.id} className="flex gap-4 py-5">
+                <Link to={`/product/${encodeURIComponent(review.productId)}`} className="shrink-0" aria-hidden="true" tabIndex={-1}>
+                  <OrderItemThumb src={product?.image} alt="" className="size-16" />
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/product/${encodeURIComponent(review.productId)}`}
+                    className="block truncate text-sm font-medium text-zinc-950 underline-offset-4 hover:underline"
+                  >
+                    {product ? translateProductName(review.productId, product.name) : t("reviews.mine.product")}
+                  </Link>
+                  {variant && <p className="mt-0.5 text-[11px] text-zinc-400">{variant}</p>}
+                  <div className="mt-2 flex items-center gap-2">
+                    <Stars filled={review.rating} label={t("reviews.ratingLabel", { rating: review.rating })} />
+                    <span className="text-[11px] text-zinc-400">{formatReviewDate(review.createdAt)}</span>
+                    {review.hidden && (
+                      <span className="rounded-sm bg-zinc-100 px-1.5 py-px text-[10px] font-medium text-zinc-600">
+                        {t("reviews.write.hiddenBadge")}
+                      </span>
+                    )}
+                  </div>
+                  {review.hidden && review.hiddenReason && (
+                    <p className="mt-1 text-[12px] text-zinc-500">{review.hiddenReason}</p>
+                  )}
+                  <p className="mt-2 line-clamp-3 whitespace-pre-line break-keep text-[13px] leading-relaxed text-zinc-700">
+                    {review.body}
+                  </p>
+                  {review.photos.length > 0 && (
+                    <div className="mt-2 flex gap-1">
+                      {review.photos.slice(0, 5).map((p) => (
+                        <img key={p.id} src={p.thumbUrl || p.url} alt="" loading="lazy" className="size-12 object-cover" />
+                      ))}
+                    </div>
+                  )}
+                  <Link
+                    to={`${myAccountOrderPath(review.orderId)}?review=${encodeURIComponent(review.skuId)}`}
+                    className="mt-3 inline-block text-[12px] font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-950"
+                  >
+                    {review.hidden ? t("reviews.mine.viewOrder") : t("reviews.write.edit")}
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 // ── Support ────────────────────────────────────────────────────────────────
 
 function SupportSection() {
@@ -1228,6 +1336,14 @@ function QuestionIcon() {
   return (
     <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
       <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 16.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }

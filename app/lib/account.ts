@@ -4,6 +4,7 @@ export const ACCOUNT_SECTIONS = [
   "orders",
   "settings",
   "questions",
+  "reviews",
   "support",
 ] as const;
 

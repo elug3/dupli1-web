@@ -228,7 +228,7 @@ export function ProductImageGallery({
 
 // ── Full-body zoom modal ────────────────────────────────────────────────────
 
-function ImageZoomModal({
+export function ImageZoomModal({
   images,
   activeIndex,
   onActiveIndexChange,

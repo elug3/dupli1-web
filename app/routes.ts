@@ -36,6 +36,13 @@ export default [
     "api/v1/products/:id/recommendations",
     "routes/api/v1/products/$id.recommendations.ts"
   ),
+  // Public reviews (dupli1 docs/product-reviews-plan.md); local-dev mirror.
+  route("api/v1/products/:id/reviews", "routes/api/v1/products/$id.reviews.ts", {
+    id: "product-reviews",
+  }),
+  route("api/v1/products/:id/reviews/photos", "routes/api/v1/products/$id.reviews.ts", {
+    id: "product-review-photos",
+  }),
   route("api/v1/products/:id", "routes/api/v1/products/$id.ts"),
   // Local-dev BFF mirrors for cart/checkout (unused in production ALB path).
   // Browser cart/checkout calls go through `/auth/session/gateway` so the BFF
