@@ -24,6 +24,7 @@ import {
 } from "./components/support-chat";
 import { MY_ACCOUNT_ORDERS_PATH } from "./lib/account";
 import { useHeaderOverlay } from "./lib/header-overlay";
+import { GenderProvider, isHomePath } from "./lib/gender";
 import { LanguageProvider, useLanguage } from "./lib/i18n";
 import { loadNavCatalog } from "./lib/nav-catalog.server";
 import { startSupportChat } from "./lib/support-chat";
@@ -100,6 +101,7 @@ export default function App() {
 
   return (
     <LanguageProvider>
+      <GenderProvider>
       <div className="min-h-screen bg-white text-zinc-950">
         <SiteHeader />
         <MainOffset>
@@ -111,6 +113,7 @@ export default function App() {
         <SupportChat />
         <CookieBanner />
       </div>
+      </GenderProvider>
     </LanguageProvider>
   );
 }
@@ -151,7 +154,7 @@ function SupportChat() {
 function MainOffset({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const overlay = useHeaderOverlay();
-  return <div className={pathname === "/" || overlay ? "" : "pt-(--header-h)"}>{children}</div>;
+  return <div className={isHomePath(pathname) || overlay ? "" : "pt-(--header-h)"}>{children}</div>;
 }
 
 function PageTransition({ children }: { children: React.ReactNode }) {

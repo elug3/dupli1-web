@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { myAccountOrderPath } from "~/lib/account";
 import { listMyOrders, orderStatusLabelKey, type Order } from "~/lib/checkout";
 import { telegramContactUrl, type ContactContext } from "~/lib/contact";
+import { isHomePath } from "~/lib/gender";
 import { useLanguage } from "~/lib/i18n";
 import {
   MAX_MESSAGE_CHARS,
@@ -74,7 +75,7 @@ export function ConsultButton({
  * uncovered.
  */
 export function isChatFloatRoute(pathname: string): boolean {
-  return pathname === "/" || pathname.startsWith("/category/");
+  return isHomePath(pathname) || pathname.startsWith("/category/");
 }
 
 /** Floating chat button for signed-in shoppers. */

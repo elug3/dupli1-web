@@ -101,7 +101,10 @@ export const NAV_GROUPS: NavGroup[] = [
 /** The groups a shopper sees: planned subjects stay out until they launch. */
 export const VISIBLE_NAV_GROUPS: NavGroup[] = NAV_GROUPS.filter((g) => g.launched);
 
-export function navItemLabel(item: NavItem, t: (key: string) => string): string {
+export function navItemLabel(
+  item: { labelKey: string } | { label: string },
+  t: (key: string) => string
+): string {
   return "labelKey" in item ? t(item.labelKey) : item.label;
 }
 

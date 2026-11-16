@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { GENDER_MODES, GENDER_MODE_LABEL_KEYS, genderHomePath, useGender, withGender } from "~/lib/gender";
 import { useLanguage } from "~/lib/i18n";
 import {
   VISIBLE_NAV_GROUPS,
@@ -13,6 +14,7 @@ import {
 } from "~/lib/nav";
 import { useNavShelves } from "~/lib/useNavShelves";
 
+import { NEW_ARRIVALS_PATH } from "./gender-tabs";
 import { NavImage } from "./nav-image";
 
 /**
@@ -34,6 +36,7 @@ export function MenuDrawer({
   footer?: React.ReactNode;
 }) {
   const { t } = useLanguage();
+  const { mode, setMode } = useGender();
   const [groupId, setGroupId] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   // The last group opened stays rendered while level two slides back out.
@@ -129,6 +132,35 @@ export function MenuDrawer({
               group ? "-translate-x-1/4 opacity-0" : "translate-x-0 opacity-100",
             ].join(" ")}
           >
+            {/* Step one: who the shopper is shopping for. Remembered, and
+                every category link below follows it. */}
+            <div className="mt-4 flex items-center gap-2" role="group" aria-label={t("home.entryLabel")}>
+              {GENDER_MODES.map((option) => (
+                <Link
+                  key={option}
+                  to={genderHomePath(option)}
+                  onClick={() => {
+                    setMode(option);
+                    onClose();
+                  }}
+                  aria-current={mode === option ? "true" : undefined}
+                  className={[
+                    "inline-flex h-10 flex-1 items-center justify-center rounded-full border text-small transition-colors duration-300 ease-lux",
+                    mode === option ? "border-ink bg-ink text-white" : "border-rule hover:border-ink",
+                  ].join(" ")}
+                >
+                  {t(GENDER_MODE_LABEL_KEYS[option])}
+                </Link>
+              ))}
+            </div>
+            <Link
+              to={NEW_ARRIVALS_PATH}
+              onClick={onClose}
+              className="group mt-5 flex items-center justify-between border-b border-rule pb-4 text-xl"
+            >
+              <span>{t("home.newArrivalsTitle")}</span>
+              <ChevronIcon className="transition-transform duration-300 ease-lux group-hover:translate-x-1" />
+            </Link>
             <ul key={openCount} className="mt-6 grid gap-3">
               {subjects.map((g, i) => (
                 <li key={g.id} className="animate-menu-item-in" style={stagger(i)}>
@@ -183,6 +215,7 @@ function stagger(index: number): React.CSSProperties {
 
 function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
   const { t } = useLanguage();
+  const { mode } = useGender();
   const shelves = useNavShelves();
   const items = visibleNavItems(group.items, shelves);
 
@@ -191,7 +224,7 @@ function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => 
       <div className="mb-5 flex items-baseline justify-between gap-4">
         <h2 className="text-xl">{t(group.labelKey)}</h2>
         <Link
-          to={navGroupDestination(group, shelves)}
+          to={withGender(navGroupDestination(group, shelves), mode)}
           onClick={onNavigate}
           className="text-small text-mute underline underline-offset-4 hover:text-ink"
         >
@@ -201,7 +234,7 @@ function GroupTiles({ group, onNavigate }: { group: NavGroup; onNavigate: () => 
       <ul key={group.id} className="grid grid-cols-2 gap-x-3 gap-y-5">
         {items.map((item, i) => (
           <li key={item.to} className="animate-menu-item-in" style={stagger(i + 1)}>
-            <Link to={item.to} onClick={onNavigate} className="block">
+            <Link to={withGender(item.to, mode)} onClick={onNavigate} className="block">
               <NavImage to={item.to} className="aspect-square" />
               <p className="mt-2 text-small">{navItemLabel(item, t)}</p>
             </Link>
