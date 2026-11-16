@@ -84,6 +84,10 @@ export default [
   ),
   route("api/v1/inventory/:sku", "routes/api/v1/inventory.$sku.ts"),
   index("routes/pages/home.tsx"),
+  // The home page of a gender mode; `/` shows the remembered one.
+  route("women", "routes/pages/home.women.tsx"),
+  route("men", "routes/pages/home.men.tsx"),
+  route("new", "routes/pages/new-arrivals.tsx"),
   route("product/:id", "routes/pages/product.tsx"),
   route("cart", "routes/pages/cart.tsx"),
   route("checkout", "routes/pages/checkout.tsx"),

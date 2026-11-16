@@ -27,6 +27,10 @@ export interface Bag {
   image?: string;
   wishlistCount?: number;
   soldCount?: number;
+  /** Audience code (women | men | kids | all); empty when never tagged. */
+  target?: string;
+  /** When the product was listed (ISO), for ordering new arrivals. */
+  createdAt?: string;
 }
 
 export interface ServerProduct {
@@ -249,6 +253,8 @@ function toBag(product: UpstreamProduct): Bag {
     image: upstreamListingImage(product),
     wishlistCount: product.wishlistCount,
     soldCount: product.soldCount,
+    target: product.target,
+    createdAt: product.createdAt,
   };
 }
 

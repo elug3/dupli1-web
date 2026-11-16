@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
 import { useHeaderOverlay } from "~/lib/header-overlay";
+import { isHomePath } from "~/lib/gender";
 import { useLanguage, type LanguageCode } from "~/lib/i18n";
 import { useCart } from "~/lib/useCart";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
@@ -29,7 +30,7 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const pageOverlay = useHeaderOverlay();
   // The home hero is dark; other pages say which tone their image needs.
-  const overlayTone = pathname === "/" ? "light" : pageOverlay;
+  const overlayTone = isHomePath(pathname) ? "light" : pageOverlay;
   const overHero = overlayTone !== null;
 
   useEffect(() => {
