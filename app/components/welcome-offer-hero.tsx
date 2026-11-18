@@ -79,7 +79,9 @@ function TrainTicket() {
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-2 border-l border-dashed border-mute/60 px-2 py-4">
-        <p className="text-3xl font-medium leading-none tracking-tight md:text-4xl">15%</p>
+        <p className="text-3xl font-medium leading-none tracking-tight md:text-4xl">
+          {t("signupOffer.ticketStubValue")}
+        </p>
         <p className="text-[9px] font-medium uppercase tracking-[0.25em] md:text-[10px]">
           {t("signupOffer.ticketStub")}
         </p>
@@ -91,8 +93,9 @@ function TrainTicket() {
 
 /**
  * Welcome-offer hero above the sign-in form: a train-ticket illustration and the
- * first-purchase offer. The discount is a promotional code a manager
- * registers with `auto_issue: "user_registered"`; this only advertises it.
+ * welcome codes. The codes are promotional codes a manager
+ * registers with `auto_issue: "user_registered"`; this only advertises them,
+ * so keep its text in step with what /promotions issues.
  */
 export function WelcomeOfferHero({ onSignUp }: { onSignUp: () => void }) {
   const { t } = useLanguage();
