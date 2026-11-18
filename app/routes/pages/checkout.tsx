@@ -11,10 +11,9 @@ import {
   evaluatePromotion,
   promotionMessageKey,
   PromotionRejectedError,
-  splitDiscount,
   type WalletEntry,
 } from "~/lib/promotions";
-import { useMemberTier, usePromotionWallet } from "~/components/promotion-wallet";
+import { usePromotionWallet } from "~/components/promotion-wallet";
 import {
   applySessionPromotion,
   buildCheckoutFulfillment,
@@ -447,11 +446,8 @@ export default function CheckoutPage() {
     navigate("/cart");
   }
 
-  // A member's tier stacks under the code. Priced against the same delivery
-  // quote the summary shows; complete re-asks and is what is charged.
-  const tier = useMemberTier(items, totals().shipping);
-  const summary = totals((promotion?.discountWon ?? 0) + (tier?.discountWon ?? 0));
-  const discountSplit = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
+  const summary = totals(promotion?.discountWon ?? 0);
+  const codeWon = Math.min(promotion?.discountWon ?? 0, summary.discount);
   // A card payment adds the surcharge on everything else the order costs;
   // complete prices it for the chosen method and is what is charged.
   const surchargeBps = useCardSurchargeBps();
@@ -1230,7 +1226,7 @@ export default function CheckoutPage() {
                     <OptionLines
                       title={promotion.code}
                       detail={t("cart.discountApplied", {
-                        amount: formatCurrency(discountSplit.codeWon),
+                        amount: formatCurrency(codeWon),
                       })}
                     />
                   ) : promoMode === PROMO_ENTER ? (
@@ -1304,19 +1300,11 @@ export default function CheckoutPage() {
                 items={items}
                 subtotal={summary.subtotal}
                 discounts={[
-                  ...(discountSplit.codeWon > 0 && promotion
+                  ...(codeWon > 0 && promotion
                     ? [
                         {
                           label: t("cart.promo", { code: promotion.code }),
-                          won: discountSplit.codeWon,
-                        },
-                      ]
-                    : []),
-                  ...(discountSplit.tierWon > 0 && tier
-                    ? [
-                        {
-                          label: t("cart.memberTier", { code: tier.code }),
-                          won: discountSplit.tierWon,
+                          won: codeWon,
                         },
                       ]
                     : []),
@@ -1377,7 +1365,6 @@ export default function CheckoutPage() {
             <OrderSummary
               summary={summary}
               promotion={promotion}
-              tier={tier}
               promoInput={promoInput}
               promoError={promoError}
               applyingPromo={applyingPromo}
@@ -1929,7 +1916,7 @@ function MiniBag({
 }: {
   items: ReturnType<typeof useCart>["items"];
   subtotal: number;
-  /** Code and tier discounts, already taken off `total`. */
+  /** Code discounts, already taken off `total`. */
   discounts: { label: string; won: number }[];
   shipping: number;
   /** Points (적립금), already taken off `total`. */
