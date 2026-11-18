@@ -1,3 +1,4 @@
+import { formatPoints } from "~/lib/points";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 
@@ -194,10 +195,13 @@ function OrderDetail({
 
   async function handleCancel() {
     const immediate = Boolean(order.immediateCancelAllowed);
+    const base = immediate
+      ? t("profile.confirmCancelImmediate")
+      : t("profile.confirmCancelRequest");
     const ok = window.confirm(
-      immediate
-        ? t("profile.confirmCancelImmediate")
-        : t("profile.confirmCancelRequest")
+      (order.pointsWon ?? 0) > 0
+        ? `${base}\n\n${t("points.cancelReturns", { points: formatPoints(order.pointsWon ?? 0) })}`
+        : base
     );
     if (!ok) return;
     setPending("cancel");
@@ -477,6 +481,13 @@ function OrderDetail({
             <SummaryRow
               label={t("cart.memberTier", { code: order.tierPromotionCode ?? "" })}
               value={`−${formatCurrency((order.tierDiscountWon ?? 0))}`}
+              tone="discount"
+            />
+          )}
+          {(order.pointsWon ?? 0) > 0 && (
+            <SummaryRow
+              label={t("points.used")}
+              value={`−${t("points.value", { points: formatPoints(order.pointsWon ?? 0) })}`}
               tone="discount"
             />
           )}

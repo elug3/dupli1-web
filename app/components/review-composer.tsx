@@ -1,3 +1,10 @@
+import {
+  formatPoints,
+  REVIEW_PHOTO_POINTS,
+  REVIEW_REWARD_MIN_CHARS,
+  REVIEW_TEXT_POINTS,
+  reviewRewardPoints,
+} from "~/lib/points";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { fetchProduct } from "~/lib/api";
@@ -348,6 +355,13 @@ export function ReviewComposer({
                 </div>
               )}
 
+              {!existing && (
+                <ReviewRewardNote
+                  bodyChars={bodyLength}
+                  photoCount={photos.filter((p) => p.status === "done").length}
+                />
+              )}
+
               <div>
                 <label htmlFor={bodyId} className="text-sm font-medium text-zinc-950">
                   {t("reviews.write.bodyLabel")}
@@ -459,5 +473,31 @@ export function ReviewComposer({
         </form>
       </div>
     </dialog>
+  );
+}
+
+/**
+ * What a new review earns in points (dupli1 docs/payment-points.md → Review
+ * rewards): 2,000 P from 20 characters, 5,000 P with a photo. Payment decides;
+ * this only says what the review as written would get.
+ */
+function ReviewRewardNote({ bodyChars, photoCount }: { bodyChars: number; photoCount: number }) {
+  const { t } = useLanguage();
+  const earns = reviewRewardPoints(bodyChars, photoCount);
+  return (
+    <div className="border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-[12px] leading-relaxed text-emerald-800">
+      <p className="font-medium">
+        {earns > 0
+          ? t("reviews.write.rewardEarns", { points: formatPoints(earns) })
+          : t("reviews.write.rewardShort", { count: REVIEW_REWARD_MIN_CHARS - bodyChars })}
+      </p>
+      <p className="mt-0.5 text-emerald-700/80">
+        {t("reviews.write.rewardRule", {
+          text: formatPoints(REVIEW_TEXT_POINTS),
+          photo: formatPoints(REVIEW_PHOTO_POINTS),
+          min: REVIEW_REWARD_MIN_CHARS,
+        })}
+      </p>
+    </div>
   );
 }

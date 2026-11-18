@@ -16,12 +16,20 @@ import { PromotionRejectedError, rejectionFromBody } from "./promotions";
 
 export class ApiRequestError extends Error {
   readonly status: number;
+  /** The service's machine-readable `reason`, when it sent one. */
+  readonly reason?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, reason?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
+    this.reason = reason;
   }
+}
+
+/** Checkout complete refused the points: the shopper has fewer than asked. */
+export function isInsufficientPointsError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.reason === "insufficient_points";
 }
 
 /** True when the order is missing or belongs to somebody else. */
@@ -81,7 +89,7 @@ async function errorFromResponse(res: Response): Promise<ApiRequestError> {
         body.message?.trim() || null
       );
     }
-    return new ApiRequestError(res.status, message);
+    return new ApiRequestError(res.status, message, body.reason);
   } catch {
     return new ApiRequestError(res.status, fallback);
   }
@@ -228,6 +236,8 @@ export interface Order {
   paymentMethod?: string;
   /** Card surcharge (JSON `card_surcharge_won`), already inside `totalWon`. */
   cardSurchargeWon?: number;
+  /** Points (적립금) that paid part of the goods (JSON `points_won`), already off `totalWon`. */
+  pointsWon?: number;
   totalWon: number;
   promotionCode?: string;
   items: OrderItem[];
@@ -460,6 +470,7 @@ interface RawOrder {
   shipping_fee_won?: number;
   payment_method?: string;
   card_surcharge_won?: number;
+  points_won?: number;
   total_won?: number;
   /** Canonical since the 2026-09-16 rename; `coupon_code` is the pre-rename alias. */
   promotion_code?: string;
@@ -535,6 +546,7 @@ function mapOrder(raw: RawOrder): Order {
     shippingFeeWon: raw.shipping_fee_won ?? 0,
     paymentMethod: raw.payment_method || undefined,
     cardSurchargeWon: raw.card_surcharge_won ?? 0,
+    pointsWon: raw.points_won ?? 0,
     totalWon: raw.total_won ?? 0,
     // promotion_code is canonical; coupon_code is the pre-rename alias order
     // still emits for one release (dupli1 docs/product-promotion-rename.md).
@@ -753,7 +765,9 @@ export function buildCheckoutFulfillment(input: {
 export async function completeCheckoutSession(
   sessionId: string,
   fulfillment: CheckoutFulfillment,
-  paymentMethod: PaymentMethod = "credit_card"
+  paymentMethod: PaymentMethod = "credit_card",
+  /** Points to spend; order trims them to the goods after discounts. */
+  pointsWon = 0
 ): Promise<{ session: CheckoutSession; order: Order }> {
   const res = await request(
     `/api/v1/checkout/sessions/${encodeURIComponent(sessionId)}/complete`,
@@ -762,6 +776,7 @@ export async function completeCheckoutSession(
       body: JSON.stringify({
         ...mapFulfillmentBody(fulfillment),
         payment_method: paymentMethod,
+        ...(pointsWon > 0 ? { points_won: pointsWon } : {}),
       }),
     }
   );
