@@ -34,6 +34,7 @@ import {
   PaymentMethodDisabledError,
   getUnpurchasableCartItems,
   formatKRPhoneInput,
+  isInsufficientPointsError,
   isUnpurchasableVariantError,
   isValidKRPhone,
   isValidKRPostalCode,
@@ -70,6 +71,12 @@ import { useCart } from "~/lib/useCart";
 import { useCardSurchargeBps } from "~/lib/useCardSurcharge";
 import type { CartItem } from "~/lib/cart";
 import { useCartMutation } from "~/lib/useCartMutation";
+import {
+  fetchMyPoints,
+  formatPoints,
+  parsePointsInput,
+  usablePoints,
+} from "~/lib/points";
 import { OrderSummary } from "./cart";
 
 export function meta() {
@@ -181,6 +188,11 @@ export default function CheckoutPage() {
     PROMO_NONE
   );
   const [sessionUser, setSessionUser] = useState<User | null>(null);
+  // Points (적립금): null until loaded, or when they cannot be read; the
+  // section then stays hidden and the order is placed without them.
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  const [pointsInput, setPointsInput] = useState("");
+  const [pointsError, setPointsError] = useState<string | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(
     null
   );
@@ -255,6 +267,9 @@ export default function CheckoutPage() {
         if (cancelled) return;
         setSessionUser(user);
         if (!user) return;
+        fetchMyPoints(1).then((points) => {
+          if (!cancelled) setPointsBalance(points?.balance ?? null);
+        });
         // The account's email, never typed: only the confirmation page reads it.
         setForm((prev) => ({ ...prev, email: user.email }));
         getCustomerProfile()
@@ -440,16 +455,25 @@ export default function CheckoutPage() {
   // A card payment adds the surcharge on everything else the order costs;
   // complete prices it for the chosen method and is what is charged.
   const surchargeBps = useCardSurchargeBps();
+  // Points pay for goods after discounts, never delivery, and come off before
+  // the surcharge. Order trims the same way at complete.
+  const goodsAfterDiscount = Math.max(0, summary.subtotal - summary.discount);
+  const pointsUsed = usablePoints(
+    parsePointsInput(pointsInput),
+    pointsBalance ?? 0,
+    goodsAfterDiscount
+  );
+  const maxPoints = usablePoints(pointsBalance ?? 0, pointsBalance ?? 0, goodsAfterDiscount);
   // No surcharge for a card that cannot be chosen: it would quote a fee on
   // an order the shopper cannot place.
   const cardSurcharge =
     form.paymentMethod === "credit_card" && paymentMethodOptions.includes("credit_card")
-      ? cardSurchargeWon(summary.total, surchargeBps)
+      ? cardSurchargeWon(summary.total - pointsUsed, surchargeBps)
       : 0;
   const cardSurchargeLabel = t("cart.cardSurcharge", {
     rate: formatSurchargeRate(surchargeBps),
   });
-  const checkoutTotal = summary.total + cardSurcharge;
+  const checkoutTotal = summary.total - pointsUsed + cardSurcharge;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
   // Only a signed-in shopper with a loaded, not-full address book can save.
@@ -802,7 +826,8 @@ export default function CheckoutPage() {
           pccc: form.pccc,
           addressId,
         }),
-        form.paymentMethod
+        form.paymentMethod,
+        pointsUsed
       );
       const payment = await createPayment(order.id, form.paymentMethod, {
         note: form.bypassNote,
@@ -837,6 +862,14 @@ export default function CheckoutPage() {
       }
       if (err instanceof PaymentMethodDisabledError) {
         setCheckoutError(handleMethodDisabled(err));
+        setSubmitting(false);
+        return;
+      }
+      if (isInsufficientPointsError(err)) {
+        // Spent elsewhere since the page loaded: show the real balance.
+        const fresh = await fetchMyPoints(1);
+        setPointsBalance(fresh?.balance ?? null);
+        setPointsError(t("points.insufficient"));
         setSubmitting(false);
         return;
       }
@@ -1246,6 +1279,20 @@ export default function CheckoutPage() {
               )}
             </FieldGroup>
 
+            {pointsBalance !== null && (
+              <PointsField
+                balance={pointsBalance}
+                max={maxPoints}
+                value={pointsInput}
+                used={pointsUsed}
+                error={pointsError}
+                onChange={(v) => {
+                  setPointsInput(v);
+                  setPointsError(null);
+                }}
+              />
+            )}
+
             {checkoutError && (
               <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
                 {checkoutError}
@@ -1275,6 +1322,7 @@ export default function CheckoutPage() {
                     : []),
                 ]}
                 shipping={summary.shipping}
+                pointsUsed={pointsUsed}
                 cardSurcharge={
                   cardSurcharge > 0
                     ? { label: cardSurchargeLabel, won: cardSurcharge }
@@ -1338,6 +1386,7 @@ export default function CheckoutPage() {
               onRemovePromo={removePromo}
               walletEntries={wallet.entries}
               showPromo={false}
+              pointsUsed={pointsUsed}
               cardSurcharge={
                 cardSurcharge > 0
                   ? { label: cardSurchargeLabel, won: cardSurcharge }
@@ -1609,6 +1658,73 @@ function ProductUnavailableDialog({
 }
 
 /** Sub-group inside a step, e.g. Contact vs Shipping within step 01. */
+/**
+ * Points (적립금) at checkout: the balance, an amount and "use all". Points pay
+ * for goods after discounts only, so "use all" stops at that, not at the
+ * balance; delivery and the card surcharge stay on the card.
+ */
+function PointsField({
+  balance,
+  max,
+  value,
+  used,
+  error,
+  onChange,
+}: {
+  balance: number;
+  /** The most this order can use: the balance or the goods, whichever is less. */
+  max: number;
+  value: string;
+  used: number;
+  error: string | null;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useLanguage();
+  const typed = parsePointsInput(value);
+  const trimmed = typed > 0 && used < typed;
+
+  return (
+    <FieldGroup title={t("points.title")}>
+      <div className="flex items-baseline justify-between text-sm">
+        <span className="text-zinc-600">{t("points.balance")}</span>
+        <span className="font-medium text-zinc-950">
+          {t("points.value", { points: formatPoints(balance) })}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          id="points"
+          type="text"
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/[^\d,]/g, ""))}
+          onBlur={() => onChange(used > 0 ? formatPoints(used) : "")}
+          placeholder="0"
+          disabled={balance <= 0}
+          aria-describedby="points-hint"
+          className="h-12 min-w-0 flex-1 border border-rule bg-white px-4 text-right text-sm text-ink outline-none transition-colors duration-300 ease-lux focus:border-ink disabled:bg-zinc-50 disabled:text-zinc-400"
+        />
+        <button
+          type="button"
+          onClick={() => onChange(used === max && max > 0 ? "" : formatPoints(max))}
+          disabled={max <= 0}
+          className="h-12 shrink-0 rounded-full border border-ink px-6 text-[10px] font-semibold uppercase tracking-widest text-ink transition-colors duration-300 ease-lux hover:bg-ink hover:text-white disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300 disabled:hover:bg-transparent"
+        >
+          {used === max && max > 0 ? t("points.clear") : t("points.useAll")}
+        </button>
+      </div>
+      <p id="points-hint" className="text-caption text-zinc-500">
+        {balance <= 0
+          ? t("points.none")
+          : trimmed
+            ? t("points.trimmed", { points: formatPoints(used) })
+            : t("points.hint")}
+      </p>
+      {error && <p className="text-caption text-alert">{error}</p>}
+    </FieldGroup>
+  );
+}
+
 function FieldGroup({
   title,
   children,
@@ -1806,6 +1922,7 @@ function MiniBag({
   subtotal,
   discounts,
   shipping,
+  pointsUsed = 0,
   cardSurcharge,
   total,
   mutation,
@@ -1815,6 +1932,8 @@ function MiniBag({
   /** Code and tier discounts, already taken off `total`. */
   discounts: { label: string; won: number }[];
   shipping: number;
+  /** Points (적립금), already taken off `total`. */
+  pointsUsed?: number;
   /** Card surcharge, already added to `total`. */
   cardSurcharge?: { label: string; won: number };
   total: number;
@@ -1884,7 +2003,7 @@ function MiniBag({
         })}
       </ul>
       <dl className="mt-4 space-y-2 border-t border-zinc-200 pt-4 text-sm">
-        {discounts.length > 0 && (
+        {(discounts.length > 0 || pointsUsed > 0) && (
           <div className="flex justify-between text-zinc-600">
             <dt>{t("cart.subtotal")}</dt>
             <dd className="font-medium text-zinc-950">
@@ -1901,6 +2020,14 @@ function MiniBag({
             <dd className="font-medium">−{formatCurrency(discount.won)}</dd>
           </div>
         ))}
+        {pointsUsed > 0 && (
+          <div className="flex justify-between text-emerald-700">
+            <dt>{t("points.used")}</dt>
+            <dd className="font-medium">
+              −{t("points.value", { points: formatPoints(pointsUsed) })}
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between text-zinc-600">
           <dt>{t("cart.shipping")}</dt>
           <dd className="font-medium text-zinc-950">

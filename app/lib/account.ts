@@ -1,6 +1,7 @@
 export const ACCOUNT_SECTIONS = [
   "wishlist",
   "promotions",
+  "points",
   "orders",
   "settings",
   "questions",

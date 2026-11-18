@@ -38,6 +38,14 @@ import { useCart } from "~/lib/useCart";
 import { useShippingFeeWon } from "~/lib/useShippingFee";
 import { usePromotionWallet } from "~/components/promotion-wallet";
 import { type WalletEntry, promotionMessageKey } from "~/lib/promotions";
+import {
+  fetchMyPointEntries,
+  fetchMyPoints,
+  formatPoints,
+  type PointEntry,
+  type PointsSummary,
+  tierRatePercent,
+} from "~/lib/points";
 import { carrierTrackingUrl } from "~/lib/shipment-tracking";
 
 type Section = AccountSection;
@@ -68,6 +76,7 @@ const FAQ_ITEMS = [
 const NAV_ITEMS: { id: Section; labelKey: string; icon: React.FC }[] = [
   { id: "wishlist", labelKey: "profile.wishlist", icon: HeartIcon },
   { id: "promotions", labelKey: "profile.promotionCodes", icon: TagIcon },
+  { id: "points", labelKey: "points.title", icon: CoinIcon },
   { id: "orders", labelKey: "profile.orders", icon: BoxIcon },
   { id: "settings", labelKey: "profile.accountSettings", icon: SettingsIcon },
   { id: "questions", labelKey: "qna.title", icon: QuestionIcon },
@@ -215,6 +224,7 @@ export default function Profile() {
         <div className="min-w-0 flex-1">
           {section === "wishlist" && <WishlistSection />}
           {section === "promotions" && <PromotionsSection />}
+          {section === "points" && <PointsSection />}
           {section === "orders" && <OrdersSection user={user} />}
           {section === "settings" && <SettingsSection user={user} />}
           {section === "questions" && <QuestionsSection />}
@@ -464,6 +474,191 @@ function PromotionsSection() {
       <p className="mt-6 text-[11px] text-zinc-400">{t("profile.walletHint")}</p>
     </section>
   );
+}
+
+// ── Points (적립금) ─────────────────────────────────────────────────────────
+// The shopper's balance, tier and history from payment (elug3/dupli1
+// docs/payment-points.md).
+
+function PointsSection() {
+  const { t, formatCurrency } = useLanguage();
+  const [summary, setSummary] = useState<PointsSummary | null | undefined>(undefined);
+  const [entries, setEntries] = useState<PointEntry[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyPoints(20).then((s) => {
+      if (cancelled) return;
+      setSummary(s);
+      setEntries(s?.entries ?? []);
+      setCursor(s?.nextCursor);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function loadMore() {
+    if (!cursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchMyPointEntries(cursor, 20);
+      setEntries((prev) => [...prev, ...page.entries]);
+      setCursor(page.nextCursor);
+    } catch {
+      setCursor(undefined);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  if (summary === undefined) {
+    return (
+      <section>
+        <SectionHeader title={t("points.title")} count="" />
+        <div className="h-32 animate-pulse border border-zinc-100" />
+      </section>
+    );
+  }
+  if (summary === null) {
+    return (
+      <section>
+        <SectionHeader title={t("points.title")} />
+        <EmptyState message={t("points.unavailable")} />
+      </section>
+    );
+  }
+
+  const tier = summary.tier;
+  const next = tier.next;
+  const progress = next
+    ? Math.min(
+        100,
+        Math.round(
+          ((tier.spendWon - tier.minSpendWon) / Math.max(1, next.minSpendWon - tier.minSpendWon)) * 100
+        )
+      )
+    : 100;
+  const tierName = (code: string) => t(`points.tier.${code}`);
+
+  return (
+    <section className="space-y-10">
+      <div>
+        <SectionHeader title={t("points.title")} />
+        <div className="grid gap-px border border-zinc-100 bg-zinc-100 sm:grid-cols-3">
+          <div className="bg-white p-6">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.balance")}</p>
+            <p className="mt-2 text-2xl font-light text-zinc-950">
+              {t("points.value", { points: formatPoints(summary.balance) })}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-400">{t("points.worth", { won: formatCurrency(summary.balance) })}</p>
+          </div>
+          <div className="bg-white p-6">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.pending")}</p>
+            <p className="mt-2 text-2xl font-light text-zinc-950">
+              {t("points.value", { points: formatPoints(summary.pending) })}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-400">{t("points.pendingHint")}</p>
+          </div>
+          <div className="bg-white p-6">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.expiring")}</p>
+            <p className="mt-2 text-2xl font-light text-zinc-950">
+              {t("points.value", { points: formatPoints(summary.expiring) })}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-400">{t("points.expiringHint")}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border border-zinc-100 p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.tierTitle")}</p>
+          <p className="text-[11px] text-zinc-400">
+            {t("points.tierRate", { rate: tierRatePercent(tier.multiplier) })}
+          </p>
+        </div>
+        <p className="mt-2 text-xl font-light text-zinc-950">{tierName(tier.code)}</p>
+        <div className="mt-4 h-1 overflow-hidden bg-zinc-100">
+          <div className="h-full bg-zinc-950" style={{ width: `${progress}%` }} />
+        </div>
+        <p className="mt-3 text-[11px] text-zinc-500">
+          {next
+            ? t("points.tierNext", {
+                amount: formatCurrency(Math.max(0, next.minSpendWon - tier.spendWon)),
+                tier: tierName(next.code),
+                rate: tierRatePercent(next.multiplier),
+              })
+            : t("points.tierTop")}
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-400">
+          {t("points.tierSpend", { amount: formatCurrency(tier.spendWon) })}
+        </p>
+      </div>
+
+      <div>
+        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.howToEarn")}</p>
+        <ul className="space-y-1.5 text-sm text-zinc-600">
+          <li>{t("points.earnOrders", { rate: tierRatePercent(tier.multiplier) })}</li>
+          <li>{t("points.earnReviews")}</li>
+          <li>{t("points.earnExpiry")}</li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-zinc-400">{t("points.history")}</p>
+        {entries.length === 0 ? (
+          <EmptyState message={t("points.empty")} />
+        ) : (
+          <ul className="divide-y divide-zinc-100 border-y border-zinc-100">
+            {entries.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between gap-4 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm text-zinc-950">{pointEntryLabel(t, entry)}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-400">
+                    {new Date(entry.createdAt).toLocaleDateString()}
+                    {entry.orderId && (
+                      <>
+                        {" · "}
+                        <Link to={myAccountOrderPath(entry.orderId)} className="underline-offset-2 hover:underline">
+                          {t("points.order", { id: entry.orderId })}
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                </div>
+                <p className={`shrink-0 text-sm font-medium ${entry.points >= 0 ? "text-emerald-700" : "text-zinc-500"}`}>
+                  {entry.points >= 0 ? "+" : "−"}
+                  {t("points.value", { points: formatPoints(entry.points) })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+        {cursor && (
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="mt-6 h-11 rounded-full border border-zinc-200 px-6 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950 disabled:opacity-50"
+          >
+            {t("points.loadMore")}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One history line, in the shopper's words. */
+function pointEntryLabel(t: (key: string, values?: Record<string, string | number>) => string, entry: PointEntry): string {
+  if (entry.kind === "review") {
+    return t(entry.note === "photo" ? "points.kind.reviewPhoto" : "points.kind.review");
+  }
+  const key = `points.kind.${entry.kind}`;
+  const label = t(key);
+  return label === key ? entry.kind : label;
 }
 
 function PromotionCard({
@@ -1286,6 +1481,15 @@ function ProfileIcon({ className }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none">
       <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function CoinIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M9.5 15.5V8.5h3a2 2 0 0 1 0 4h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

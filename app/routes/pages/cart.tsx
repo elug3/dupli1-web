@@ -1,3 +1,4 @@
+import { formatPoints } from "~/lib/points";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { type Bag, fetchBags, bagImage } from "~/lib/api";
@@ -410,6 +411,7 @@ export function OrderSummary({
   disabled = false,
   showPromo = true,
   cardSurcharge,
+  pointsUsed = 0,
 }: {
   summary: ReturnType<ReturnType<typeof useCart>["totals"]>;
   promotion: AppliedPromotion | null;
@@ -433,11 +435,13 @@ export function OrderSummary({
    * not know the payment method yet, so it only notes the surcharge below.
    */
   cardSurcharge?: { label: string; won: number };
+  /** Checkout's points (적립금), taken off the goods before the surcharge. */
+  pointsUsed?: number;
 }) {
   const { t, formatCurrency } = useLanguage();
   const shippingFeeWon = useShippingFeeWon();
   const surchargeBps = useCardSurchargeBps();
-  const total = summary.total + (cardSurcharge?.won ?? 0);
+  const total = summary.total - pointsUsed + (cardSurcharge?.won ?? 0);
   const split = splitDiscount(summary.discount, promotion?.discountWon ?? 0);
 
   return (
@@ -466,6 +470,14 @@ export function OrderSummary({
             <dt>{t("cart.memberTier", { code: tier.code })}</dt>
             <dd className="font-medium">
               −{formatCurrency(split.tierWon)}
+            </dd>
+          </div>
+        )}
+        {pointsUsed > 0 && (
+          <div className="flex justify-between text-emerald-700">
+            <dt>{t("points.used")}</dt>
+            <dd className="font-medium">
+              −{t("points.value", { points: formatPoints(pointsUsed) })}
             </dd>
           </div>
         )}

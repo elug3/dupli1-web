@@ -1,3 +1,4 @@
+import { formatPoints } from "~/lib/points";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { clearCart } from "~/lib/cart";
@@ -146,6 +147,12 @@ export default function CheckoutConfirmationPage() {
                       {t("cart.memberTier", { code: order.tierPromotionCode ?? "" })}
                     </dt>
                     <dd>−{formatCurrency((order.tierDiscountWon ?? 0))}</dd>
+                  </div>
+                )}
+                {(order.pointsWon ?? 0) > 0 && (
+                  <div className="flex justify-between gap-8 text-emerald-700">
+                    <dt>{t("points.used")}</dt>
+                    <dd>−{t("points.value", { points: formatPoints(order.pointsWon ?? 0) })}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-8">
