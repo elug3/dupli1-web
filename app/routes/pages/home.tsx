@@ -1,8 +1,10 @@
 import { useEffect, useMemo } from "react";
-import { Link } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { GenderTabs, NEW_ARRIVALS_PATH } from "~/components/gender-tabs";
 import { ProductShelf } from "~/components/product-shelf";
 import { type GenderMode, useGender, withGender } from "~/lib/gender";
+import { type HomeBanner, bannerText } from "~/lib/home-banner";
+import { loadHomeBanner } from "~/lib/home-banner.server";
 import {
   SHELF_FETCH_LIMIT,
   SHELF_SIZE,
@@ -20,6 +22,11 @@ export function meta() {
     { title: "Dupli1 — Curated Luxury Bags" },
     { name: "description", content: "Authentic luxury bags from the world's most coveted brands." },
   ];
+}
+
+/** The live home banner, if staff are showing one (shared by `/women` and `/men`). */
+export async function loader() {
+  return { banner: await loadHomeBanner() };
 }
 
 const HOME_HERO_POSTER = "/heroes/home-banner.jpg";
@@ -51,10 +58,11 @@ export function GenderHome({ fixed }: { fixed?: GenderMode }) {
     [shelves]
   );
   const newest = useMemo(() => newestQueries(SHELF_FETCH_LIMIT), []);
+  const banner = useLoaderData<typeof loader>()?.banner ?? null;
 
   return (
     <main className="bg-white">
-      <Hero mode={mode} />
+      {banner ? <BannerHero banner={banner} /> : <Hero mode={mode} />}
       <GenderTabs active={mode} />
       <ProductShelf
         title={t("home.newArrivalsTitle")}
@@ -121,6 +129,63 @@ function Hero({ mode }: { mode: GenderMode }) {
           </Link>
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * A staff-uploaded image in place of the video: the phone image on narrow
+ * screens when there is one, the text in the shopper's language (Korean when
+ * that one is empty), and the whole image as the link when it has one.
+ */
+function BannerHero({ banner }: { banner: HomeBanner }) {
+  const { t, language } = useLanguage();
+  const title = bannerText(banner.title, language);
+  const label = bannerText(banner.linkLabel, language);
+  const link = banner.linkUrl;
+
+  const picture = (
+    <picture>
+      {banner.mobileImageUrl && <source media="(min-width: 768px)" srcSet={banner.imageUrl} />}
+      <img
+        src={banner.mobileImageUrl ?? banner.imageUrl}
+        alt={title}
+        className="absolute inset-0 h-full w-full object-cover"
+        fetchPriority="high"
+      />
+    </picture>
+  );
+  const text = (title || (link && label)) && (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center bg-gradient-to-t from-black/35 to-transparent px-4 pb-10 pt-24 text-center text-white md:pb-14">
+      {title && <h1 className="text-2xl md:text-[2rem] md:leading-tight">{title}</h1>}
+      {link && label && <span className="mt-4 text-small underline underline-offset-4">{label}</span>}
+    </div>
+  );
+  const frame = "relative block aspect-[4/5] w-full md:aspect-[5/2]";
+  const linkCls = `${frame} transition-opacity hover:opacity-95`;
+
+  return (
+    <section
+      className="relative w-full overflow-hidden bg-[#cfcfcf]"
+      aria-label={title || t("home.heroAlt")}
+      data-banner-id={banner.id}
+    >
+      {!link ? (
+        <div className={frame}>
+          {picture}
+          {text}
+        </div>
+      ) : link.startsWith("/") ? (
+        <Link to={link} className={linkCls}>
+          {picture}
+          {text}
+        </Link>
+      ) : (
+        <a href={link} className={linkCls} rel="noopener">
+          {picture}
+          {text}
+        </a>
+      )}
     </section>
   );
 }

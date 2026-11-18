@@ -1,5 +1,7 @@
 import { GenderHome, meta as homeMeta } from "./home";
 
+export { loader } from "./home";
+
 export function meta() {
   return homeMeta();
 }
