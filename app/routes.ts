@@ -92,9 +92,13 @@ export default [
   route("cart", "routes/pages/cart.tsx"),
   route("checkout", "routes/pages/checkout.tsx"),
   route("checkout/confirmation", "routes/pages/checkout.confirmation.tsx"),
-  // Resource route: HTML/redirect from the payment NANO bridge, not SPA chrome.
-  // Shoppers land here instead of the gateway `/api/v1/payments/.../nano/checkout`.
-  route("checkout/pay/:paymentId", "routes/pages/checkout.pay.$paymentId.ts"),
+  // Card payment page. With key-in (수기결제) it is the card form, posted by
+  // its SSR action; a payment from before key-in is sent on to `/window`.
+  route("checkout/pay/:paymentId", "routes/pages/checkout.pay.$paymentId.tsx"),
+  // Resource route: HTML/redirect from the payment NANO 인증결제 bridge, not
+  // SPA chrome. Shoppers land here instead of the gateway
+  // `/api/v1/payments/.../nano/checkout`. Kept for one release after key-in.
+  route("checkout/pay/:paymentId/window", "routes/pages/checkout.pay.$paymentId.window.ts"),
   // More specific than `profile/:section?` (3 segments vs 2), so the order
   // detail page never resolves as an account section.
   route("profile/orders/:orderId", "routes/pages/order-detail.tsx"),

@@ -545,6 +545,72 @@ export async function proxyNanoCheckout(
   });
 }
 
+/**
+ * Outcome of a server-side call to the payment service as the signed-in
+ * shopper. `signedOut` carries the Set-Cookie (if any) to send with the
+ * redirect to login; `unavailable` means auth or the session store could not
+ * answer, so the session is kept.
+ */
+export type ShopperPaymentCall =
+  | { kind: "signedOut"; setCookie?: string }
+  | { kind: "unavailable" }
+  | { kind: "response"; status: number; body: unknown; setCookie?: string };
+
+/**
+ * Calls payment with the shopper's own token, refreshing once on a 401, for
+ * SSR routes that must not expose the call to browser JavaScript — the key-in
+ * card form (`/checkout/pay/:id`) posts the card through here, so it never
+ * goes from the browser to a gateway route. The body is sent as is and never
+ * logged.
+ */
+export async function callPaymentsAsShopper(
+  request: Request,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown
+): Promise<ShopperPaymentCall> {
+  const target = upstreamUrl("payments", path);
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+
+  async function send(token: string): Promise<Response> {
+    const headers = new Headers({
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    });
+    if (payload !== undefined) headers.set("Content-Type", "application/json");
+    return fetch(target, { method, headers, body: payload, redirect: "manual" });
+  }
+
+  const first = await getAccessToken(request);
+  if (first instanceof Response) {
+    return first.status === 401
+      ? { kind: "signedOut", setCookie: first.headers.get("Set-Cookie") ?? undefined }
+      : { kind: "unavailable" };
+  }
+  let setCookie = first.setCookie;
+  let upstream = await send(first.token);
+  if (upstream.status === 401) {
+    const retried = await getAccessToken(request, { forceRefresh: true });
+    if (retried instanceof Response) {
+      return retried.status === 401
+        ? { kind: "signedOut", setCookie: retried.headers.get("Set-Cookie") ?? undefined }
+        : { kind: "unavailable" };
+    }
+    setCookie = retried.setCookie ?? setCookie;
+    // A card POST is only resent after a 401, which payment answers before
+    // it looks at the card, so this can never be a second charge.
+    upstream = await send(retried.token);
+    if (upstream.status === 401) return { kind: "signedOut", setCookie };
+  }
+  let parsed: unknown = null;
+  try {
+    parsed = await upstream.json();
+  } catch {
+    parsed = null;
+  }
+  return { kind: "response", status: upstream.status, body: parsed, setCookie };
+}
+
 export async function handleLogin(request: Request): Promise<Response> {
   const body = await parseJsonBody(request);
   const upstream = await requestTokens("/api/v1/auth/login", {

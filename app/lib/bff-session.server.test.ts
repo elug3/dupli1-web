@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  callPaymentsAsShopper,
   handleLogin,
   handleRefresh,
   handleSessionGatewayProxy,
@@ -746,5 +747,95 @@ describe("handleSessionGatewayProxy consultation chat", () => {
       );
       expect(res.status).toBe(404);
     }
+  });
+});
+
+describe("callPaymentsAsShopper", () => {
+  async function signIn(): Promise<string> {
+    const loginResponse = await handleLogin(
+      new Request("http://localhost/auth/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "user@example.com", password: "secret" }),
+      })
+    );
+    return loginResponse.headers.get("Set-Cookie")!;
+  }
+
+  it("reports a signed-out shopper without calling payment", async () => {
+    const fetchSpy = vi.fn(async () => {
+      throw new Error("payment must not be called");
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const call = await callPaymentsAsShopper(
+      new Request("http://localhost/checkout/pay/pay_1"),
+      "POST",
+      "/api/v1/payments/pay_1/card",
+      { card_number: "4111111111111111" }
+    );
+    expect(call.kind).toBe("signedOut");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("posts the card with the shopper's token and returns payment's answer", async () => {
+    const cardCalls: RequestInit[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const target = String(url);
+        if (target.endsWith("/api/v1/auth/login")) return jsonResponse({ refresh_token: "rt-1" });
+        if (target.endsWith("/api/v1/auth/refresh")) {
+          return jsonResponse({ token: "access-1", refresh_token: "rt-2" });
+        }
+        if (target.endsWith("/api/v1/payments/pay_1/card")) {
+          cardCalls.push(init!);
+          return jsonResponse({ reason: "card_declined", message: "비밀번호 오류" }, 402);
+        }
+        throw new Error(`unexpected fetch: ${target}`);
+      })
+    );
+    const cookie = await signIn();
+    const call = await callPaymentsAsShopper(
+      new Request("http://localhost/checkout/pay/pay_1", { headers: { Cookie: cookie } }),
+      "POST",
+      "/api/v1/payments/pay_1/card",
+      { card_number: "4111111111111111" }
+    );
+    expect(call).toMatchObject({ kind: "response", status: 402, body: { reason: "card_declined" } });
+    expect(cardCalls).toHaveLength(1);
+    expect((cardCalls[0].headers as Headers).get("Authorization")).toBe("Bearer access-1");
+    expect(cardCalls[0].body).toBe(JSON.stringify({ card_number: "4111111111111111" }));
+  });
+
+  it("refreshes once on a 401 and resends", async () => {
+    let refreshes = 0;
+    const tokens: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const target = String(url);
+        if (target.endsWith("/api/v1/auth/login")) return jsonResponse({ refresh_token: "rt-1" });
+        if (target.endsWith("/api/v1/auth/refresh")) {
+          refreshes += 1;
+          return jsonResponse({ token: `access-${refreshes}`, refresh_token: `rt-${refreshes + 1}` });
+        }
+        if (target.endsWith("/api/v1/payments/pay_1")) {
+          const auth = (init!.headers as Headers).get("Authorization")!;
+          tokens.push(auth);
+          return auth === "Bearer access-1"
+            ? jsonResponse({ error: "unauthorized" }, 401)
+            : jsonResponse({ id: "pay_1", order_id: "ord_1", status: "requires_payment" });
+        }
+        throw new Error(`unexpected fetch: ${target}`);
+      })
+    );
+    const cookie = await signIn();
+    const call = await callPaymentsAsShopper(
+      new Request("http://localhost/checkout/pay/pay_1", { headers: { Cookie: cookie } }),
+      "GET",
+      "/api/v1/payments/pay_1"
+    );
+    expect(call).toMatchObject({ kind: "response", status: 200 });
+    expect(tokens).toEqual(["Bearer access-1", "Bearer access-2"]);
   });
 });
