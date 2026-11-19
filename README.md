@@ -158,11 +158,17 @@ unsigned callers get 401 and the UI treats the bag as empty until login.
 
 Checkout creates a payment with an explicit `method` ([elug3/dupli1#108](https://github.com/elug3/dupli1/pull/108)).
 The storefront payment step offers **credit card** (`method: "credit_card"`) via
-NANO certified checkout when configured. Dupli1 never collects card PAN/CVC —
-the browser stays on dupli1-web at `/checkout/pay/:paymentId`. That resource
-route's BFF calls the payment-service bridge (`GET /api/v1/payments/{id}/nano/checkout`)
-over the internal gateway. Do not send the shopper to that `/api/v1/...` URL:
-the production edge (VENUS) forwards `/api/*` to `dupli1-proxy`, so it is a gateway endpoint,
+NANO when configured. Since SER-106 card checkout is **key-in (수기결제)**: the
+shopper lands on `/checkout/pay/:paymentId`, a card form whose SSR action
+(`callPaymentsAsShopper`) posts the card to payment's
+`POST /api/v1/payments/{id}/card` with the shopper's token. The card never goes
+from browser JavaScript to a gateway route, is never stored, and is never sent
+back in a response; CVC is never asked for. A payment the backend still gives a
+`checkout_url` (인증결제, before `NANO_ENC_*` is set) is sent on to
+`/checkout/pay/:paymentId/window`, whose BFF calls the payment-service bridge
+(`GET /api/v1/payments/{id}/nano/checkout`) over the internal gateway. Do not
+send the shopper to that `/api/v1/...` URL: the production edge (VENUS)
+forwards `/api/*` to `dupli1-proxy`, so it is a gateway endpoint,
 not a storefront page. Staff sessions with
 `payment.bypass` / `admin.*` / `*` also see **Mark as paid (bypass)**.
 Use `detectUserKind()` / `canBypassPayment()` in `app/lib/auth.ts`
