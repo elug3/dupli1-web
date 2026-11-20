@@ -1,41 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  cardSurchargeWon,
-  completeCheckoutSession,
-  formatSurchargeRate,
-  getCardSurchargeBps,
-} from "./checkout";
+import { completeCheckoutSession } from "./checkout";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("card surcharge", () => {
-  it("rounds down to the won like order does", () => {
-    expect(cardSurchargeWon(100000, 1000)).toBe(10000);
-    expect(cardSurchargeWon(12345, 1000)).toBe(1234);
-    expect(cardSurchargeWon(12345, 250)).toBe(308);
-    expect(cardSurchargeWon(0, 1000)).toBe(0);
-    expect(cardSurchargeWon(100000, 0)).toBe(0);
-  });
-
-  it("formats the rate", () => {
-    expect(formatSurchargeRate(1000)).toBe("10%");
-    expect(formatSurchargeRate(250)).toBe("2.5%");
-  });
-
-  it("reads the rate from order settings, null when unpublished", async () => {
-    vi.stubGlobal("fetch", async () => ({
-      ok: true,
-      json: async () => ({ limits: { card_surcharge_bps: 1000 } }),
-    }));
-    expect(await getCardSurchargeBps()).toBe(1000);
-
-    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => ({ limits: {} }) }));
-    expect(await getCardSurchargeBps()).toBeNull();
-  });
-
-  it("complete sends the payment method and maps the surcharge back", async () => {
+describe("payment method", () => {
+  it("complete sends the payment method and maps an old order's surcharge back", async () => {
     const bodies: unknown[] = [];
     vi.stubGlobal("fetch", async (_input: RequestInfo, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)));
