@@ -232,9 +232,13 @@ export interface Order {
   tierDiscountWon?: number;
   /** Whole KRW won (JSON `shipping_fee_won`), snapshotted at order creation. */
   shippingFeeWon: number;
-  /** What the order was priced for; empty on orders from before the card surcharge. */
+  /** How the order is paid (`credit_card` or `bypass`); empty on old orders. */
   paymentMethod?: string;
-  /** Card surcharge (JSON `card_surcharge_won`), already inside `totalWon`. */
+  /**
+   * The old 10% card surcharge (JSON `card_surcharge_won`), already inside
+   * `totalWon`. Only orders placed before SER-110 removed it have one; new
+   * orders are 0, and the order pages show the line only when it is set.
+   */
   cardSurchargeWon?: number;
   /** Points (적립금) that paid part of the goods (JSON `points_won`), already off `totalWon`. */
   pointsWon?: number;
@@ -368,41 +372,6 @@ export async function getShippingFeeWon(): Promise<number | null> {
   } catch {
     return null;
   }
-}
-
-/**
- * Display fallback for the card surcharge, in basis points (1000 = 10%), used
- * until order's settings answer. Mirrors the backend default so a failed read
- * never quotes a card payment cheaper than it will be.
- */
-export const CARD_SURCHARGE_BPS = 1000;
-
-/**
- * Fetches the card surcharge order adds to a card payment, in basis points of
- * the goods after discounts plus delivery. Null when the service cannot be
- * reached or does not publish it, so callers fall back to CARD_SURCHARGE_BPS.
- */
-export async function getCardSurchargeBps(): Promise<number | null> {
-  try {
-    const res = await fetch("/api/v1/orders/settings");
-    if (!res.ok) return null;
-    const body = (await res.json()) as { limits?: { card_surcharge_bps?: number } };
-    const bps = body.limits?.card_surcharge_bps;
-    return typeof bps === "number" && bps >= 0 ? bps : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The surcharge order will add: `bps` of `baseWon`, rounded down like the backend. */
-export function cardSurchargeWon(baseWon: number, bps: number): number {
-  if (baseWon <= 0 || bps <= 0) return 0;
-  return Math.floor((baseWon * bps) / 10000);
-}
-
-/** "10%" or "2.5%" for a rate in basis points. */
-export function formatSurchargeRate(bps: number): string {
-  return `${Number((bps / 100).toFixed(2))}%`;
 }
 
 export interface Payment {
@@ -758,9 +727,9 @@ export function buildCheckoutFulfillment(input: {
 }
 
 /**
- * Completes the session into a pending order priced for `paymentMethod`: order
- * adds the card surcharge for `credit_card` (also its default) and none for
- * `bypass`, and payment then accepts only that method.
+ * Completes the session into a pending order for `paymentMethod` (`credit_card`
+ * by default). The method does not change the price; payment then accepts only
+ * that method.
  */
 export async function completeCheckoutSession(
   sessionId: string,

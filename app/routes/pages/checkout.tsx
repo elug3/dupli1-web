@@ -18,9 +18,7 @@ import {
   applySessionPromotion,
   buildCheckoutFulfillment,
   buildCheckoutSessionItem,
-  cardSurchargeWon,
   cartHasUnpurchasableItems,
-  formatSurchargeRate,
   completeCheckoutSession,
   createCheckoutSession,
   createPayment,
@@ -67,7 +65,6 @@ import { MY_ACCOUNT_ORDERS_PATH } from "~/lib/account";
 import { useLanguage } from "~/lib/i18n";
 import { KR_PROVINCES, districtsForProvince } from "~/lib/kr-regions";
 import { useCart } from "~/lib/useCart";
-import { useCardSurchargeBps } from "~/lib/useCardSurcharge";
 import type { CartItem } from "~/lib/cart";
 import { useCartMutation } from "~/lib/useCartMutation";
 import {
@@ -448,11 +445,8 @@ export default function CheckoutPage() {
 
   const summary = totals(promotion?.discountWon ?? 0);
   const codeWon = Math.min(promotion?.discountWon ?? 0, summary.discount);
-  // A card payment adds the surcharge on everything else the order costs;
-  // complete prices it for the chosen method and is what is charged.
-  const surchargeBps = useCardSurchargeBps();
-  // Points pay for goods after discounts, never delivery, and come off before
-  // the surcharge. Order trims the same way at complete.
+  // Points pay for goods after discounts, never delivery. Order trims the
+  // same way at complete.
   const goodsAfterDiscount = Math.max(0, summary.subtotal - summary.discount);
   const pointsUsed = usablePoints(
     parsePointsInput(pointsInput),
@@ -460,16 +454,8 @@ export default function CheckoutPage() {
     goodsAfterDiscount
   );
   const maxPoints = usablePoints(pointsBalance ?? 0, pointsBalance ?? 0, goodsAfterDiscount);
-  // No surcharge for a card that cannot be chosen: it would quote a fee on
-  // an order the shopper cannot place.
-  const cardSurcharge =
-    form.paymentMethod === "credit_card" && paymentMethodOptions.includes("credit_card")
-      ? cardSurchargeWon(summary.total - pointsUsed, surchargeBps)
-      : 0;
-  const cardSurchargeLabel = t("cart.cardSurcharge", {
-    rate: formatSurchargeRate(surchargeBps),
-  });
-  const checkoutTotal = summary.total - pointsUsed + cardSurcharge;
+  // Every payment method costs the same: there is no card surcharge (SER-110).
+  const checkoutTotal = summary.total - pointsUsed;
   const cartBusy = mutation.pendingKey !== null;
   const savedAddresses = profile?.addresses ?? [];
   // Only a signed-in shopper with a loaded, not-full address book can save.
@@ -1143,9 +1129,7 @@ export default function CheckoutPage() {
                         detail={
                           method === "bypass"
                             ? t("checkout.methodBypassHint")
-                            : surchargeBps > 0
-                              ? `${t("checkout.methodCreditCardHint")} · ${t("checkout.methodCreditCardSurcharge", { rate: formatSurchargeRate(surchargeBps) })}`
-                              : t("checkout.methodCreditCardHint")
+                            : t("checkout.methodCreditCardHint")
                         }
                       />
                     ),
@@ -1311,11 +1295,6 @@ export default function CheckoutPage() {
                 ]}
                 shipping={summary.shipping}
                 pointsUsed={pointsUsed}
-                cardSurcharge={
-                  cardSurcharge > 0
-                    ? { label: cardSurchargeLabel, won: cardSurcharge }
-                    : undefined
-                }
                 total={checkoutTotal}
                 mutation={mutation}
               />
@@ -1374,11 +1353,6 @@ export default function CheckoutPage() {
               walletEntries={wallet.entries}
               showPromo={false}
               pointsUsed={pointsUsed}
-              cardSurcharge={
-                cardSurcharge > 0
-                  ? { label: cardSurchargeLabel, won: cardSurcharge }
-                  : undefined
-              }
             />
 
             <div className="mt-4">
@@ -1648,7 +1622,7 @@ function ProductUnavailableDialog({
 /**
  * Points (적립금) at checkout: the balance, an amount and "use all". Points pay
  * for goods after discounts only, so "use all" stops at that, not at the
- * balance; delivery and the card surcharge stay on the card.
+ * balance; delivery stays on the card.
  */
 function PointsField({
   balance,
@@ -1910,7 +1884,6 @@ function MiniBag({
   discounts,
   shipping,
   pointsUsed = 0,
-  cardSurcharge,
   total,
   mutation,
 }: {
@@ -1921,8 +1894,6 @@ function MiniBag({
   shipping: number;
   /** Points (적립금), already taken off `total`. */
   pointsUsed?: number;
-  /** Card surcharge, already added to `total`. */
-  cardSurcharge?: { label: string; won: number };
   total: number;
   mutation: ReturnType<typeof useCartMutation>;
 }) {
@@ -2021,14 +1992,6 @@ function MiniBag({
             {shipping === 0 ? t("cart.complimentary") : formatCurrency(shipping)}
           </dd>
         </div>
-        {cardSurcharge && (
-          <div className="flex justify-between text-zinc-600">
-            <dt>{cardSurcharge.label}</dt>
-            <dd className="font-medium text-zinc-950">
-              {formatCurrency(cardSurcharge.won)}
-            </dd>
-          </div>
-        )}
         <div className="flex justify-between font-semibold text-zinc-950">
           <dt>{t("cart.total")}</dt>
           <dd>{formatCurrency(total)}</dd>
