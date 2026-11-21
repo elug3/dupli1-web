@@ -100,7 +100,7 @@ export async function getMe(): Promise<User | null> {
   return res.json() as Promise<User>;
 }
 
-async function errorMessage(res: Response, fallback: string): Promise<string> {
+export async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   try {
     const body = await res.json();
     return (body as { error?: string }).error ?? fallback;
@@ -111,7 +111,7 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
 
 export async function login(email: string, password: string): Promise<void> {
   const res = await post(SESSION_LOGIN, { email, password });
-  if (!res.ok) throw new Error(await errorMessage(res, "Login failed"));
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Login failed"));
   // The cart store outlives client-side navigation: without this the `guest`
   // status cached while signed out survives, and /checkout redirects back here.
   resetCart();
@@ -124,7 +124,7 @@ export async function register(
   password: string
 ): Promise<void> {
   const res = await post(SESSION_REGISTER, { email, password });
-  if (!res.ok) throw new Error(await errorMessage(res, "Registration failed"));
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Registration failed"));
   // Register also establishes the session cookie, so it changes sessions too.
   resetCart();
   clearCheckoutDraft();

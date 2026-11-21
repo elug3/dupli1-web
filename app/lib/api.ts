@@ -1,4 +1,4 @@
-import { authedFetch } from "./auth";
+import { authedFetch, readErrorMessage } from "./auth";
 import {
   type ProductDimensions,
   normalizeDimensions,
@@ -848,20 +848,11 @@ export interface WishlistMutation {
   wishlistCount: number;
 }
 
-async function readWishlistError(res: Response, fallback: string): Promise<string> {
-  try {
-    const body = (await res.json()) as { error?: string };
-    return body.error ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 /** GET /api/v1/products/wishlist — current owner's wishlisted parents. */
 export async function listWishlist(): Promise<Bag[]> {
   const res = await authedFetch("/api/v1/products/wishlist");
   if (!res.ok) {
-    throw new Error(await readWishlistError(res, "Failed to load wishlist"));
+    throw new Error(await readErrorMessage(res, "Failed to load wishlist"));
   }
   const body = (await res.json()) as { items?: UpstreamProduct[] | null };
   return (body.items ?? []).map(toBag);
@@ -876,7 +867,7 @@ export async function addToWishlist(
     { method: "PUT" }
   );
   if (!res.ok) {
-    throw new Error(await readWishlistError(res, "Failed to add to wishlist"));
+    throw new Error(await readErrorMessage(res, "Failed to add to wishlist"));
   }
   return (await res.json()) as WishlistMutation;
 }
@@ -891,7 +882,7 @@ export async function removeFromWishlist(
   );
   if (!res.ok) {
     throw new Error(
-      await readWishlistError(res, "Failed to remove from wishlist")
+      await readErrorMessage(res, "Failed to remove from wishlist")
     );
   }
   return (await res.json()) as WishlistMutation;

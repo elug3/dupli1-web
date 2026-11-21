@@ -1,4 +1,4 @@
-import { authedFetch } from "~/lib/auth";
+import { authedFetch, readErrorMessage } from "~/lib/auth";
 import {
   isValidKRPhone,
   isValidKRPostalCode,
@@ -99,15 +99,6 @@ function mapProfile(raw: RawProfileView): CustomerProfile {
   };
 }
 
-async function readError(res: Response, fallback: string): Promise<string> {
-  try {
-    const body = (await res.json()) as { error?: string };
-    return body.error ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function toWireAddress(input: AddressInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     recipient_name: input.recipientName.trim(),
@@ -152,7 +143,7 @@ export function formatAddressSummary(address: CustomerAddress): string {
 export async function getCustomerProfile(): Promise<CustomerProfile> {
   const res = await authedFetch("/api/v1/profile/me/profile");
   if (!res.ok) {
-    throw new Error(await readError(res, "Failed to load profile"));
+    throw new Error(await readErrorMessage(res, "Failed to load profile"));
   }
   return mapProfile((await res.json()) as RawProfileView);
 }
@@ -174,7 +165,7 @@ export async function updateCustomerProfile(patch: {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(await readError(res, "Failed to update profile"));
+    throw new Error(await readErrorMessage(res, "Failed to update profile"));
   }
   return mapProfile((await res.json()) as RawProfileView);
 }
@@ -188,7 +179,7 @@ export async function createAddress(
     body: JSON.stringify(toWireAddress(input)),
   });
   if (!res.ok) {
-    throw new Error(await readError(res, "Failed to save address"));
+    throw new Error(await readErrorMessage(res, "Failed to save address"));
   }
   return mapAddress((await res.json()) as RawAddress);
 }
@@ -206,7 +197,7 @@ export async function updateAddress(
     }
   );
   if (!res.ok) {
-    throw new Error(await readError(res, "Failed to update address"));
+    throw new Error(await readErrorMessage(res, "Failed to update address"));
   }
   return mapAddress((await res.json()) as RawAddress);
 }
@@ -217,7 +208,7 @@ export async function deleteAddress(id: string): Promise<void> {
     { method: "DELETE" }
   );
   if (!res.ok && res.status !== 204) {
-    throw new Error(await readError(res, "Failed to delete address"));
+    throw new Error(await readErrorMessage(res, "Failed to delete address"));
   }
 }
 
@@ -227,7 +218,7 @@ export async function setDefaultAddress(id: string): Promise<CustomerAddress> {
     { method: "POST" }
   );
   if (!res.ok) {
-    throw new Error(await readError(res, "Failed to set default address"));
+    throw new Error(await readErrorMessage(res, "Failed to set default address"));
   }
   return mapAddress((await res.json()) as RawAddress);
 }
