@@ -236,10 +236,6 @@ export async function clearCart(): Promise<void> {
   setState({ status: "ready", items: [], subtotalWon: 0 });
 }
 
-export function getCartCount(): number {
-  return state.items.reduce((sum, item) => sum + item.quantity, 0);
-}
-
 export function computeTotals(
   items: CartLine[],
   /** Subtotal in whole KRW won (`subtotal_won` from the cart service). */
@@ -274,12 +270,4 @@ export function computeTotals(
   const total = afterDiscount + shipping;
 
   return { itemCount, subtotal, shipping, discount, total, promoApplied };
-}
-
-export function formatPrice(amount: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    style: "currency",
-    currency: "KRW",
-    maximumFractionDigits: 0,
-  }).format(amount);
 }

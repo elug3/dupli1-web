@@ -46,10 +46,3 @@ export function loadHomeBanner(): Promise<HomeBanner | null> {
     new Promise<HomeBanner | null>((resolve) => setTimeout(() => resolve(null), WAIT_MS)),
   ]);
 }
-
-/** Test hook. */
-export function resetHomeBannerCache(): void {
-  stored = null;
-  storedAt = 0;
-  current = null;
-}

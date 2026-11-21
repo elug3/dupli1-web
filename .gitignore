@@ -6,3 +6,7 @@
 /.react-router/
 /build/
 dupli1-backend/
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/pipeline/

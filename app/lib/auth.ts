@@ -47,14 +47,6 @@ export function detectUserKind(user: User | null | undefined): UserKind | null {
   }
 }
 
-export function isCustomer(user: User | null | undefined): boolean {
-  return detectUserKind(user) === "customer";
-}
-
-export function isManager(user: User | null | undefined): boolean {
-  return detectUserKind(user) === "manager";
-}
-
 export function isServiceAccount(user: User | null | undefined): boolean {
   return detectUserKind(user) === "service";
 }

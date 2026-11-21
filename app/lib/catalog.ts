@@ -167,10 +167,6 @@ export function normalizeBrandKey(brand: string): string {
     .trim();
 }
 
-export function brandsMatch(a: string, b: string): boolean {
-  return normalizeBrandKey(a) === normalizeBrandKey(b);
-}
-
 export function brandApiName(slug: string): string | undefined {
   return BRAND_API_NAMES[slug] ?? BRAND_SLUGS[slug];
 }
@@ -262,41 +258,6 @@ export function facetOptions(facet: CategoryFacet): string[] {
       return Object.keys(STYLE_SLUGS);
     case "family":
       return Object.keys(FAMILY_SLUGS);
-  }
-}
-
-export function productMatchesFacetValue(
-  details: Record<string, string | number>,
-  facet: CategoryFacet,
-  value: string
-): boolean {
-  const get = (key: string) => String(details[key] ?? "");
-
-  switch (facet) {
-    case "brand": {
-      const expected = brandApiName(value) ?? BRAND_SLUGS[value] ?? value;
-      return brandsMatch(get("Brand"), expected);
-    }
-    case "product-type": {
-      if (WHOLE_CATEGORY_SLUGS.has(value)) {
-        return get("Category").toLowerCase() === PRODUCT_TYPE_TO_CATEGORY[value];
-      }
-      const code = PRODUCT_TYPE_TO_SUBCATEGORY[value];
-      if (!code) return false;
-      const actual = get("Type") || get("SubCategory");
-      return actual.toLowerCase() === code.toLowerCase();
-    }
-    case "style": {
-      if (!(value in STYLE_SLUGS)) return false;
-      const actual = get("Style");
-      return actual.toLowerCase() === value.toLowerCase();
-    }
-    case "family": {
-      const target = FAMILY_TO_TARGET[value];
-      if (!target) return false;
-      const actual = get("Gender") || get("Target");
-      return actual.toLowerCase() === target.toLowerCase();
-    }
   }
 }
 
