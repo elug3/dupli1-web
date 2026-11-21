@@ -179,15 +179,6 @@ export async function updateCustomerProfile(patch: {
   return mapProfile((await res.json()) as RawProfileView);
 }
 
-export async function listAddresses(): Promise<CustomerAddress[]> {
-  const res = await authedFetch("/api/v1/profile/me/addresses");
-  if (!res.ok) {
-    throw new Error(await readError(res, "Failed to load addresses"));
-  }
-  const body = (await res.json()) as { addresses?: RawAddress[] | null };
-  return (body.addresses ?? []).map(mapAddress);
-}
-
 export async function createAddress(
   input: AddressInput
 ): Promise<CustomerAddress> {

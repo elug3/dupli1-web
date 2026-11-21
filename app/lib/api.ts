@@ -460,25 +460,6 @@ export async function fetchBags(
   return products.map(toBag);
 }
 
-/**
- * Prefer a known product id when present in the filtered page; otherwise
- * return the first result. Used by home hero / editorial / promo slots.
- */
-export async function fetchCuratedBag(
-  filters: BagSearchFilters & { preferredId?: string } = {}
-): Promise<Bag | null> {
-  const { preferredId, ...query } = filters;
-  const bags = await fetchBags({
-    limit: query.limit ?? 8,
-    ...query,
-  });
-  if (preferredId) {
-    const hit = bags.find((bag) => bag.id === preferredId);
-    if (hit) return hit;
-  }
-  return bags[0] ?? null;
-}
-
 /** Prefer one product per brand, then fill remaining slots. */
 export function diversifyBagsByBrand(bags: Bag[], limit: number): Bag[] {
   if (limit <= 0 || bags.length === 0) return [];
@@ -579,12 +560,6 @@ export function bagImage(brand: string, image?: string): string {
 }
 
 /**
- * Target display width for category / home / cart listing cards (CSS px).
- * Upload-time thumbs use longest edge ≤ this (`.w600.jpg` on the product CDN).
- */
-export const LISTING_IMAGE_WIDTH = 600;
-
-/**
  * Listing-card image URL. Prefer `defaultListingImageUrl` from the product API
  * (already mapped into Bag/DisplayProduct.image for list/search).
  */
@@ -596,20 +571,10 @@ export function listingProductImage(
   return productImage(category, brand, image);
 }
 
-/** Same as {@link listingProductImage} for bag-shaped listings. */
-export function listingBagImage(brand: string, image?: string): string {
-  return bagImage(brand, image);
-}
-
 /**
  * `sizes` for the common 2-col mobile / 4-col desktop product grid.
  */
 export const LISTING_IMAGE_SIZES = "(min-width: 768px) 25vw, 50vw";
-
-export function heroBagImage(image?: string, brand?: string): string {
-  if (!image) return bagImage(brand ?? "");
-  return image.replace(/w_\d+,h_\d+/, "w_1200,h_1400");
-}
 
 export function bannerBagImage(image?: string, brand?: string): string {
   if (!image) return bagImage(brand ?? "").replace(/w=\d+,h=\d+/, "w=1600,h=600");
@@ -655,25 +620,6 @@ export interface DisplayProduct {
   details: Record<string, string | number>;
   /** Sizes on sale (catalog search only), for the listing's size filter. */
   sizes?: string[];
-}
-
-export const CATEGORY_IMAGES: Record<string, string> = {
-  consultations:
-    "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400",
-  shoes: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400",
-  sneakers: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400",
-  outerwear: "https://images.unsplash.com/photo-1539533057592-4516c98775cb?w=400",
-  bottoms: "https://images.unsplash.com/photo-1542272604-787c62d465d1?w=400",
-  bags: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400",
-  clocks: "https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=400",
-  watches: "https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?w=400",
-};
-
-export function getCategoryImage(category: string): string {
-  return (
-    CATEGORY_IMAGES[imageCategory(category)] ??
-    "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"
-  );
 }
 
 function normalizeProduct(
@@ -727,11 +673,6 @@ export async function getCategories(): Promise<string[]> {
   // Avoid `/api/categories`: ALB sends `/api/*` to the gateway, which has no
   // such route (404). Local BFF still serves it for older callers.
   return ["bags"];
-}
-
-export async function getFilters(category: string): Promise<string[]> {
-  if (!isStorefrontCategory(category.toLowerCase())) return [];
-  return ["brand", "color", "material", "subcategory", "style", "target"];
 }
 
 function taxonomyValue(product: UpstreamProduct, key: string): string {
@@ -897,14 +838,6 @@ export async function uploadProductImage(
     } catch {}
     throw new Error(msg);
   }
-}
-
-export async function searchAcrossAll(
-  query: string
-): Promise<DisplayProduct[]> {
-  // Storefront catalog is bags-only against dupli1-product.
-  const { results } = await searchProducts("bags", query ? { query } : {});
-  return results;
 }
 
 // ── Wishlist (elug3/dupli1#122–#123) ───────────────────────────────────────
