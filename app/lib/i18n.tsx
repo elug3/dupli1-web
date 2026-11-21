@@ -3502,6 +3502,15 @@ function formatDateTimeIn(locale: string, iso: string | undefined | null): strin
 
 const DEFAULT_LANGUAGE: LanguageCode = "ko";
 
+/** Whole-won KRW price in the given locale; the one place the format is built. */
+export function formatKrw(locale: string, amount: number): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "KRW",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 const fallbackLanguageContext: LanguageContextValue = {
   language: DEFAULT_LANGUAGE,
   languageOption:
@@ -3513,12 +3522,7 @@ const fallbackLanguageContext: LanguageContextValue = {
       dictionaries[DEFAULT_LANGUAGE][key] ?? dictionaries.en[key] ?? key,
       values
     ),
-  formatCurrency: (amount) =>
-    new Intl.NumberFormat("ko-KR", {
-      style: "currency",
-      currency: "KRW",
-      maximumFractionDigits: 0,
-    }).format(amount),
+  formatCurrency: (amount) => formatKrw("ko-KR", amount),
   formatDateTime: (iso) => formatDateTimeIn("ko-KR", iso),
   translateProductName: (_id, fallback) => fallback,
   translateProductDescription: (_id, fallback) => fallback,
@@ -3583,11 +3587,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
 
     function formatCurrency(amount: number): string {
-      return new Intl.NumberFormat(languageOption.locale, {
-        style: "currency",
-        currency: "KRW",
-        maximumFractionDigits: 0,
-      }).format(amount);
+      return formatKrw(languageOption.locale, amount);
     }
 
     function formatDateTime(iso: string | undefined | null): string {
