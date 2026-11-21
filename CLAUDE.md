@@ -24,5 +24,5 @@ There is no lint script. CI (`.github/workflows/ci.yml`) runs `npm ci`, `npm tes
 - **No tokens in the browser.** Authenticated calls go through `/auth/session/gateway`; only auth's `401`/`403` on refresh ends a session.
 - **Before committing**, ask the `reviewer` agent to look at the diff.
 - **Instruction changes need a reason.** Any edit to `CLAUDE.md`, `AGENTS.md` or `.claude/**` states why (what happened, why the old text allowed it, why the new text fixes it) in the commit message, in its own commit.
-- **Pipeline:** `ship-feature` runs plan, tests, implement, review, verify; it commits when review passes and does not push unless asked.
+- **Pipeline:** `ship-feature` runs plan, tests, implement, review, verify; it commits when review passes, then pushes and opens a draft PR (never merges).
 - Never skip, disable or weaken a test to get green.
